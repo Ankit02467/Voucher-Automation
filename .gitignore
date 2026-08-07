@@ -33,6 +33,9 @@ Web.*.config
 *.Debug.config
 *.Release.config
 
+# ---- Operational logs ----
+Tools/automove.log
+
 # ---- Claude Code ----
 # Machine-local permission approvals; not shared.
 .claude/settings.local.json
