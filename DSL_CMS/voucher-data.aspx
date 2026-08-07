@@ -7,6 +7,8 @@
 
     <%-- ---------------- Toolbar ---------------- --%>
     <div class="toolbar">
+        <a class="btn-back" href='<%= ResolveUrl("~/voucher-status.aspx") %>'
+           title="Back to Voucher Status">&#8592; Back</a>
         <h1><asp:Literal ID="litProvider" runat="server" Text="Voucher Data" /></h1>
         <span class="role-chip"><asp:Literal ID="litRole" runat="server" /></span>
 

@@ -14,23 +14,30 @@ namespace DSL_CMS
         protected Repeater rptStatus, rptWindows, rptCategory, rptSummary, rptPager;
         protected PlaceHolder phEmpty, phPager;
         protected Panel pnlWindows;
-        protected LinkButton lnkPrev, lnkNext;
+        protected LinkButton lnkPrev, lnkNext, lnkEarlyExpiry;
         protected Literal litCountHead, litPageInfo;
 
         private const int PageSize = 10;
         private const string StatusAll = "All";
 
-        /// <summary>Status pills. "All" is the default and counts every voucher.</summary>
+        /// <summary>
+        /// Status pills. "All" is the default and counts every voucher; "NotSet"
+        /// counts fresh uploads nobody has triaged yet (Status IS NULL).
+        /// </summary>
         private static readonly ListItem[] StatusPills =
         {
             new ListItem("All",     StatusAll),
+            new ListItem("Not Set", "NotSet"),
             new ListItem("Used",    "Used"),
             new ListItem("Unused",  "Unused"),
             new ListItem("Expired", "Expired"),
             new ListItem("Invalid", "Invalid")
         };
 
-        /// <summary>Expiry windows, offered only while Unused is selected.</summary>
+        /// <summary>
+        /// Expiry windows. These belong to "View Early Expiry" only - picking the
+        /// Unused status no longer reveals them.
+        /// </summary>
         private static readonly ListItem[] Windows =
         {
             new ListItem("1 Day",   "1"),
@@ -53,11 +60,24 @@ namespace DSL_CMS
             set { ViewState["Category"] = value; }
         }
 
-        /// <summary>Selected expiry window in days; blank means the whole Unused set.</summary>
+        /// <summary>
+        /// Selected expiry window in days; blank means no expiry restriction.
+        /// Only meaningful while <see cref="EarlyExpiry"/> is on.
+        /// </summary>
         private string SelectedDays
         {
             get { return (string)(ViewState["Days"] ?? string.Empty); }
             set { ViewState["Days"] = value; }
+        }
+
+        /// <summary>
+        /// "View Early Expiry" toggle. The 1 / 3 / 7 Day and 1 Month buttons are
+        /// shown only while this is on, whatever status is selected.
+        /// </summary>
+        private bool EarlyExpiry
+        {
+            get { return (bool)(ViewState["Early"] ?? false); }
+            set { ViewState["Early"] = value; }
         }
 
         /// <summary>Provider whose product list is currently expanded, if any.</summary>
@@ -114,17 +134,18 @@ namespace DSL_CMS
         }
 
         /// <summary>
-        /// The single count column is headed with whatever status is selected,
-        /// and the expiry windows only make sense for Unused.
+        /// The single count column is headed with whatever status is selected.
+        /// The expiry windows belong to "View Early Expiry" and are independent of
+        /// the status pills - selecting Unused must not reveal them.
         /// </summary>
         private void ApplyStatus()
         {
-            litCountHead.Text = SelectedStatus;
+            litCountHead.Text = StatusLabel(SelectedStatus);
 
-            bool unused = (SelectedStatus == "Unused");
-            pnlWindows.Visible = unused;
+            lnkEarlyExpiry.CssClass = EarlyExpiry ? "pill-btn on" : "pill-btn";
+            pnlWindows.Visible = EarlyExpiry;
 
-            if (unused)
+            if (EarlyExpiry)
             {
                 rptWindows.DataSource = Windows;
                 rptWindows.DataBind();
@@ -133,6 +154,12 @@ namespace DSL_CMS
             {
                 SelectedDays = string.Empty;
             }
+        }
+
+        /// <summary>Pill value to the wording used in the column heading.</summary>
+        private static string StatusLabel(string status)
+        {
+            return string.Equals(status, "NotSet", StringComparison.Ordinal) ? "Not Set" : status;
         }
 
         #region Binding
@@ -211,11 +238,26 @@ namespace DSL_CMS
         {
             if (e.CommandName != "PickStatus") return;
 
+            // Changing the status keeps the early-expiry window in place, so the
+            // two filters compose instead of cancelling each other out.
             SelectedStatus = Convert.ToString(e.CommandArgument);
-            SelectedDays = string.Empty;
             PageIndex = 0;
 
             BindStatusPills();
+            ApplyStatus();
+            BindGrid();
+        }
+
+        /// <summary>
+        /// Toggles the early-expiry window buttons into view. Switching it off
+        /// drops any window that was picked, so the grid goes back to every date.
+        /// </summary>
+        protected void lnkEarlyExpiry_Click(object sender, EventArgs e)
+        {
+            EarlyExpiry = !EarlyExpiry;
+            if (!EarlyExpiry) SelectedDays = string.Empty;
+            PageIndex = 0;
+
             ApplyStatus();
             BindGrid();
         }
@@ -226,7 +268,7 @@ namespace DSL_CMS
 
             string picked = Convert.ToString(e.CommandArgument);
 
-            // Clicking the active window clears it and shows all unused again.
+            // Clicking the active window clears it and drops the date restriction.
             SelectedDays = (SelectedDays == picked) ? string.Empty : picked;
             PageIndex = 0;
 
@@ -306,7 +348,7 @@ namespace DSL_CMS
                 : "pill-btn";
         }
 
-        /// <summary>Used = red, Unused = green, Expired = yellow, Invalid = blue, All = plain.</summary>
+        /// <summary>Used = red, Unused = green, Expired = yellow, Invalid = blue, Not Set = grey, All = plain.</summary>
         internal static string StatusColourClass(string status)
         {
             switch ((status ?? string.Empty).ToLowerInvariant())
@@ -315,6 +357,7 @@ namespace DSL_CMS
                 case "unused": return "s-unused";
                 case "expired": return "s-expired";
                 case "invalid": return "s-invalid";
+                case "notset": return "s-notset";
                 default: return string.Empty;
             }
         }
@@ -329,31 +372,60 @@ namespace DSL_CMS
             return IsExpanded(providerId) ? "chev-icon open" : "chev-icon";
         }
 
-        /// <summary>Renders the pipe separated product names as chips.</summary>
-        protected string ProductChips(object productNames)
+        /// <summary>
+        /// Renders the pipe separated product names as a vertical list of links.
+        /// Names and ids arrive in the same order, so index N of one matches index
+        /// N of the other. Each link opens View Data already narrowed to that one
+        /// product, carrying the status and expiry window along with it.
+        /// </summary>
+        protected string ProductLinks(object providerId, object productNames, object productIds)
         {
-            string raw = Convert.ToString(productNames);
-            if (string.IsNullOrWhiteSpace(raw)) return "<span class=\"muted\">No products.</span>";
+            string rawNames = Convert.ToString(productNames);
+            if (string.IsNullOrWhiteSpace(rawNames)) return "<span class=\"muted\">No products.</span>";
+
+            string[] names = rawNames.Split('|');
+            string[] ids = Convert.ToString(productIds).Split('|');
 
             var sb = new StringBuilder();
-            foreach (string name in raw.Split('|'))
+            for (int i = 0; i < names.Length; i++)
             {
-                if (name.Trim().Length == 0) continue;
-                sb.Append("<span class=\"prod-chip\">")
-                  .Append(Server.HtmlEncode(name.Trim()))
-                  .Append("</span>");
+                string name = names[i].Trim();
+                if (name.Length == 0) continue;
+
+                string id = (i < ids.Length) ? ids[i].Trim() : string.Empty;
+
+                sb.Append("<a class=\"prod-link\" href=\"")
+                  .Append(Server.HtmlEncode(ViewDataUrl(providerId, id)))
+                  .Append("\">")
+                  .Append(Server.HtmlEncode(name))
+                  .Append("</a>");
             }
             return sb.ToString();
         }
 
         /// <summary>
-        /// Carries the selected status through to View Data, so that screen opens
-        /// showing the same slice. "All" is passed through too and clears the filter.
+        /// Carries the selected status and early-expiry window through to View
+        /// Data, so that screen opens showing exactly the slice this page counted.
+        /// "All" is passed through too and clears the filter.
         /// </summary>
         protected string ViewDataUrl(object providerId)
         {
-            return ResolveUrl("~/voucher-data.aspx?providerId=") + Convert.ToString(providerId)
-                 + "&status=" + Server.UrlEncode(SelectedStatus);
+            return ViewDataUrl(providerId, string.Empty);
+        }
+
+        protected string ViewDataUrl(object providerId, string productId)
+        {
+            var sb = new StringBuilder(ResolveUrl("~/voucher-data.aspx"));
+            sb.Append("?providerId=").Append(Server.UrlEncode(Convert.ToString(providerId)));
+            sb.Append("&status=").Append(Server.UrlEncode(SelectedStatus));
+
+            if (!string.IsNullOrEmpty(productId))
+                sb.Append("&productId=").Append(Server.UrlEncode(productId));
+
+            if (EarlyExpiry && SelectedDays.Length > 0)
+                sb.Append("&days=").Append(Server.UrlEncode(SelectedDays));
+
+            return sb.ToString();
         }
 
         protected string ManageProductUrl(object providerId)

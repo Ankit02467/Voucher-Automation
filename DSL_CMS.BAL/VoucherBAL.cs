@@ -40,10 +40,10 @@ namespace DSL_CMS.BAL
 
         public static DataTable GetVoucherDetail(string providerId, string productId, string voucherCode,
             string dealerName, string checkDate, string checkedBy, string status,
-            string assignedTo, string isMoved, string actn)
+            string assignedTo, string isMoved, string days, string actn)
         {
             return VoucherDAL.GetVoucherDetail(providerId, productId, voucherCode, dealerName,
-                checkDate, checkedBy, status, assignedTo, isMoved, actn);
+                checkDate, checkedBy, status, assignedTo, isMoved, days, actn);
         }
 
         public static DataTable GetDealerColumns(string providerId)

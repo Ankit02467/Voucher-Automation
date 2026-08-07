@@ -49,17 +49,19 @@ namespace DSL_CMS.DAL
             string dealerName, string checkDate, string checkedBy, string status, string actn)
         {
             return GetVoucherDetail(providerId, productId, voucherCode, dealerName,
-                checkDate, checkedBy, status, string.Empty, string.Empty, actn);
+                checkDate, checkedBy, status, string.Empty, string.Empty, string.Empty, actn);
         }
 
         /// <summary>
         /// View Data grid. <paramref name="assignedTo"/> restricts the rows to one
         /// student's vouchers; <paramref name="isMoved"/> is "0" for still-open rows,
-        /// "1" for the ones a student has already moved on. Blank means no restriction.
+        /// "1" for the ones a student has already moved on. <paramref name="days"/> is
+        /// the early-expiry window carried over from the dashboard - only vouchers
+        /// lapsing within that many days come back. Blank means no restriction.
         /// </summary>
         public static DataTable GetVoucherDetail(string providerId, string productId, string voucherCode,
             string dealerName, string checkDate, string checkedBy, string status,
-            string assignedTo, string isMoved, string actn)
+            string assignedTo, string isMoved, string days, string actn)
         {
             return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,
                 "@Action", actn,
@@ -71,7 +73,8 @@ namespace DSL_CMS.DAL
                 "@CheckedBy", checkedBy,
                 "@Status", status,
                 "@AssignedTo", assignedTo,
-                "@IsMoved", isMoved);
+                "@IsMoved", isMoved,
+                "@Days", days);
         }
 
         /// <summary>Highest dealer slot in use - drives how many dealer columns the grid shows.</summary>

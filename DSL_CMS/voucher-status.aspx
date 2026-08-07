@@ -19,7 +19,14 @@
             </asp:Repeater>
         </div>
 
-        <%-- Expiry windows: only offered while Unused is the selected status --%>
+        <%-- Early expiry lives on its own row; the status pills never reveal it --%>
+        <div class="pill-row" style="margin-top: 14px;">
+            <asp:LinkButton ID="lnkEarlyExpiry" runat="server" CssClass="pill-btn"
+                OnClick="lnkEarlyExpiry_Click" CausesValidation="false"
+                ToolTip="Show vouchers lapsing within a chosen window">View Early Expiry</asp:LinkButton>
+        </div>
+
+        <%-- Expiry windows: shown only after View Early Expiry is switched on --%>
         <asp:Panel ID="pnlWindows" runat="server" Visible="false" CssClass="pill-row" style="margin-top: 14px;">
             <asp:Repeater ID="rptWindows" runat="server" OnItemCommand="rptWindows_ItemCommand">
                 <ItemTemplate>
@@ -73,7 +80,7 @@
                                 </asp:LinkButton>
                                 <%-- products open inside this same cell, not on a new row --%>
                                 <asp:PlaceHolder runat="server" Visible='<%# IsExpanded(Eval("Id")) %>'>
-                                    <div class="prod-list"><%# ProductChips(Eval("ProductNames")) %></div>
+                                    <div class="prod-list"><%# ProductLinks(Eval("Id"), Eval("ProductNames"), Eval("ProductIds")) %></div>
                                 </asp:PlaceHolder>
                             </td>
                             <td><%# Eval("StatusCount", "{0:00}") %></td>

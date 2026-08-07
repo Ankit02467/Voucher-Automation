@@ -65,13 +65,38 @@ namespace DSL_CMS
 
         /// <summary>
         /// Status carried over from the dashboard. Blank (or "All") means every
-        /// status; Reset clears it.
+        /// status; "NotSet" means the ones nobody has triaged yet. Reset clears it.
         /// </summary>
         private string StatusFilter
         {
             get { return (string)(ViewState["StatusFilter"] ?? string.Empty); }
             set { ViewState["StatusFilter"] = value; }
         }
+
+        /// <summary>
+        /// Early-expiry window carried over from the dashboard, in days. Keeping it
+        /// is what makes this grid show the same number the dashboard counted.
+        /// Reset clears it.
+        /// </summary>
+        private string DaysFilter
+        {
+            get { return (string)(ViewState["DaysFilter"] ?? string.Empty); }
+            set { ViewState["DaysFilter"] = value; }
+        }
+
+        /// <summary>
+        /// Set when the screen was opened by clicking a product name on the
+        /// dashboard. The grid opens filtered to it and Upload Entry is pinned to
+        /// it, so entries cannot be uploaded against a different product by
+        /// mistake. Reset clears it.
+        /// </summary>
+        private string LockedProductId
+        {
+            get { return (string)(ViewState["LockedProduct"] ?? string.Empty); }
+            set { ViewState["LockedProduct"] = value; }
+        }
+
+        protected bool HasProductLock { get { return LockedProductId.Length > 0; } }
 
         private bool RoleUnmapped
         {
@@ -175,6 +200,10 @@ namespace DSL_CMS
                 ? string.Empty
                 : status;
 
+            // Early-expiry window and product, both carried over from the dashboard.
+            DaysFilter = (Request.QueryString["days"] ?? string.Empty).Trim();
+            LockedProductId = (Request.QueryString["productId"] ?? string.Empty).Trim();
+
             ResolveRole();
             InitDealerColumns();
             ApplyRole();
@@ -224,12 +253,25 @@ namespace DSL_CMS
             ApplyGridTitle();
         }
 
-        /// <summary>Makes the status carried over from the dashboard visible.</summary>
+        /// <summary>
+        /// Spells out every filter carried over from the dashboard, so it is never
+        /// a mystery why the grid is showing fewer rows than the provider holds.
+        /// </summary>
         private void ApplyGridTitle()
         {
             string title = DoneMode ? "Done Entries" : "Voucher List";
+
             if (StatusFilter.Length > 0)
-                title += " - " + Server.HtmlEncode(StatusFilter);
+                title += " - " + Server.HtmlEncode(
+                    StatusFilter == "NotSet" ? "Not Set" : StatusFilter);
+
+            string product = LockedProductName();
+            if (product.Length > 0)
+                title += " - " + Server.HtmlEncode(product);
+
+            if (DaysFilter.Length > 0)
+                title += " - expiring within " + Server.HtmlEncode(DaysFilter) + " day(s)";
+
             litGridTitle.Text = title;
         }
 
@@ -275,6 +317,17 @@ namespace DSL_CMS
                 ddlFilterProduct.Items.Add(new ListItem(name, id));
                 ddlAssignProduct.Items.Add(new ListItem(name, id));
             }
+
+            // arrived by clicking a product on the dashboard - open on that product
+            if (HasProductLock) SelectIfPresent(ddlFilterProduct, LockedProductId);
+        }
+
+        /// <summary>Product name behind the lock, for the grid heading.</summary>
+        private string LockedProductName()
+        {
+            if (!HasProductLock) return string.Empty;
+            ListItem item = ddlFilterProduct.Items.FindByValue(LockedProductId);
+            return (item == null) ? string.Empty : item.Text;
         }
 
         private void BindCheckedBy()
@@ -304,6 +357,7 @@ namespace DSL_CMS
                 StatusFilter,
                 AssignedToFilter,
                 MovedFilter,
+                DaysFilter,
                 "Select");
 
             int count = (dt == null) ? 0 : dt.Rows.Count;
@@ -445,6 +499,11 @@ namespace DSL_CMS
             BindGrid();
         }
 
+        /// <summary>
+        /// Reset clears everything, including the status, expiry window and product
+        /// carried over from the dashboard - otherwise those would survive a Reset
+        /// invisibly and the grid would look wrong.
+        /// </summary>
         private void ClearFilters()
         {
             ddlFilterProduct.SelectedIndex = 0;
@@ -453,6 +512,8 @@ namespace DSL_CMS
             txtFilterCheckDate.Text = string.Empty;
             ddlFilterCheckedBy.SelectedIndex = 0;
             StatusFilter = string.Empty;
+            DaysFilter = string.Empty;
+            LockedProductId = string.Empty;
             PageIndex = 0;
         }
 
@@ -753,18 +814,45 @@ namespace DSL_CMS
 
         protected void lnkUpload_Click(object sender, EventArgs e)
         {
-            UploadProductId = string.Empty;
             txtPaste.Text = string.Empty;
             pnlUploadMsg.Visible = false;
-            litUploadHint.Text = "Select a product first.";
+
+            if (HasProductLock)
+            {
+                // opened from a product link - that product is the only choice
+                UploadProductId = LockedProductId;
+                litUploadHint.Text = "Uploading into " + LockedProductName() + ". Paste the entries below.";
+            }
+            else
+            {
+                UploadProductId = string.Empty;
+                litUploadHint.Text = "Select a product first.";
+            }
 
             BindUploadProducts();
             pnlUpload.Visible = true;
         }
 
+        /// <summary>
+        /// Offers every active product, or just the locked one when the screen was
+        /// opened from a product link.
+        /// </summary>
         private void BindUploadProducts()
         {
-            rptUploadProduct.DataSource = VoucherBAL.GetProductDetail(ProviderId, string.Empty, "SelectDropdown");
+            DataTable dt = VoucherBAL.GetProductDetail(ProviderId, string.Empty, "SelectDropdown");
+
+            if (HasProductLock && dt != null)
+            {
+                DataTable one = dt.Clone();
+                foreach (DataRow r in dt.Rows)
+                {
+                    if (Convert.ToString(r["Id"]) == LockedProductId)
+                        one.ImportRow(r);
+                }
+                dt = one;
+            }
+
+            rptUploadProduct.DataSource = dt;
             rptUploadProduct.DataBind();
         }
 
@@ -772,7 +860,13 @@ namespace DSL_CMS
         {
             if (e.CommandName != "PickProduct") return;
 
-            UploadProductId = Convert.ToString(e.CommandArgument);
+            string picked = Convert.ToString(e.CommandArgument);
+
+            // with a lock in place the only offered product is the locked one, but
+            // never take a posted value on trust
+            if (HasProductLock && picked != LockedProductId) return;
+
+            UploadProductId = picked;
             litUploadHint.Text = "Product selected. Now paste the entries.";
             pnlUploadMsg.Visible = false;
 
