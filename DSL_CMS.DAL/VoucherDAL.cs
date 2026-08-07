@@ -63,6 +63,15 @@ namespace DSL_CMS.DAL
             string dealerName, string checkDate, string checkedBy, string status,
             string assignedTo, string isMoved, string days, string actn)
         {
+            return GetVoucherDetail(providerId, productId, voucherCode, dealerName, checkDate,
+                checkedBy, status, assignedTo, isMoved, days, string.Empty, actn);
+        }
+
+        /// <summary><paramref name="expiryDate"/> matches one exact expiry date; blank means any.</summary>
+        public static DataTable GetVoucherDetail(string providerId, string productId, string voucherCode,
+            string dealerName, string checkDate, string checkedBy, string status,
+            string assignedTo, string isMoved, string days, string expiryDate, string actn)
+        {
             return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,
                 "@Action", actn,
                 "@ProviderId", providerId,
@@ -74,7 +83,8 @@ namespace DSL_CMS.DAL
                 "@Status", status,
                 "@AssignedTo", assignedTo,
                 "@IsMoved", isMoved,
-                "@Days", days);
+                "@Days", days,
+                "@ExpiryDate", expiryDate);
         }
 
         /// <summary>Highest dealer slot in use - drives how many dealer columns the grid shows.</summary>
@@ -142,6 +152,46 @@ namespace DSL_CMS.DAL
                 "@Action", "Reassign",
                 "@Id", id,
                 "@AssignedTo", assignedTo,
+                "@AddedBy", userId);
+        }
+
+        /// <summary>Sub-admin - sends a batch of moved vouchers back to one student.</summary>
+        public static DataTable ReassignMany(string ids, string assignedTo, string userId)
+        {
+            return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,
+                "@Action", "ReassignMany",
+                "@Ids", ids,
+                "@AssignedTo", assignedTo,
+                "@AddedBy", userId);
+        }
+
+        /// <summary>
+        /// Moves every voucher whose midnight has passed over to the sub-admin.
+        /// Safe to call on every page load - it is idempotent and normally a
+        /// no-op. LocalDB has no SQL Agent, so there is no scheduled job to do it.
+        /// </summary>
+        public static int AutoMove()
+        {
+            DataTable dt = SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,
+                "@Action", "AutoMove");
+
+            return (dt != null && dt.Rows.Count > 0) ? Convert.ToInt32(dt.Rows[0]["Moved"]) : 0;
+        }
+
+        /// <summary>
+        /// Student status buttons. Touches Status and UsedDate only, leaving
+        /// candidate and exam details alone - the student is never shown those
+        /// fields, so a full status update would blank them.
+        /// </summary>
+        public static void UpdateStatusOnly(string id, string status, string usedDate,
+            string checkedBy, string userId)
+        {
+            SqlHelper.ExecuteNonQuery("Sp_VoucherStock_Table", true,
+                "@Action", "UpdateStatusOnly",
+                "@Id", id,
+                "@Status", status,
+                "@UsedDate", usedDate,
+                "@CheckedBy", checkedBy,
                 "@AddedBy", userId);
         }
 

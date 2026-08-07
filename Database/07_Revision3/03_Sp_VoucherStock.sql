@@ -17,6 +17,24 @@
       count agree after picking 1 Day / 3 Days / 7 Days / 1 Month.
 
    3. SelectCount also reports NotSetVoucher.
+
+   Revision 3b adds:
+
+   4. @ExpiryDate doubles as a grid filter (it was only ever used by
+      the insert/update branches).
+
+   5. AutoMove - the overnight sweep. Setting a status or ticking the
+      check box stamps AutoMoveAfter with the next midnight; this
+      action moves everything whose moment has passed. Reassign
+      clears the stamp so a returned voucher is not snatched back.
+
+   6. ReassignMany - sub-admin reassigns a batch in one go.
+
+   7. UpdateStatusOnly - the student's status buttons. It touches
+      Status and UsedDate only. UpdateStatusEntry overwrites
+      CandidateName / ExamDate / ExamMode with whatever it is handed,
+      so a student saving from a status-only editor would silently
+      wipe fields they were never shown.
    ============================================================ */
 USE DSL_New;
 GO
@@ -71,6 +89,10 @@ BEGIN
     DECLARE @WinEnd DATE = CASE WHEN @DayInt IS NULL THEN NULL
                                 ELSE DATEADD(DAY, @DayInt, @Today) END;
 
+    /* tonight's midnight - when a voucher checked today becomes the
+       sub-admin's, without anyone pressing anything */
+    DECLARE @NextMidnight DATETIME = DATEADD(DAY, 1, CAST(@Today AS DATETIME));
+
     SET @VoucherCode   = NULLIF(LTRIM(RTRIM(@VoucherCode)), '');
     SET @DealerName    = NULLIF(LTRIM(RTRIM(@DealerName)),  '');
     SET @CheckedBy     = NULLIF(LTRIM(RTRIM(@CheckedBy)),   '');
@@ -101,7 +123,7 @@ BEGIN
             v.Status, v.UsedDate, v.VoucherCheckDate, v.CheckedBy,
             v.CandidateName, v.ExamDate, v.ExamMode,
             v.AssignedTo, AssignedToName = ISNULL(a.FullName, ''),
-            v.IsMoved, v.MovedDate,
+            v.IsMoved, v.MovedDate, v.AutoMoveAfter,
             v.Remarks, v.AddedDate
         FROM dbo.VoucherStock_Table v
         INNER JOIN dbo.VoucherProvider_Table p  ON p.Id  = v.ProviderId
@@ -117,6 +139,7 @@ BEGIN
                OR (@Status <> 'NotSet' AND v.Status = @Status))
           AND (@WinEnd      IS NULL
                OR (v.ExpiryDate IS NOT NULL AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
+          AND (@Expiry      IS NULL OR v.ExpiryDate = @Expiry)
           AND (@CheckDt     IS NULL OR CAST(v.VoucherCheckDate AS DATE) = @CheckDt)
           AND (@AssignInt   IS NULL OR v.AssignedTo  = @AssignInt)
           AND (@MovedBit    IS NULL OR v.IsMoved     = @MovedBit)
@@ -276,6 +299,7 @@ BEGIN
                ExamMode         = @ExamMode,
                VoucherCheckDate = GETDATE(),
                CheckedBy        = @CheckedBy,
+               AutoMoveAfter    = @NextMidnight,
                ModifiedBy       = @UserInt,
                ModifiedDate     = GETDATE()
          WHERE Id = @IdInt;
@@ -296,6 +320,7 @@ BEGIN
     BEGIN
         UPDATE dbo.VoucherStock_Table
            SET VoucherCheckDate = GETDATE(), CheckedBy = @CheckedBy,
+               AutoMoveAfter = @NextMidnight,
                ModifiedBy = @UserInt, ModifiedDate = GETDATE()
          WHERE Id = @IdInt;
 
@@ -344,9 +369,11 @@ BEGIN
 
         SET @NewStudent = (SELECT FullName FROM dbo.User_Table WHERE Id = @AssignInt);
 
+        /* AutoMoveAfter goes back to NULL - otherwise the sweep would
+           take the voucher straight back off the student again */
         UPDATE dbo.VoucherStock_Table
            SET AssignedTo = @AssignInt, AssignedBy = @UserInt, AssignedDate = GETDATE(),
-               IsMoved = 0, MovedDate = NULL, MovedBy = NULL,
+               IsMoved = 0, MovedDate = NULL, MovedBy = NULL, AutoMoveAfter = NULL,
                ModifiedBy = @UserInt, ModifiedDate = GETDATE()
          WHERE Id = @IdInt;
 
@@ -361,6 +388,94 @@ BEGIN
             FROM dbo.VoucherStock_Table WHERE Id = @IdInt;
 
         SELECT Reassigned = @Ins;
+    END
+
+    /* ---------- reassign a batch in one go ---------- */
+    ELSE IF @Action = 'ReassignMany'
+    BEGIN
+        IF @Ids IS NULL OR @AssignInt IS NULL
+        BEGIN
+            SELECT Reassigned = 0;
+            RETURN;
+        END
+
+        SET @NewStudent = (SELECT FullName FROM dbo.User_Table WHERE Id = @AssignInt);
+
+        UPDATE v
+           SET AssignedTo = @AssignInt, AssignedBy = @UserInt, AssignedDate = GETDATE(),
+               IsMoved = 0, MovedDate = NULL, MovedBy = NULL, AutoMoveAfter = NULL,
+               ModifiedBy = @UserInt, ModifiedDate = GETDATE()
+        FROM dbo.VoucherStock_Table v
+        INNER JOIN STRING_SPLIT(@Ids, ',') s ON v.Id = TRY_CONVERT(INT, s.value);
+
+        SET @Ins = @@ROWCOUNT;
+
+        INSERT INTO dbo.VoucherHistory_Table
+            (VoucherId, ProductId, VoucherCode, OldStatus, Status, CheckedBy,
+             VoucherCheckDate, ChangedBy, Activity, AssignedToName)
+        SELECT v.Id, v.ProductId, v.VoucherCode, v.Status, v.Status, v.CheckedBy,
+               v.VoucherCheckDate, @UserInt, 'Reassigned to Student', @NewStudent
+        FROM dbo.VoucherStock_Table v
+        INNER JOIN STRING_SPLIT(@Ids, ',') s ON v.Id = TRY_CONVERT(INT, s.value);
+
+        SELECT Reassigned = @Ins;
+    END
+
+    /* ---------- overnight sweep ---------- */
+    ELSE IF @Action = 'AutoMove'
+    BEGIN
+        DECLARE @Moved TABLE (Id INT);
+
+        UPDATE dbo.VoucherStock_Table
+           SET IsMoved = 1, MovedDate = GETDATE(), MovedBy = AssignedTo,
+               ModifiedDate = GETDATE()
+        OUTPUT inserted.Id INTO @Moved
+         WHERE IsMoved = 0
+           AND AssignedTo IS NOT NULL      -- only a student's voucher can move
+           AND AutoMoveAfter IS NOT NULL
+           AND AutoMoveAfter <= GETDATE();
+
+        SET @Ins = @@ROWCOUNT;
+
+        IF @Ins > 0
+            INSERT INTO dbo.VoucherHistory_Table
+                (VoucherId, ProductId, VoucherCode, OldStatus, Status, CheckedBy,
+                 VoucherCheckDate, ChangedBy, Activity, AssignedToName)
+            SELECT v.Id, v.ProductId, v.VoucherCode, v.Status, v.Status, v.CheckedBy,
+                   v.VoucherCheckDate, v.AssignedTo, 'Auto Moved to Sub Admin',
+                   ISNULL(a.FullName, '')
+            FROM dbo.VoucherStock_Table v
+            INNER JOIN @Moved m ON m.Id = v.Id
+            LEFT  JOIN dbo.User_Table a ON a.Id = v.AssignedTo;
+
+        SELECT Moved = @Ins;
+    END
+
+    /* ---------- student status buttons: status and used date only ---------- */
+    ELSE IF @Action = 'UpdateStatusOnly'
+    BEGIN
+        SET @Old = (SELECT Status FROM dbo.VoucherStock_Table WHERE Id = @IdInt);
+
+        UPDATE dbo.VoucherStock_Table
+           SET Status           = ISNULL(@Status, Status),
+               UsedDate         = CASE WHEN @Status = 'Used' THEN ISNULL(@Used, @Today) ELSE NULL END,
+               VoucherCheckDate = GETDATE(),
+               CheckedBy        = @CheckedBy,
+               AutoMoveAfter    = @NextMidnight,
+               ModifiedBy       = @UserInt,
+               ModifiedDate     = GETDATE()
+         WHERE Id = @IdInt;
+
+        INSERT INTO dbo.VoucherHistory_Table
+            (VoucherId, ProductId, VoucherCode, OldStatus, Status, CheckedBy,
+             VoucherCheckDate, ChangedBy, Activity, AssignedToName)
+        SELECT v.Id, v.ProductId, v.VoucherCode, @Old, v.Status, v.CheckedBy,
+               v.VoucherCheckDate, @UserInt, 'Status Update', ISNULL(a.FullName, '')
+        FROM dbo.VoucherStock_Table v
+        LEFT JOIN dbo.User_Table a ON a.Id = v.AssignedTo
+        WHERE v.Id = @IdInt;
+
+        SELECT @IdInt;
     END
 
     /* ================= assignment ================= */

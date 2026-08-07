@@ -208,6 +208,16 @@ a { color: var(--blue-dark); text-decoration: none; }
     font-size: 14px; font-weight: 600; text-decoration: none;
 }
 .btn-back:hover { background: #eff5ff; text-decoration: none; }
+
+/* when a checked voucher leaves the student's list for the sub-admin */
+.move-note {
+    display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+    background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 600;
+    white-space: nowrap;
+}
+
+/* keeps the candidate / exam fields flowing with the rest of the form grid */
+.field-group { display: contents; }
 .toolbar .spacer { margin-left: auto; }
 
 .role-chip {

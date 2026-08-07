@@ -46,6 +46,14 @@ namespace DSL_CMS.BAL
                 checkDate, checkedBy, status, assignedTo, isMoved, days, actn);
         }
 
+        public static DataTable GetVoucherDetail(string providerId, string productId, string voucherCode,
+            string dealerName, string checkDate, string checkedBy, string status,
+            string assignedTo, string isMoved, string days, string expiryDate, string actn)
+        {
+            return VoucherDAL.GetVoucherDetail(providerId, productId, voucherCode, dealerName,
+                checkDate, checkedBy, status, assignedTo, isMoved, days, expiryDate, actn);
+        }
+
         public static DataTable GetDealerColumns(string providerId)
         {
             return VoucherDAL.GetDealerColumns(providerId);
@@ -82,6 +90,22 @@ namespace DSL_CMS.BAL
         public static DataTable Reassign(string id, string assignedTo, string userId)
         {
             return VoucherDAL.Reassign(id, assignedTo, userId);
+        }
+
+        public static DataTable ReassignMany(string ids, string assignedTo, string userId)
+        {
+            return VoucherDAL.ReassignMany(ids, assignedTo, userId);
+        }
+
+        public static int AutoMove()
+        {
+            return VoucherDAL.AutoMove();
+        }
+
+        public static void UpdateStatusOnly(string id, string status, string usedDate,
+            string checkedBy, string userId)
+        {
+            VoucherDAL.UpdateStatusOnly(id, status, usedDate, checkedBy, userId);
         }
 
         public static void UpdateStatusEntry(string id, string status, string usedDate,

@@ -32,6 +32,9 @@
             OnClick="lnkHistory_Click" CausesValidation="false">View History</asp:LinkButton>
         <asp:LinkButton ID="lnkAssign" runat="server" CssClass="pill-btn" Visible="false"
             OnClick="lnkAssign_Click" CausesValidation="false">+ Assign</asp:LinkButton>
+        <asp:LinkButton ID="lnkReassignPicked" runat="server" CssClass="pill-btn" Visible="false"
+            OnClick="lnkReassignPicked_Click" CausesValidation="false"
+            ToolTip="Reassign every ticked entry to one student">Reassign Selected</asp:LinkButton>
     </div>
 
     <asp:Panel ID="pnlRoleNote" runat="server" Visible="false" CssClass="note">
@@ -61,6 +64,10 @@
                     <label>Dealer Name</label>
                     <asp:TextBox ID="txtFilterDealer" runat="server" />
                 </asp:Panel>
+                <div class="field">
+                    <label>Expiry Date</label>
+                    <asp:TextBox ID="txtFilterExpiry" runat="server" TextMode="Date" />
+                </div>
                 <div class="field">
                     <label>Voucher Check Date</label>
                     <asp:TextBox ID="txtFilterCheckDate" runat="server" TextMode="Date" />
@@ -140,8 +147,26 @@
 
             <%-- Student / sub-admin: status entry --%>
             <asp:Panel ID="pnlEditStatus" runat="server" Visible="false">
+
+                <%-- Student: three buttons instead of a dropdown --%>
+                <asp:Panel ID="pnlStatusButtons" runat="server" Visible="false">
+                    <div class="filter-label">Voucher Status</div>
+                    <div class="pill-row">
+                        <asp:LinkButton ID="lnkStatusUsed" runat="server" CssClass="pill-btn s-used"
+                            CommandArgument="Used" OnClick="lnkPickStatus_Click"
+                            CausesValidation="false">Used</asp:LinkButton>
+                        <asp:LinkButton ID="lnkStatusUnused" runat="server" CssClass="pill-btn s-unused"
+                            CommandArgument="Unused" OnClick="lnkPickStatus_Click"
+                            CausesValidation="false">Unused</asp:LinkButton>
+                        <asp:LinkButton ID="lnkStatusInvalid" runat="server" CssClass="pill-btn s-invalid"
+                            CommandArgument="Invalid" OnClick="lnkPickStatus_Click"
+                            CausesValidation="false">Invalid</asp:LinkButton>
+                    </div>
+                </asp:Panel>
+
                 <div class="form-grid">
-                    <div class="field">
+                    <%-- Sub-admin / admin: the full dropdown --%>
+                    <asp:Panel ID="pnlStatusDropdown" runat="server" CssClass="field">
                         <label>Voucher Status</label>
                         <asp:DropDownList ID="ddlEditStatus" runat="server" AutoPostBack="true"
                             OnSelectedIndexChanged="ddlEditStatus_SelectedIndexChanged">
@@ -151,27 +176,32 @@
                             <asp:ListItem Text="Expired" Value="Expired" />
                             <asp:ListItem Text="Invalid" Value="Invalid" />
                         </asp:DropDownList>
-                    </div>
+                    </asp:Panel>
+
                     <asp:Panel ID="pnlUsedDate" runat="server" Visible="false" CssClass="field">
                         <label>Voucher Used Date *</label>
                         <asp:TextBox ID="txtUsedDate" runat="server" TextMode="Date" />
                     </asp:Panel>
-                    <div class="field">
-                        <label>Candidate Name</label>
-                        <asp:TextBox ID="txtCandidate" runat="server" />
-                    </div>
-                    <div class="field">
-                        <label>Exam Date</label>
-                        <asp:TextBox ID="txtExamDate" runat="server" TextMode="Date" />
-                    </div>
-                    <div class="field">
-                        <label>Exam Mode</label>
-                        <asp:DropDownList ID="ddlExamMode" runat="server">
-                            <asp:ListItem Text="-- Select --" Value="" />
-                            <asp:ListItem Text="Online"      Value="Online" />
-                            <asp:ListItem Text="Test Centre" Value="Test Centre" />
-                        </asp:DropDownList>
-                    </div>
+
+                    <%-- candidate and exam details are not a student's to set --%>
+                    <asp:Panel ID="pnlStatusExtras" runat="server" CssClass="field-group">
+                        <div class="field">
+                            <label>Candidate Name</label>
+                            <asp:TextBox ID="txtCandidate" runat="server" />
+                        </div>
+                        <div class="field">
+                            <label>Exam Date</label>
+                            <asp:TextBox ID="txtExamDate" runat="server" TextMode="Date" />
+                        </div>
+                        <div class="field">
+                            <label>Exam Mode</label>
+                            <asp:DropDownList ID="ddlExamMode" runat="server">
+                                <asp:ListItem Text="-- Select --" Value="" />
+                                <asp:ListItem Text="Online"      Value="Online" />
+                                <asp:ListItem Text="Test Centre" Value="Test Centre" />
+                            </asp:DropDownList>
+                        </div>
+                    </asp:Panel>
                 </div>
             </asp:Panel>
 
@@ -198,16 +228,18 @@
             <table class="data">
                 <thead>
                     <tr>
+                        <th runat="server" id="thPick" visible="false" style="width: 40px;"></th>
                         <th style="width: 150px;">Actions</th>
                         <th style="width: 70px;">S.No</th>
                         <th>Product Name</th>
                         <th>Voucher Code</th>
                         <th>Expiry Date</th>
-                        <th>Added By</th>
+                        <th runat="server" id="thAddedBy">Added By</th>
                         <asp:Literal ID="litDealerHeaders" runat="server" Mode="PassThrough" />
                         <th>Voucher Status</th>
+                        <th>Voucher Used Date</th>
                         <th>Voucher Check Date</th>
-                        <th>Checked By</th>
+                        <th runat="server" id="thCheckedBy">Checked By</th>
                         <th>Candidate Name</th>
                         <th>Exam Date</th>
                         <th>Exam Mode</th>
@@ -217,15 +249,14 @@
                     <asp:Repeater ID="rptVoucher" runat="server" OnItemCommand="rptVoucher_ItemCommand">
                         <ItemTemplate>
                             <tr>
+                                <td runat="server" visible='<%# CanReassign %>'>
+                                    <asp:CheckBox runat="server" ID="chkPickRow"
+                                        ToolTip="Tick to reassign this entry" />
+                                </td>
                                 <td style="white-space: nowrap;">
                                     <asp:LinkButton runat="server" CssClass="btn-out btn-sm" CommandName="EditRow"
                                         CommandArgument='<%# Eval("Id") %>'
                                         Visible='<%# CanEdit %>'>Edit</asp:LinkButton>
-                                    <asp:LinkButton runat="server" CssClass="btn-fill btn-sm" CommandName="MoveRow"
-                                        CommandArgument='<%# Eval("Id") %>'
-                                        Visible='<%# CanMove %>'
-                                        Enabled='<%# IsMoveReady(Eval("Status"), Eval("VoucherCheckDate")) %>'
-                                        ToolTip="Hand this voucher back to the sub admin">Move</asp:LinkButton>
                                     <asp:LinkButton runat="server" CssClass="btn-fill btn-sm" CommandName="ReassignRow"
                                         CommandArgument='<%# Eval("Id") %>'
                                         Visible='<%# CanReassign %>'>Reassign</asp:LinkButton>
@@ -234,9 +265,10 @@
                                 <td class="left"><%# Eval("ProductName") %></td>
                                 <td class="left"><strong><%# Eval("VoucherCode") %></strong></td>
                                 <td><%# DateOrDash(Eval("ExpiryDate")) %></td>
-                                <td><%# Dash(Eval("AddedByName")) %></td>
+                                <td runat="server" visible='<%# ShowAddedBy %>'><%# Dash(Eval("AddedByName")) %></td>
                                 <%# DealerCells(Eval("DealerNames"), Eval("SaleDates")) %>
                                 <td><%# StatusBadge(Eval("Status")) %></td>
+                                <td><%# DateOrDash(Eval("UsedDate")) %></td>
                                 <td>
                                     <asp:HiddenField runat="server" ID="hfCheckId" Value='<%# Eval("Id") %>' />
                                     <asp:CheckBox runat="server" ID="chkCheckDate" AutoPostBack="true"
@@ -245,8 +277,9 @@
                                         OnCheckedChanged="chkCheckDate_CheckedChanged"
                                         ToolTip="Tick to stamp today's date"
                                         Text='<%# " " + DateOrDash(Eval("VoucherCheckDate")) %>' />
+                                    <%# MoveNote(Eval("AutoMoveAfter")) %>
                                 </td>
-                                <td><%# Dash(Eval("CheckedBy")) %></td>
+                                <td runat="server" visible='<%# ShowCheckedBy %>'><%# Dash(Eval("CheckedBy")) %></td>
                                 <td class="left"><%# Dash(Eval("CandidateName")) %></td>
                                 <td><%# DateOrDash(Eval("ExamDate")) %></td>
                                 <td><%# Dash(Eval("ExamMode")) %></td>

@@ -18,10 +18,12 @@ namespace DSL_CMS
                           litDealerHeaders, litGridTitle, litReassignMsg, litReassignCode;
         protected Panel pnlMsg, pnlRoleNote, pnlRoleSwitch, pnlEdit, pnlEditDealer, pnlEditStatus, pnlEditAdmin,
                         pnlUsedDate, pnlUpload, pnlUploadMsg, pnlHistory, pnlAssign, pnlAssignMsg,
-                        pnlFilterDealer, pnlReassign, pnlReassignMsg;
+                        pnlFilterDealer, pnlReassign, pnlReassignMsg,
+                        pnlStatusButtons, pnlStatusDropdown, pnlStatusExtras;
+        protected LinkButton lnkStatusUsed, lnkStatusUnused, lnkStatusInvalid, lnkReassignPicked;
         protected DropDownList ddlRoleSwitch, ddlFilterProduct, ddlFilterCheckedBy,
                                ddlEditStatus, ddlExamMode, ddlAssignProduct, ddlReassignStudent;
-        protected TextBox txtFilterCode, txtFilterDealer, txtFilterCheckDate,
+        protected TextBox txtFilterCode, txtFilterDealer, txtFilterCheckDate, txtFilterExpiry,
                           txtUsedDate, txtCandidate, txtExamDate, txtPaste, txtAssignCount,
                           txtAdminCode, txtAdminExpiry, txtAdminCheckDate;
         protected HiddenField hfId, hfReassignId;
@@ -31,6 +33,7 @@ namespace DSL_CMS
         protected PlaceHolder phEmpty, phPager, phHistoryEmpty, phAssignEmpty, phStudentsEmpty;
         protected Button btnSearch, btnResetFilter, btnSaveEdit, btnCancelEdit,
                          btnUploadSave, btnAssignPick, btnAssignSave, btnReassignSave;
+        protected System.Web.UI.HtmlControls.HtmlTableCell thPick, thAddedBy, thCheckedBy;
 
         #endregion
 
@@ -161,14 +164,21 @@ namespace DSL_CMS
         }
         protected bool CanCheck { get { return Role == RoleStudent || Role == RoleSubAdmin; } }
 
-        /// <summary>Students hand finished vouchers back with Move.</summary>
-        protected bool CanMove { get { return Role == RoleStudent && !DoneMode; } }
-
         /// <summary>Reassign only appears on the sub-admin's done list.</summary>
         protected bool CanReassign { get { return Role == RoleSubAdmin && DoneMode; } }
 
-        /// <summary>Dealer columns are hidden from students.</summary>
-        protected bool ShowDealers { get { return Role != RoleStudent; } }
+        /// <summary>
+        /// Dealer name and sale date are for the admin and the voucher team only.
+        /// The sub-admin and the student never see them.
+        /// </summary>
+        protected bool ShowDealers { get { return Role == RoleAdmin || Role == RoleTeam; } }
+
+        /// <summary>A student sees neither Added By nor Checked By.</summary>
+        protected bool ShowAddedBy { get { return Role != RoleStudent; } }
+        protected bool ShowCheckedBy { get { return Role != RoleStudent; } }
+
+        /// <summary>A student sets the status with buttons rather than a dropdown.</summary>
+        protected bool UsesStatusButtons { get { return Role == RoleStudent; } }
 
         private string AssignedToFilter
         {
@@ -190,6 +200,12 @@ namespace DSL_CMS
 
         protected void Page_Load(object sender, EventArgs e)
         {
+            // Vouchers checked on an earlier day belong to the sub-admin from
+            // midnight. There is no SQL Agent on LocalDB to do it on the stroke of
+            // twelve, so the sweep runs here: idempotent, normally a no-op, and it
+            // has always caught up before anyone looks at the grid.
+            VoucherBAL.AutoMove();
+
             if (IsPostBack) return;
 
             ProviderId = Request.QueryString["providerId"] ?? string.Empty;
@@ -248,6 +264,12 @@ namespace DSL_CMS
             lnkAssign.Visible = CanAssign;
             lnkDone.Visible = (Role == RoleSubAdmin);
             lnkDone.Text = DoneMode ? "View Open Entries" : "View Done Entries";
+            lnkReassignPicked.Visible = CanReassign;
+
+            // header cells; the matching body cells carry their own Visible binding
+            thPick.Visible = CanReassign;
+            thAddedBy.Visible = ShowAddedBy;
+            thCheckedBy.Visible = ShowCheckedBy;
 
             pnlFilterDealer.Visible = ShowDealers;
             ApplyGridTitle();
@@ -358,6 +380,7 @@ namespace DSL_CMS
                 AssignedToFilter,
                 MovedFilter,
                 DaysFilter,
+                txtFilterExpiry.Text.Trim(),
                 "Select");
 
             int count = (dt == null) ? 0 : dt.Rows.Count;
@@ -510,6 +533,7 @@ namespace DSL_CMS
             txtFilterCode.Text = string.Empty;
             txtFilterDealer.Text = string.Empty;
             txtFilterCheckDate.Text = string.Empty;
+            txtFilterExpiry.Text = string.Empty;
             ddlFilterCheckedBy.SelectedIndex = 0;
             StatusFilter = string.Empty;
             DaysFilter = string.Empty;
@@ -560,17 +584,6 @@ namespace DSL_CMS
             {
                 OpenEditor(id);
             }
-            else if (e.CommandName == "MoveRow" && CanMove)
-            {
-                DataTable dt = VoucherBAL.Move(id, Convert.ToString(Session["UserId"]));
-                int moved = (dt != null && dt.Rows.Count > 0) ? Convert.ToInt32(dt.Rows[0]["Moved"]) : 0;
-
-                ShowMessage(moved > 0
-                    ? "Voucher moved to the sub admin."
-                    : "Set a status and tick the check date before moving this voucher.", moved > 0);
-
-                BindGrid();
-            }
             else if (e.CommandName == "ReassignRow" && CanReassign)
             {
                 OpenReassign(id);
@@ -593,6 +606,12 @@ namespace DSL_CMS
             pnlEditAdmin.Visible = adminMode;
             pnlEditStatus.Visible = !dealerMode && !adminMode;
 
+            // student picks the status with buttons and sees nothing else;
+            // sub-admin keeps the dropdown plus candidate and exam details
+            pnlStatusButtons.Visible = UsesStatusButtons;
+            pnlStatusDropdown.Visible = !UsesStatusButtons;
+            pnlStatusExtras.Visible = !UsesStatusButtons;
+
             string title = dealerMode ? "Dealer Details" : (adminMode ? "Edit Voucher" : "Status Entry");
             litEditTitle.Text = title + " - " + Server.HtmlEncode(Convert.ToString(r["VoucherCode"]));
 
@@ -609,6 +628,14 @@ namespace DSL_CMS
                 // exactly as many dealer fields as this voucher already has
                 rptAdminDealers.DataSource = ExistingDealerRows(r["DealerNames"], r["SaleDates"]);
                 rptAdminDealers.DataBind();
+            }
+            else if (UsesStatusButtons)
+            {
+                // student: status only, chosen with buttons
+                PickedStatus = Convert.ToString(r["Status"]);
+                txtUsedDate.Text = FormatDate(r["UsedDate"]);
+                pnlUsedDate.Visible = (PickedStatus == "Used");
+                BindStatusButtons();
             }
             else
             {
@@ -706,6 +733,51 @@ namespace DSL_CMS
             pnlUsedDate.Visible = (ddlEditStatus.SelectedValue == "Used");
         }
 
+        /// <summary>
+        /// The status the student has picked with the buttons. Held separately
+        /// from the dropdown because the two editors are mutually exclusive.
+        /// </summary>
+        private string PickedStatus
+        {
+            get { return (string)(ViewState["PickedStatus"] ?? string.Empty); }
+            set { ViewState["PickedStatus"] = value; }
+        }
+
+        protected string StatusButtonClass(string status)
+        {
+            return string.Equals(status, PickedStatus, StringComparison.Ordinal)
+                ? "pill-btn on " + voucher_status.StatusColourClass(status)
+                : "pill-btn " + voucher_status.StatusColourClass(status);
+        }
+
+        /// <summary>
+        /// Used / Unused / Invalid. Picking Used reveals the used date, defaulted
+        /// to today. Nothing is written until Save - so candidate and exam details
+        /// the student cannot see are never touched by an accidental click.
+        /// </summary>
+        protected void lnkPickStatus_Click(object sender, EventArgs e)
+        {
+            var btn = sender as LinkButton;
+            if (btn == null) return;
+
+            PickedStatus = btn.CommandArgument;
+
+            bool used = (PickedStatus == "Used");
+            pnlUsedDate.Visible = used;
+            if (used && txtUsedDate.Text.Trim().Length == 0)
+                txtUsedDate.Text = DateTime.Today.ToString("yyyy-MM-dd");
+
+            BindStatusButtons();
+            pnlEdit.Visible = true;
+        }
+
+        private void BindStatusButtons()
+        {
+            lnkStatusUsed.CssClass = StatusButtonClass("Used");
+            lnkStatusUnused.CssClass = StatusButtonClass("Unused");
+            lnkStatusInvalid.CssClass = StatusButtonClass("Invalid");
+        }
+
         protected void btnSaveEdit_Click(object sender, EventArgs e)
         {
             string id = hfId.Value;
@@ -758,6 +830,31 @@ namespace DSL_CMS
                 VoucherBAL.SaveDealers(id, dealers.ToString(), userId);
 
                 ShowMessage("Voucher updated.", true);
+            }
+            else if (UsesStatusButtons)
+            {
+                if (PickedStatus.Length == 0)
+                {
+                    ShowMessage("Pick a status first.", false);
+                    return;
+                }
+
+                if (PickedStatus == "Used" && txtUsedDate.Text.Trim().Length == 0)
+                {
+                    ShowMessage("Voucher Used Date is required when the status is 'Used'.", false);
+                    return;
+                }
+
+                string checkedBy = Convert.ToString(Session["FullName"]);
+                if (string.IsNullOrEmpty(checkedBy)) checkedBy = "System";
+
+                // status and used date only - candidate and exam details are not
+                // shown to a student and must not be blanked by this save
+                VoucherBAL.UpdateStatusOnly(id, PickedStatus, txtUsedDate.Text.Trim(),
+                    checkedBy, userId);
+
+                ShowMessage("Status set to " + PickedStatus
+                    + ". This entry moves to the sub admin after midnight.", true);
             }
             else
             {
@@ -1123,13 +1220,61 @@ namespace DSL_CMS
 
         #region Reassign modal
 
+        /// <summary>
+        /// Ids queued for reassignment. One entry when a row's own Reassign was
+        /// clicked, many when the tick boxes were used.
+        /// </summary>
+        private List<string> ReassignIds
+        {
+            get
+            {
+                var list = ViewState["ReassignIds"] as List<string>;
+                if (list == null) { list = new List<string>(); ViewState["ReassignIds"] = list; }
+                return list;
+            }
+        }
+
         private void OpenReassign(string id)
         {
             DataTable dt = VoucherBAL.GetData(id);
             if (dt == null || dt.Rows.Count == 0) return;
 
+            ReassignIds.Clear();
+            ReassignIds.Add(id);
+
             hfReassignId.Value = id;
             litReassignCode.Text = Server.HtmlEncode(Convert.ToString(dt.Rows[0]["VoucherCode"]));
+
+            OpenReassignCommon();
+        }
+
+        /// <summary>Reassign every row whose tick box is on.</summary>
+        protected void lnkReassignPicked_Click(object sender, EventArgs e)
+        {
+            if (!CanReassign) return;
+
+            ReassignIds.Clear();
+            foreach (RepeaterItem item in rptVoucher.Items)
+            {
+                var chk = item.FindControl("chkPickRow") as CheckBox;
+                var hf = item.FindControl("hfCheckId") as HiddenField;
+                if (chk != null && hf != null && chk.Checked) ReassignIds.Add(hf.Value);
+            }
+
+            if (ReassignIds.Count == 0)
+            {
+                ShowMessage("Tick the entries you want to reassign first.", false);
+                return;
+            }
+
+            hfReassignId.Value = string.Empty;
+            litReassignCode.Text = ReassignIds.Count + " voucher(s) selected";
+
+            OpenReassignCommon();
+        }
+
+        private void OpenReassignCommon()
+        {
             pnlReassignMsg.Visible = false;
 
             ddlReassignStudent.Items.Clear();
@@ -1156,14 +1301,24 @@ namespace DSL_CMS
                 return;
             }
 
-            DataTable dt = VoucherBAL.Reassign(hfReassignId.Value,
+            if (ReassignIds.Count == 0)
+            {
+                pnlReassign.Visible = false;
+                ShowMessage("Nothing was selected to reassign.", false);
+                return;
+            }
+
+            string ids = string.Join(",", ReassignIds.ToArray());
+            DataTable dt = VoucherBAL.ReassignMany(ids,
                 ddlReassignStudent.SelectedValue, Convert.ToString(Session["UserId"]));
 
             int done = (dt != null && dt.Rows.Count > 0) ? Convert.ToInt32(dt.Rows[0]["Reassigned"]) : 0;
 
             pnlReassign.Visible = false;
+            ReassignIds.Clear();
+
             ShowMessage(done > 0
-                ? "Voucher reassigned. It is back with the student."
+                ? done + " voucher(s) reassigned. They are back with the student."
                 : "Reassign failed.", done > 0);
 
             BindGrid();
@@ -1178,11 +1333,17 @@ namespace DSL_CMS
 
         #region Template helpers
 
-        /// <summary>Move only makes sense once a status is set and the voucher is checked.</summary>
-        protected bool IsMoveReady(object status, object checkDate)
+        /// <summary>
+        /// A checked voucher leaves the student's list at midnight. Showing when
+        /// that happens beats it vanishing without explanation.
+        /// </summary>
+        protected string MoveNote(object autoMoveAfter)
         {
-            return !string.IsNullOrWhiteSpace(Convert.ToString(status))
-                && checkDate != null && checkDate != DBNull.Value;
+            if (autoMoveAfter == null || autoMoveAfter == DBNull.Value) return string.Empty;
+
+            DateTime due = Convert.ToDateTime(autoMoveAfter);
+            return "<span class=\"move-note\" title=\"Moves to the sub admin automatically\">&#8594; "
+                 + due.ToString("dd-MMM") + "</span>";
         }
 
         /// <summary>A fresh upload has no status yet, so it renders as "Not set".</summary>
