@@ -117,6 +117,20 @@ namespace DSL_CMS.BAL
 
         #endregion
 
+        #region Performance
+
+        public static DataTable GetPerformanceByProvider(string userId)
+        {
+            return VoucherDAL.GetPerformanceByProvider(userId);
+        }
+
+        public static DataTable GetPerformanceByStudent(string providerId)
+        {
+            return VoucherDAL.GetPerformanceByStudent(providerId);
+        }
+
+        #endregion
+
         public static int InsertVoucherDetail(string providerId, string productId, string voucherCode,
             string expiryDate, string dealerName, string saleDate, string status, string addedBy)
         {
@@ -129,9 +143,9 @@ namespace DSL_CMS.BAL
             VoucherDAL.UpdateVoucherDetail(Id, providerId, productId, voucherCode, expiryDate, dealerName, saleDate, status, modifiedBy);
         }
 
-        public static void UpdateVoucherCheck(string Id, string checkedBy)
+        public static void UpdateVoucherCheck(string Id, string checkedBy, string userId)
         {
-            VoucherDAL.UpdateVoucherCheck(Id, checkedBy);
+            VoucherDAL.UpdateVoucherCheck(Id, checkedBy, userId);
         }
 
         public static DataTable GetCheckedByList()

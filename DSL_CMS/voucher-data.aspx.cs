@@ -801,7 +801,7 @@ namespace DSL_CMS
             string checkedBy = Convert.ToString(Session["FullName"]);
             if (string.IsNullOrEmpty(checkedBy)) checkedBy = "System";
 
-            VoucherBAL.UpdateVoucherCheck(hf.Value, checkedBy);
+            VoucherBAL.UpdateVoucherCheck(hf.Value, checkedBy, Convert.ToString(Session["UserId"]));
             ShowMessage("Voucher check date stamped with today's date.", true);
 
             BindCheckedBy();

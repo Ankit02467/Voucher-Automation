@@ -5,6 +5,16 @@
 
 <asp:Content ContentPlaceHolderID="MainContent" runat="server">
 
+    <%-- ---------------- Toolbar ---------------- --%>
+    <div class="toolbar">
+        <h1>Voucher Status</h1>
+        <span class="spacer"></span>
+        <asp:HyperLink ID="lnkStudentPerf" runat="server" CssClass="pill-btn" Visible="false"
+            Text="Student wise Performance" />
+    </div>
+
+<asp:Panel ID="pnlFilters" runat="server">
+
     <%-- ---------------- Status ---------------- --%>
     <div class="filter-block">
         <div class="filter-label">Status</div>
@@ -53,6 +63,10 @@
             </asp:Repeater>
         </div>
     </div>
+
+</asp:Panel>
+
+<asp:Panel ID="pnlProviderGrid" runat="server">
 
     <%-- ---------------- Grid ---------------- --%>
     <div class="table-wrap">
@@ -120,5 +134,55 @@
                 CausesValidation="false">Next</asp:LinkButton>
         </div>
     </asp:PlaceHolder>
+
+</asp:Panel>
+
+    <%-- ---------------- Student's own performance ---------------- --%>
+    <asp:Panel ID="pnlPerformance" runat="server" Visible="false">
+
+        <p class="muted" style="margin: 0 0 14px;">
+            Vouchers you have checked, per provider.
+            <strong>Today</strong> is today, <strong>Weekly</strong> the last 7 days and
+            <strong>Monthly</strong> the last 30 days &ndash; rolling windows, so they do
+            not reset on a Monday or on the 1st.
+        </p>
+
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                    <tr>
+                        <th style="width: 110px;">S.No.</th>
+                        <th>Provider</th>
+                        <th style="width: 130px;">Today</th>
+                        <th style="width: 130px;">Weekly</th>
+                        <th style="width: 130px;">Monthly</th>
+                        <th style="width: 160px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <asp:Repeater ID="rptPerformance" runat="server">
+                        <ItemTemplate>
+                            <tr>
+                                <td><%# Container.ItemIndex + 1 %></td>
+                                <td class="left"><%# Server.HtmlEncode(Convert.ToString(Eval("ProviderName"))) %></td>
+                                <td><%# Eval("Today") %></td>
+                                <td><%# Eval("Weekly") %></td>
+                                <td><%# Eval("Monthly") %></td>
+                                <td>
+                                    <span class="act">
+                                        <a class="btn-fill" href='<%# ViewDataUrl(Eval("Id")) %>'>View Data</a>
+                                    </span>
+                                </td>
+                            </tr>
+                        </ItemTemplate>
+                    </asp:Repeater>
+                    <asp:PlaceHolder ID="phPerfEmpty" runat="server" Visible="false">
+                        <tr><td colspan="6" class="empty">No providers found.</td></tr>
+                    </asp:PlaceHolder>
+                </tbody>
+            </table>
+        </div>
+
+    </asp:Panel>
 
 </asp:Content>

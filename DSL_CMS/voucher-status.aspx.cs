@@ -11,10 +11,11 @@ namespace DSL_CMS
 {
     public partial class voucher_status : System.Web.UI.Page
     {
-        protected Repeater rptStatus, rptWindows, rptCategory, rptSummary, rptPager;
-        protected PlaceHolder phEmpty, phPager;
-        protected Panel pnlWindows;
+        protected Repeater rptStatus, rptWindows, rptCategory, rptSummary, rptPager, rptPerformance;
+        protected PlaceHolder phEmpty, phPager, phPerfEmpty;
+        protected Panel pnlWindows, pnlFilters, pnlProviderGrid, pnlPerformance;
         protected LinkButton lnkPrev, lnkNext, lnkEarlyExpiry;
+        protected HyperLink lnkStudentPerf;
         protected Literal litCountHead, litPageInfo;
 
         private const int PageSize = 10;
@@ -101,6 +102,22 @@ namespace DSL_CMS
             get { return string.Equals(VoucherRole, "Voucher Admin", StringComparison.OrdinalIgnoreCase); }
         }
 
+        /// <summary>A student gets their own performance figures instead of the provider summary.</summary>
+        private bool IsStudent
+        {
+            get { return string.Equals(VoucherRole, "Voucher Student", StringComparison.OrdinalIgnoreCase); }
+        }
+
+        /// <summary>Student wise performance is open to admin and sub-admin.</summary>
+        protected bool CanSeeStudentPerformance
+        {
+            get
+            {
+                return string.Equals(VoucherRole, "Voucher Admin", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(VoucherRole, "Voucher Sub Admin", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
         private string VoucherRole
         {
             get
@@ -127,10 +144,40 @@ namespace DSL_CMS
         {
             if (IsPostBack) return;
 
+            lnkStudentPerf.Visible = CanSeeStudentPerformance;
+            lnkStudentPerf.NavigateUrl = ResolveUrl("~/student-performance.aspx");
+
+            // A student gets their own figures here; everyone else gets the
+            // provider summary with its filters.
+            pnlFilters.Visible = !IsStudent;
+            pnlProviderGrid.Visible = !IsStudent;
+            pnlPerformance.Visible = IsStudent;
+
+            if (IsStudent)
+            {
+                BindPerformance();
+                return;
+            }
+
             BindStatusPills();
             BindCategoryPills();
             ApplyStatus();
             BindGrid();
+        }
+
+        /// <summary>
+        /// The signed-in student's own checked-voucher counts, one row per
+        /// provider. View Data stays reachable from each row so the student can
+        /// still get to their work from here.
+        /// </summary>
+        private void BindPerformance()
+        {
+            DataTable dt = VoucherBAL.GetPerformanceByProvider(Convert.ToString(Session["UserId"]));
+
+            rptPerformance.DataSource = dt;
+            rptPerformance.DataBind();
+
+            phPerfEmpty.Visible = (dt == null || dt.Rows.Count == 0);
         }
 
         /// <summary>

@@ -201,6 +201,32 @@ namespace DSL_CMS.DAL
 
         #endregion
 
+        #region Performance
+
+        /// <summary>
+        /// One student's checked-voucher counts, split by provider. Drives the
+        /// student's own Voucher Status screen.
+        /// </summary>
+        public static DataTable GetPerformanceByProvider(string userId)
+        {
+            return SqlHelper.ExecuteDataTable("Sp_VoucherPerformance_Table", true,
+                "@Action", "SelectByProvider",
+                "@UserId", userId);
+        }
+
+        /// <summary>
+        /// Every student's checked-voucher counts, optionally narrowed to one
+        /// provider. Drives the admin / sub-admin "Student wise performance" screen.
+        /// </summary>
+        public static DataTable GetPerformanceByStudent(string providerId)
+        {
+            return SqlHelper.ExecuteDataTable("Sp_VoucherPerformance_Table", true,
+                "@Action", "SelectByStudent",
+                "@ProviderId", providerId);
+        }
+
+        #endregion
+
         public static DataTable GetData(string Id)
         {
             return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true, "@Action", "SelectId", "@Id", Id);
@@ -239,13 +265,17 @@ namespace DSL_CMS.DAL
 
         /// <summary>
         /// Marks a voucher as checked (Voucher Check Date / Checked By columns).
+        /// <paramref name="userId"/> must be passed: it lands in
+        /// VoucherHistory_Table.ChangedBy, which is what the performance screens
+        /// count. Without it the check is recorded against nobody.
         /// </summary>
-        public static void UpdateVoucherCheck(string Id, string checkedBy)
+        public static void UpdateVoucherCheck(string Id, string checkedBy, string userId)
         {
             SqlHelper.ExecuteNonQuery("Sp_VoucherStock_Table", true,
                 "@Action", "UpdateCheck",
                 "@Id", Id,
-                "@CheckedBy", checkedBy);
+                "@CheckedBy", checkedBy,
+                "@AddedBy", userId);
         }
 
         public static DataTable GetCheckedByList()
