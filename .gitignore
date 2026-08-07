@@ -33,6 +33,10 @@ Web.*.config
 *.Debug.config
 *.Release.config
 
+# ---- Claude Code ----
+# Machine-local permission approvals; not shared.
+.claude/settings.local.json
+
 # ---- OS ----
 Thumbs.db
 Desktop.ini
