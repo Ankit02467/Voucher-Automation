@@ -35,6 +35,13 @@
       CandidateName / ExamDate / ExamMode with whatever it is handed,
       so a student saving from a status-only editor would silently
       wipe fields they were never shown.
+
+   Revision 3c:
+
+   8. UpdateAdminEntry no longer writes VoucherCode. The admin's
+      editor shows the code but greys it out, and the proc will not
+      change it whatever is posted. It gained Status and UsedDate,
+      which the admin may now set.
    ============================================================ */
 USE DSL_New;
 GO
@@ -250,26 +257,21 @@ BEGIN
         SELECT @IdInt;
     END
 
-    /* ================= admin edit: code / expiry / check date ================= */
+    /* ================= admin edit =================
+       Expiry date, check date, status and used date. Dealer names go
+       through SaveDealers.
+
+       VoucherCode, AddedBy, CandidateName, ExamDate and ExamMode are
+       deliberately NOT touched - the admin's editor shows them
+       greyed out, and the proc must not change them even if a value
+       is posted. */
     ELSE IF @Action = 'UpdateAdminEntry'
     BEGIN
-        IF @VoucherCode IS NULL
-        BEGIN
-            SELECT -2;              -- voucher code is required
-            RETURN;
-        END
-
-        IF EXISTS (SELECT 1 FROM dbo.VoucherStock_Table
-                    WHERE VoucherCode = @VoucherCode AND Id <> @IdInt)
-        BEGIN
-            SELECT -1;              -- duplicate voucher code
-            RETURN;
-        END
-
         UPDATE dbo.VoucherStock_Table
-           SET VoucherCode      = @VoucherCode,
-               ExpiryDate       = @Expiry,
+           SET ExpiryDate       = @Expiry,
                VoucherCheckDate = @CheckDt,
+               Status           = @Status,
+               UsedDate         = CASE WHEN @Status = 'Used' THEN @Used ELSE NULL END,
                ModifiedBy       = @UserInt,
                ModifiedDate     = GETDATE()
          WHERE Id = @IdInt;

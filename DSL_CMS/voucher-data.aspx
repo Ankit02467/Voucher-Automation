@@ -88,12 +88,15 @@
         </div>
     </div>
 
-    <%-- ---------------- Edit row ---------------- --%>
-    <asp:Panel ID="pnlEdit" runat="server" Visible="false" CssClass="card">
-        <div class="card-head">
+    <%-- ---------------- Edit modal ---------------- --%>
+    <asp:Panel ID="pnlEdit" runat="server" Visible="false" CssClass="modal-back">
+      <div class="modal lg">
+        <div class="modal-head">
             <h2><asp:Literal ID="litEditTitle" runat="server" /></h2>
+            <asp:LinkButton ID="lnkEditClose" runat="server" CssClass="btn btn-light btn-sm"
+                OnClick="btnCancelEdit_Click" CausesValidation="false">Close</asp:LinkButton>
         </div>
-        <div class="card-body">
+        <div class="modal-body">
             <asp:HiddenField ID="hfId" runat="server" Value="0" />
 
             <%-- Voucher team: any number of dealer / sale date pairs --%>
@@ -114,12 +117,17 @@
                 </asp:Repeater>
             </asp:Panel>
 
-            <%-- Admin: voucher code, expiry date, dealer name(s), check date --%>
+            <%-- Admin: everything except the code, added by, candidate and exam
+                 details, which are shown greyed out for reference only --%>
             <asp:Panel ID="pnlEditAdmin" runat="server" Visible="false">
                 <div class="form-grid">
                     <div class="field">
-                        <label>Voucher Code *</label>
-                        <asp:TextBox ID="txtAdminCode" runat="server" />
+                        <label>Voucher Code <span class="locked-tag">read only</span></label>
+                        <asp:TextBox ID="txtAdminCode" runat="server" Enabled="false" CssClass="locked" />
+                    </div>
+                    <div class="field">
+                        <label>Added By <span class="locked-tag">read only</span></label>
+                        <asp:TextBox ID="txtAdminAddedBy" runat="server" Enabled="false" CssClass="locked" />
                     </div>
                     <div class="field">
                         <label>Expiry Date</label>
@@ -128,6 +136,32 @@
                     <div class="field">
                         <label>Voucher Check Date</label>
                         <asp:TextBox ID="txtAdminCheckDate" runat="server" TextMode="Date" />
+                    </div>
+                    <div class="field">
+                        <label>Voucher Status</label>
+                        <asp:DropDownList ID="ddlAdminStatus" runat="server">
+                            <asp:ListItem Text="-- Not set --" Value="" />
+                            <asp:ListItem Text="Unused"  Value="Unused" />
+                            <asp:ListItem Text="Used"    Value="Used" />
+                            <asp:ListItem Text="Expired" Value="Expired" />
+                            <asp:ListItem Text="Invalid" Value="Invalid" />
+                        </asp:DropDownList>
+                    </div>
+                    <div class="field">
+                        <label>Voucher Used Date</label>
+                        <asp:TextBox ID="txtAdminUsedDate" runat="server" TextMode="Date" />
+                    </div>
+                    <div class="field">
+                        <label>Candidate Name <span class="locked-tag">read only</span></label>
+                        <asp:TextBox ID="txtAdminCandidate" runat="server" Enabled="false" CssClass="locked" />
+                    </div>
+                    <div class="field">
+                        <label>Exam Date <span class="locked-tag">read only</span></label>
+                        <asp:TextBox ID="txtAdminExamDate" runat="server" Enabled="false" CssClass="locked" />
+                    </div>
+                    <div class="field">
+                        <label>Exam Mode <span class="locked-tag">read only</span></label>
+                        <asp:TextBox ID="txtAdminExamMode" runat="server" Enabled="false" CssClass="locked" />
                     </div>
                     <%-- one name + sale date pair per dealer already on this voucher --%>
                     <asp:Repeater ID="rptAdminDealers" runat="server">
@@ -205,13 +239,14 @@
                 </div>
             </asp:Panel>
 
-            <div style="margin-top: 16px;">
-                <asp:Button ID="btnSaveEdit" runat="server" CssClass="btn" Text="Save"
-                    OnClick="btnSaveEdit_Click" />
-                <asp:Button ID="btnCancelEdit" runat="server" CssClass="btn btn-light" Text="Cancel"
-                    OnClick="btnCancelEdit_Click" CausesValidation="false" />
-            </div>
         </div>
+        <div class="modal-foot">
+            <asp:Button ID="btnSaveEdit" runat="server" CssClass="btn" Text="Save"
+                OnClick="btnSaveEdit_Click" />
+            <asp:Button ID="btnCancelEdit" runat="server" CssClass="btn btn-light" Text="Cancel"
+                OnClick="btnCancelEdit_Click" CausesValidation="false" />
+        </div>
+      </div>
     </asp:Panel>
 
     <%-- Target for the "+" rendered into the last Dealer Name header cell --%>

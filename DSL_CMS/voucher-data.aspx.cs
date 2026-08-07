@@ -22,10 +22,12 @@ namespace DSL_CMS
                         pnlStatusButtons, pnlStatusDropdown, pnlStatusExtras;
         protected LinkButton lnkStatusUsed, lnkStatusUnused, lnkStatusInvalid, lnkReassignPicked;
         protected DropDownList ddlRoleSwitch, ddlFilterProduct, ddlFilterCheckedBy,
-                               ddlEditStatus, ddlExamMode, ddlAssignProduct, ddlReassignStudent;
+                               ddlEditStatus, ddlExamMode, ddlAssignProduct, ddlReassignStudent,
+                               ddlAdminStatus;
         protected TextBox txtFilterCode, txtFilterDealer, txtFilterCheckDate, txtFilterExpiry,
                           txtUsedDate, txtCandidate, txtExamDate, txtPaste, txtAssignCount,
-                          txtAdminCode, txtAdminExpiry, txtAdminCheckDate;
+                          txtAdminCode, txtAdminExpiry, txtAdminCheckDate, txtAdminUsedDate,
+                          txtAdminAddedBy, txtAdminCandidate, txtAdminExamDate, txtAdminExamMode;
         protected HiddenField hfId, hfReassignId;
         protected LinkButton lnkUpload, lnkHistory, lnkAssign, lnkDone, lnkAddDealer, lnkPrev, lnkNext;
         protected Repeater rptVoucher, rptPager, rptUploadProduct, rptHistory,
@@ -151,15 +153,14 @@ namespace DSL_CMS
         protected bool CanHistory { get { return Role == RoleAdmin; } }
         protected bool CanAssign { get { return Role == RoleSubAdmin; } }
         /// <summary>
-        /// Voucher team edits dealer details; admin, sub-admin and student edit
-        /// the status entry.
+        /// The voucher team has no edit rights at all - no Edit button for them.
+        /// Admin, sub-admin and student each get their own set of fields.
         /// </summary>
         protected bool CanEdit
         {
             get
             {
-                return Role == RoleTeam || Role == RoleStudent
-                    || Role == RoleSubAdmin || Role == RoleAdmin;
+                return Role == RoleStudent || Role == RoleSubAdmin || Role == RoleAdmin;
             }
         }
         protected bool CanCheck { get { return Role == RoleStudent || Role == RoleSubAdmin; } }
@@ -621,9 +622,18 @@ namespace DSL_CMS
             }
             else if (adminMode)
             {
+                // shown but locked - the proc will not write these either
                 txtAdminCode.Text = Convert.ToString(r["VoucherCode"]);
+                txtAdminAddedBy.Text = Convert.ToString(r["AddedByName"]);
+                txtAdminCandidate.Text = Convert.ToString(r["CandidateName"]);
+                txtAdminExamDate.Text = FormatDate(r["ExamDate"]);
+                txtAdminExamMode.Text = Convert.ToString(r["ExamMode"]);
+
+                // editable
                 txtAdminExpiry.Text = FormatDate(r["ExpiryDate"]);
                 txtAdminCheckDate.Text = FormatDate(r["VoucherCheckDate"]);
+                txtAdminUsedDate.Text = FormatDate(r["UsedDate"]);
+                SelectIfPresent(ddlAdminStatus, Convert.ToString(r["Status"]));
 
                 // exactly as many dealer fields as this voucher already has
                 rptAdminDealers.DataSource = ExistingDealerRows(r["DealerNames"], r["SaleDates"]);
@@ -801,21 +811,16 @@ namespace DSL_CMS
             }
             else if (Role == RoleAdmin)
             {
-                if (txtAdminCode.Text.Trim().Length == 0)
+                if (ddlAdminStatus.SelectedValue == "Used" && txtAdminUsedDate.Text.Trim().Length == 0)
                 {
-                    ShowMessage("Voucher Code is required.", false);
+                    ShowMessage("Voucher Used Date is required when the status is 'Used'.", false);
                     return;
                 }
 
-                DataTable res = VoucherBAL.UpdateAdminEntry(id, txtAdminCode.Text.Trim(),
-                    txtAdminExpiry.Text.Trim(), txtAdminCheckDate.Text.Trim(), userId);
-
-                int outcome = (res != null && res.Rows.Count > 0) ? Convert.ToInt32(res.Rows[0][0]) : 0;
-                if (outcome == -1)
-                {
-                    ShowMessage("That voucher code is already used by another voucher.", false);
-                    return;
-                }
+                // the voucher code is displayed only - it is never sent
+                VoucherBAL.UpdateAdminEntry(id,
+                    txtAdminExpiry.Text.Trim(), txtAdminCheckDate.Text.Trim(),
+                    ddlAdminStatus.SelectedValue, txtAdminUsedDate.Text.Trim(), userId);
 
                 var dealers = new StringBuilder();
                 foreach (RepeaterItem item in rptAdminDealers.Items)

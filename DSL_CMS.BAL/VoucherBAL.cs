@@ -76,10 +76,10 @@ namespace DSL_CMS.BAL
             VoucherDAL.SaveDealers(id, data, userId);
         }
 
-        public static DataTable UpdateAdminEntry(string id, string voucherCode,
-            string expiryDate, string checkDate, string userId)
+        public static DataTable UpdateAdminEntry(string id, string expiryDate,
+            string checkDate, string status, string usedDate, string userId)
         {
-            return VoucherDAL.UpdateAdminEntry(id, voucherCode, expiryDate, checkDate, userId);
+            return VoucherDAL.UpdateAdminEntry(id, expiryDate, checkDate, status, usedDate, userId);
         }
 
         public static DataTable Move(string id, string userId)

@@ -121,18 +121,20 @@ namespace DSL_CMS.DAL
         }
 
         /// <summary>
-        /// Admin edit - voucher code, expiry date and check date only.
-        /// Returns -1 for a duplicate code, -2 when the code is blank.
+        /// Admin edit - expiry date, check date, status and used date. The voucher
+        /// code, added by, candidate name and exam details are shown to the admin
+        /// but are not editable, and the proc will not change them.
         /// </summary>
-        public static DataTable UpdateAdminEntry(string id, string voucherCode,
-            string expiryDate, string checkDate, string userId)
+        public static DataTable UpdateAdminEntry(string id, string expiryDate,
+            string checkDate, string status, string usedDate, string userId)
         {
             return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,
                 "@Action", "UpdateAdminEntry",
                 "@Id", id,
-                "@VoucherCode", voucherCode,
                 "@ExpiryDate", expiryDate,
                 "@VoucherCheckDate", checkDate,
+                "@Status", status,
+                "@UsedDate", usedDate,
                 "@AddedBy", userId);
         }
 
