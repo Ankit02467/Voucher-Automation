@@ -986,10 +986,21 @@ namespace DSL_CMS
                 return;
             }
 
-            string payload = BuildPayload(txtPaste.Text);
+            int unreadableDates;
+            string payload = BuildPayload(txtPaste.Text, out unreadableDates);
+
             if (payload.Length == 0)
             {
                 ShowUploadError("No valid entries found. Put a voucher code and expiry date on each line.");
+                return;
+            }
+
+            // Refuse rather than save vouchers with the expiry date quietly missing.
+            if (unreadableDates > 0)
+            {
+                ShowUploadError(unreadableDates + " line(s) have an expiry date that cannot be read, "
+                    + "so nothing was saved. Use dd-MM-yyyy (14-08-2026), dd/MM/yyyy, "
+                    + "dd-MMM-yyyy or yyyy-MM-dd.");
                 return;
             }
 
@@ -1015,11 +1026,68 @@ namespace DSL_CMS
         }
 
         /// <summary>
-        /// Turns pasted Excel rows into the "code|date~code|date" payload the proc expects.
-        /// Accepts tab, comma, semicolon or pipe between the two columns.
+        /// Date formats accepted from a paste. Day first, because that is how the
+        /// rest of this application reads and writes dates.
+        ///
+        /// Every date is normalised to ISO before it reaches SQL Server. Handing
+        /// SQL the raw text would leave the result at the mercy of the connection's
+        /// DATEFORMAT: under the default (mdy), "14-08-2026" is month 14, which
+        /// TRY_CONVERT quietly turns into NULL. The voucher would save with no
+        /// expiry date and the screen would still say it worked.
         /// </summary>
-        private static string BuildPayload(string pasted)
+        private static readonly string[] DateFormats =
         {
+            "dd-MM-yyyy", "d-M-yyyy", "dd/MM/yyyy", "d/M/yyyy", "dd.MM.yyyy", "d.M.yyyy",
+            "yyyy-MM-dd", "yyyy/MM/dd",
+            "dd-MMM-yyyy", "d-MMM-yyyy", "dd MMM yyyy", "d MMM yyyy",
+            "dd-MM-yy", "d-M-yy", "dd/MM/yy", "d/M/yy"
+        };
+
+        /// <summary>
+        /// Reads one pasted date and returns it as yyyy-MM-dd, or blank if it
+        /// cannot be read at all.
+        /// </summary>
+        private static string NormaliseDate(string raw)
+        {
+            string text = (raw ?? string.Empty).Trim();
+            if (text.Length == 0) return string.Empty;
+
+            DateTime parsed;
+            if (DateTime.TryParseExact(text, DateFormats,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out parsed))
+                return parsed.ToString("yyyy-MM-dd");
+
+            // last resort, still day first
+            if (DateTime.TryParse(text, new System.Globalization.CultureInfo("en-GB"),
+                    System.Globalization.DateTimeStyles.None, out parsed))
+                return parsed.ToString("yyyy-MM-dd");
+
+            return string.Empty;
+        }
+
+        /// <summary>Does this look like a date rather than part of a voucher code?</summary>
+        private static bool LooksLikeDate(string text)
+        {
+            return NormaliseDate(text).Length > 0;
+        }
+
+        /// <summary>
+        /// Turns pasted Excel rows into the "code|date~code|date" payload the proc
+        /// expects. Tab, comma, semicolon and pipe separate the two columns.
+        ///
+        /// Space is deliberately NOT a separator - real voucher codes contain
+        /// spaces ("AWS CODE 246"), and splitting on it would chop them in half.
+        /// A line with no separator at all is still given a chance: if its last
+        /// whitespace-separated word reads as a date, it is taken as one.
+        ///
+        /// <paramref name="unreadableDates"/> counts lines that carried something
+        /// in the date position that could not be read, so the upload can say so
+        /// instead of silently dropping it.
+        /// </summary>
+        private static string BuildPayload(string pasted, out int unreadableDates)
+        {
+            unreadableDates = 0;
             if (string.IsNullOrEmpty(pasted)) return string.Empty;
 
             var sb = new StringBuilder();
@@ -1034,9 +1102,27 @@ namespace DSL_CMS
                 if (parts.Length == 0) continue;
 
                 string code = parts[0].Trim();
+                string rawDate = (parts.Length > 1) ? parts[1].Trim() : string.Empty;
+
+                // no separator, but the line may still end in a date
+                if (rawDate.Length == 0)
+                {
+                    int gap = code.LastIndexOfAny(new[] { ' ', '\t' });
+                    if (gap > 0)
+                    {
+                        string tail = code.Substring(gap + 1).Trim();
+                        if (LooksLikeDate(tail))
+                        {
+                            rawDate = tail;
+                            code = code.Substring(0, gap).Trim();
+                        }
+                    }
+                }
+
                 if (code.Length == 0) continue;
 
-                string date = (parts.Length > 1) ? parts[1].Trim() : string.Empty;
+                string date = NormaliseDate(rawDate);
+                if (rawDate.Length > 0 && date.Length == 0) unreadableDates++;
 
                 if (sb.Length > 0) sb.Append('~');
                 sb.Append(code).Append('|').Append(date);

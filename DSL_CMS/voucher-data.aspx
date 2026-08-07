@@ -374,8 +374,11 @@
 
                 <div class="paste-help">
                     Copy the <code>Voucher Code</code> and <code>Expiry Date</code> columns from Excel
-                    and paste them here, one voucher per line. Tab, comma or pipe all work as the
-                    separator. Date format: <code>dd-MM-yyyy</code> or <code>yyyy-MM-dd</code>.
+                    and paste them here, one voucher per line. Tab, comma, semicolon or pipe all work
+                    as the separator &ndash; not a space, because voucher codes may contain spaces.<br />
+                    Dates are read <strong>day first</strong>:
+                    <code>14-08-2026</code>, <code>14/08/2026</code>, <code>14-Aug-2026</code>
+                    and <code>2026-08-14</code> all mean 14 August 2026.
                 </div>
 
                 <asp:TextBox ID="txtPaste" runat="server" TextMode="MultiLine" CssClass="paste-area"
