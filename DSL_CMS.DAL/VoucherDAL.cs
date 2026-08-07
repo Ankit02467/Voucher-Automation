@@ -284,36 +284,20 @@ namespace DSL_CMS.DAL
             return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true, "@Action", "SelectId", "@Id", Id);
         }
 
-        public static int InsertVoucherDetail(string providerId, string productId, string voucherCode,
-            string expiryDate, string dealerName, string saleDate, string status, string addedBy)
-        {
-            return Convert.ToInt32(SqlHelper.ExecuteScalar("Sp_VoucherStock_Table", true,
-                "@Action", "Insert",
-                "@ProviderId", providerId,
-                "@ProductId", productId,
-                "@VoucherCode", voucherCode,
-                "@ExpiryDate", expiryDate,
-                "@DealerName", dealerName,
-                "@SaleDate", saleDate,
-                "@Status", status,
-                "@AddedBy", addedBy));
-        }
+        /* InsertVoucherDetail / UpdateVoucherDetail lived here and were removed.
 
-        public static void UpdateVoucherDetail(string Id, string providerId, string productId, string voucherCode,
-            string expiryDate, string dealerName, string saleDate, string status, string modifiedBy)
-        {
-            SqlHelper.ExecuteNonQuery("Sp_VoucherStock_Table", true,
-                "@Action", "Update",
-                "@Id", Id,
-                "@ProviderId", providerId,
-                "@ProductId", productId,
-                "@VoucherCode", voucherCode,
-                "@ExpiryDate", expiryDate,
-                "@DealerName", dealerName,
-                "@SaleDate", saleDate,
-                "@Status", status,
-                "@AddedBy", modifiedBy);
-        }
+           UpdateVoucherDetail called @Action = 'Update', which the proc has never
+           had since Revision 2 - so it fell through every branch and did nothing,
+           silently and without error. Nothing called either method.
+
+           Both also took dealerName and saleDate, which the proc stopped reading
+           once dealers moved to VoucherDealer_Table; a caller would have believed
+           it was saving a dealer that was quietly dropped.
+
+           Vouchers are created through BulkInsert and edited through
+           UpdateAdminEntry / UpdateStatusEntry / UpdateStatusOnly. If a
+           single-voucher insert is ever wanted, write it against the current
+           schema rather than reviving this. */
 
         /// <summary>
         /// Marks a voucher as checked (Voucher Check Date / Checked By columns).

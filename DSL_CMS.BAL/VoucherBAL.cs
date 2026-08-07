@@ -155,17 +155,7 @@ namespace DSL_CMS.BAL
 
         #endregion
 
-        public static int InsertVoucherDetail(string providerId, string productId, string voucherCode,
-            string expiryDate, string dealerName, string saleDate, string status, string addedBy)
-        {
-            return VoucherDAL.InsertVoucherDetail(providerId, productId, voucherCode, expiryDate, dealerName, saleDate, status, addedBy);
-        }
-
-        public static void UpdateVoucherDetail(string Id, string providerId, string productId, string voucherCode,
-            string expiryDate, string dealerName, string saleDate, string status, string modifiedBy)
-        {
-            VoucherDAL.UpdateVoucherDetail(Id, providerId, productId, voucherCode, expiryDate, dealerName, saleDate, status, modifiedBy);
-        }
+        /* InsertVoucherDetail / UpdateVoucherDetail removed - see VoucherDAL. */
 
         public static void UpdateVoucherCheck(string Id, string checkedBy, string userId)
         {
