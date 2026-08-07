@@ -1,0 +1,161 @@
+/* ============================================================
+   Login screen - matches the existing DSL staging login design.
+   ============================================================ */
+:root {
+    --blush: #fdf3f2;
+    --olive: #77863a;
+    --field-bg: #e6eefc;
+    --field-border: #8fc556;
+    --teal-top: #1a7d8e;
+    --teal-bottom: #116475;
+    --btn: #33373b;
+    --icon: #5a6068;
+    --ink: #1f2937;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    height: 100%;
+    background: #ffffff;
+    font-family: "Segoe UI", Roboto, Arial, sans-serif;
+    color: var(--ink);
+}
+
+.login-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 16px;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 562px;
+    border-radius: 24px;
+    overflow: hidden;
+    background: var(--blush);
+    box-shadow: 0 10px 34px rgba(17, 100, 117, .12);
+}
+
+/* ---------- top (blush) ---------- */
+.card-top {
+    padding: 52px 58px 68px;
+}
+
+.card-top h1 {
+    margin: 0 0 92px;
+    text-align: center;
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 400;
+    font-size: 42px;
+    letter-spacing: .5px;
+    color: var(--olive);
+}
+
+/* ---------- fields ---------- */
+.fld {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--field-bg);
+    border: 1.5px solid var(--field-border);
+    border-radius: 999px;
+    padding: 0 22px;
+    height: 58px;
+    margin-bottom: 34px;
+}
+
+.fld:last-of-type { margin-bottom: 0; }
+
+.fld .ico { flex: 0 0 auto; display: flex; color: var(--icon); }
+.fld .ico svg { width: 21px; height: 21px; display: block; }
+
+.fld input[type=text],
+.fld input[type=email],
+.fld input[type=password] {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font-size: 17px;
+    color: var(--ink);
+    padding: 0;
+}
+
+.fld input::placeholder { color: #98a4b5; }
+
+.fld .eye {
+    flex: 0 0 auto;
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    color: var(--icon);
+    display: flex;
+}
+.fld .eye svg { width: 21px; height: 21px; display: block; }
+
+/* ---------- error ---------- */
+.login-msg {
+    background: #fde2e2;
+    color: #b91c1c;
+    border-radius: 12px;
+    padding: 11px 16px;
+    margin: -46px 0 30px;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: center;
+}
+
+/* ---------- bottom (teal + dome) ---------- */
+.card-bottom {
+    position: relative;
+    overflow: hidden;          /* keeps the dome inside the teal band */
+    background: linear-gradient(180deg, var(--teal-top), var(--teal-bottom));
+    padding: 122px 58px 34px;
+    text-align: center;
+}
+
+/* Blush ellipse centred exactly on the teal's top edge: its lower half
+   shows as the dome - full card width at the edge, 70px deep at centre. */
+.card-bottom::before {
+    content: "";
+    position: absolute;
+    top: -70px;
+    left: 0;
+    width: 100%;
+    height: 140px;
+    background: var(--blush);
+    border-radius: 50%;
+}
+
+.card-bottom .btn-signin {
+    position: relative;
+    z-index: 1;
+    display: inline-block;
+    min-width: 288px;
+    padding: 16px 34px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--btn);
+    color: #fff;
+    font-family: inherit;
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.card-bottom .btn-signin:hover { background: #23272a; }
+
+@media (max-width: 600px) {
+    .card-top { padding: 40px 24px 48px; }
+    .card-top h1 { font-size: 32px; margin-bottom: 56px; }
+    .fld { height: 54px; padding: 0 18px; margin-bottom: 26px; }
+    .login-msg { margin: -34px 0 22px; }
+    .card-bottom { padding: 86px 24px 30px; }
+    .card-bottom::before { top: -50px; height: 100px; }
+    .card-bottom .btn-signin { min-width: 220px; }
+}

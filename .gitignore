@@ -1,0 +1,39 @@
+# ---- Build output ----
+[Bb]in/
+[Oo]bj/
+*.dll
+*.pdb
+*.exe
+
+# ---- Visual Studio ----
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.cache
+
+# ---- NuGet ----
+# packages.config is tracked; the restored packages folder is not.
+packages/
+*.nupkg
+
+# ---- ASP.NET / publish ----
+[Pp]ublish/
+*.[Pp]ublish.xml
+*.pubxml
+*.pubxml.user
+*.azurePubxml
+App_Data/
+Uploads/
+
+# ---- Local config overrides ----
+# Web.config itself IS tracked - it carries the "con" key the DAL depends on.
+Web.*.config
+*.Debug.config
+*.Release.config
+
+# ---- OS ----
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
