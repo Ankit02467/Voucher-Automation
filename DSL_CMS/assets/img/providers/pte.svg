@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="PTE">
+  <!-- Placeholder tile, not the Pearson PTE logo. Replace with the official
+       SVG when you have it. -->
+  <rect width="48" height="48" rx="10" fill="#7A2FF2"/>
+  <text x="24" y="30" text-anchor="middle"
+        font-family="'Segoe UI', Arial, Helvetica, sans-serif"
+        font-size="14" font-weight="700" fill="#ffffff" letter-spacing="0.5">PTE</text>
+</svg>

@@ -159,6 +159,12 @@
     <Content Include="assets\css\site.css" />
     <Content Include="assets\css\login.css" />
     <Content Include="assets\img\logo\logo.png" />
+    <Content Include="assets\img\providers\aws.svg" />
+    <Content Include="assets\img\providers\microsoft.svg" />
+    <Content Include="assets\img\providers\pte.svg" />
+    <Content Include="assets\img\providers\ets.svg" />
+    <Content Include="assets\img\providers\languagecert.svg" />
+    <Content Include="assets\img\providers\README.md" />
     <Content Include="assets\img\profile-icon.png" />
   </ItemGroup>
   <ItemGroup>
