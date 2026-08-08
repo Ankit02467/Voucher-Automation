@@ -81,12 +81,25 @@ a { color: var(--blue-dark); text-decoration: none; }
     padding: 6px 10px 20px;
 }
 .sidebar .brand img { height: 34px; }
-.sidebar .brand .divider { width: 1px; height: 26px; background: rgba(255,255,255,.16); }
-.sidebar .brand .collapse {
-    background: none; border: 0; padding: 0; cursor: pointer;
-    color: #8ea3c6; display: flex;
+
+/* ---- show / hide the sidebar ----
+   The panel slides out to the left and the content takes the space. The class
+   sits on <html> so the head script can set it before the first paint, which
+   keeps the panel from flashing into view on every postback. */
+.sidebar { transition: margin-left .22s ease; }
+html.nav-collapsed .sidebar { margin-left: -248px; }
+
+.navtoggle {
+    width: 38px; height: 38px; flex: 0 0 auto;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: var(--panel); color: var(--tx-2);
+    display: grid; place-items: center; cursor: pointer; padding: 0;
+    transition: .15s;
 }
-.sidebar .brand .collapse svg { width: 20px; height: 20px; }
+.navtoggle:hover { border-color: var(--brand); color: var(--brand); }
+.navtoggle svg { transition: transform .22s ease; }
+/* the arrow turns round to say it will bring the panel back */
+html.nav-collapsed .navtoggle svg { transform: scaleX(-1); }
 
 .navlbl {
     font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase;
