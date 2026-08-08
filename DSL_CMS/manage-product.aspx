@@ -12,6 +12,12 @@
         <h1>Manage Product</h1>
     </div>
 
+    <asp:Panel ID="pnlDenied" runat="server" Visible="false" CssClass="msg msg-bad">
+        Manage Product is available to Voucher Admin only.
+    </asp:Panel>
+
+    <asp:Panel ID="pnlBody" runat="server">
+
     <asp:Panel ID="pnlMsg" runat="server" Visible="false" CssClass="msg msg-ok">
         <asp:Literal ID="litMsg" runat="server" />
     </asp:Panel>
@@ -88,7 +94,7 @@
                     <table class="grid">
                         <thead>
                             <tr>
-                                <th>#</th>
+                                <th>S.no</th>
                                 <th>Product Name</th>
                                 <th>Provider</th>
                                 <th>Validity (Days)</th>
@@ -130,5 +136,7 @@
             </asp:PlaceHolder>
         </div>
     </div>
+
+    </asp:Panel>
 
 </asp:Content>

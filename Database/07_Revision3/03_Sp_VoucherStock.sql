@@ -174,14 +174,36 @@ BEGIN
         LEFT JOIN dbo.User_Table u ON u.Id = v.AddedBy
         WHERE v.Id = @IdInt;
 
-    /* Names that have checked a voucher FOR THIS PROVIDER. Without the provider
-       filter the drop-down offered people whose checks were all on another
-       provider - an option that could only ever return an empty grid. */
+    /* Every active student, whether they have checked anything or not - the
+       filter is a list of people, so a student who has done nothing yet still
+       belongs in it (and picking them is a fair way to see that they have done
+       nothing).
+
+       Unioned with whoever else actually appears in CheckedBy for this provider,
+       so a sub-admin who checked a voucher does not vanish from the filter. That
+       half stays provider-scoped: a name from another provider would only ever
+       return an empty grid.
+
+       CheckedBy holds the person's FullName, so these must be names, not ids. */
     ELSE IF @Action = 'SelectCheckedBy'
-        SELECT DISTINCT CheckedBy FROM dbo.VoucherStock_Table
-        WHERE CheckedBy IS NOT NULL AND CheckedBy <> ''
-          AND (@ProviderInt IS NULL OR ProviderId = @ProviderInt)
-        ORDER BY CheckedBy;
+        SELECT DISTINCT x.CheckedBy
+        FROM (
+            SELECT CheckedBy = u.FullName
+            FROM dbo.User_Table u
+            INNER JOIN dbo.UserTypeMaster t ON t.Id = u.[Type]
+            WHERE t.TypeId = 4
+              AND t.UserTypeName = 'Voucher Student'
+              AND u.Status = 1
+
+            UNION
+
+            SELECT v.CheckedBy
+            FROM dbo.VoucherStock_Table v
+            WHERE v.CheckedBy IS NOT NULL AND v.CheckedBy <> ''
+              AND (@ProviderInt IS NULL OR v.ProviderId = @ProviderInt)
+        ) x
+        WHERE x.CheckedBy IS NOT NULL AND x.CheckedBy <> ''
+        ORDER BY x.CheckedBy;
 
     ELSE IF @Action = 'SelectDealerColumns'
         SELECT MaxSeq = ISNULL(MAX(d.Seq), 1)

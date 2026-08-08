@@ -25,11 +25,42 @@ namespace DSL_CMS
         protected Repeater rptProduct;
         protected PlaceHolder phEmpty;
         protected Literal litCount;
-        protected Panel pnlMsg;
+        protected Panel pnlMsg, pnlBody, pnlDenied;
         protected Literal litMsg;
+
+        private const string RoleAdmin = "Voucher Admin";
+
+        /// <summary>
+        /// Resolved from the database on every request, not cached in ViewState -
+        /// a posted-back role is a role the caller can edit.
+        /// </summary>
+        private bool IsAdmin
+        {
+            get
+            {
+                DataTable dt = VoucherBAL.GetUserRole(Convert.ToString(Session["UserId"]));
+
+                string role = (dt != null && dt.Rows.Count > 0)
+                    ? Convert.ToString(dt.Rows[0]["RoleName"]).Trim()
+                    : string.Empty;
+
+                // Unmapped users fall back to admin, matching the other screens.
+                return role.Length == 0 || role == RoleAdmin;
+            }
+        }
 
         protected void Page_Load(object sender, EventArgs e)
         {
+            // Hiding the "Manage Product" link on Voucher Status is not a gate -
+            // the URL is guessable and every handler below is a write. Anyone who
+            // is not an admin gets nothing to work with, on every request.
+            if (!IsAdmin)
+            {
+                pnlBody.Visible = false;
+                pnlDenied.Visible = true;
+                return;
+            }
+
             if (!IsPostBack)
             {
                 BindProviders();
@@ -95,6 +126,8 @@ namespace DSL_CMS
 
         protected void btnSave_Click(object sender, EventArgs e)
         {
+            if (!IsAdmin) return;   // never write on the strength of a hidden button
+
             if (ddlProvider.SelectedValue.Length == 0 || txtName.Text.Trim().Length == 0)
             {
                 ShowMessage("Provider and Product Name are required.", false);
@@ -146,6 +179,7 @@ namespace DSL_CMS
 
         protected void rptProduct_ItemCommand(object source, RepeaterCommandEventArgs e)
         {
+            if (!IsAdmin) return;
             if (e.CommandName != "EditRow") return;
 
             DataTable dt = VoucherBAL.GetProductById(Convert.ToString(e.CommandArgument));
