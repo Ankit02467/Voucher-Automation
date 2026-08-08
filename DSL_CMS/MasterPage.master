@@ -26,28 +26,13 @@
                 </button>
             </div>
 
+            <%-- Dashboard / Bookings / Training were removed on purpose - the
+                 modules do not exist, so the links were dead. --%>
+            <div class="navlbl">Vouchers</div>
             <nav class="nav">
-               <%-- <a href="<%= ResolveUrl("~/dashboard.aspx") %>" class='<%= NavClass("dashboard.aspx") %>'>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>
-                    <span>Dashboard</span>
-                </a>--%>
-
-                <%-- Bookings / Training modules are not built yet - links are inert on purpose --%>
-               <%-- <a href="#">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z" /></svg>
-                    <span>Bookings</span>
-                </a>
-                <a href="#">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2 9l10 5 10-5-10-5z" /><path d="M6 11.5V17c0 1.5 3 3 6 3s6-1.5 6-3v-5.5" /></svg>
-                    <span>Training</span>
-                </a>--%>
-
                 <a href="<%= ResolveUrl("~/voucher-status.aspx") %>" class='<%= NavClass("voucher-status.aspx") %>'>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M8 10l3 4M14 10l2 2" /></svg>
+                         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v4a2 2 0 000 4v4H4v-4a2 2 0 000-4zM10 6v12" /></svg>
                     <span>Voucher Status</span>
                 </a>
             </nav>
@@ -55,11 +40,27 @@
 
         <div class="main">
             <div class="topbar">
+                <%-- Filters the provider list on Voucher Status. It is a real
+                     control, not decoration - the source design showed a search
+                     box that searched nothing. --%>
+                <asp:Panel ID="pnlSearch" runat="server" Visible="false" CssClass="search"
+                           DefaultButton="btnTopSearch">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4-4" /></svg>
+                    <asp:TextBox ID="txtTopSearch" runat="server" placeholder="Search providers…" />
+                    <asp:Button ID="btnTopSearch" runat="server" Text="Search"
+                        OnClick="btnTopSearch_Click" CausesValidation="false"
+                        style="position:absolute; left:-9999px;" />
+                </asp:Panel>
+
+                <span class="tb-spacer"></span>
+
                 <div class="user">
-                    <span class="name"><%= CurrentUserName %></span>
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 5a3.2 3.2 0 1 1 0 6.4A3.2 3.2 0 0 1 12 7zm0 14a8 8 0 0 1-5.7-2.4c.4-2.3 3-3.6 5.7-3.6s5.3 1.3 5.7 3.6A8 8 0 0 1 12 21z" />
-                    </svg>
+                    <span class="av"><%= UserInitials %></span>
+                    <span class="who">
+                        <b><%= CurrentUserName %></b>
+                        <span><asp:Literal ID="litUserRole" runat="server" Text="Signed in" /></span>
+                    </span>
                     <asp:LinkButton ID="lnkLogout" runat="server" CssClass="logout"
                         OnClick="lnkLogout_Click" CausesValidation="false">Logout</asp:LinkButton>
                 </div>

@@ -108,7 +108,37 @@ BEGIN
                 SELECT STRING_AGG(CONVERT(VARCHAR(20), s.Cnt), '|') WITHIN GROUP (ORDER BY s.Name)
                 FROM Shown s WHERE s.ProviderId = p.Id), ''),
             /* the number beside the provider name must agree with what opens */
-            ProductCount = (SELECT COUNT(*) FROM Shown s WHERE s.ProviderId = p.Id)
+            ProductCount = (SELECT COUNT(*) FROM Shown s WHERE s.ProviderId = p.Id),
+
+            /* Full status split for the distribution bar. Deliberately NOT
+               narrowed by the status pill - the bar is what shows the split, so
+               filtering it to one status would leave a single solid block. It
+               does follow the expiry window, so the bar describes the same
+               vouchers the rest of the row is counting. */
+            TotalCount = SUM(CASE WHEN v.Id IS NOT NULL
+                                   AND (@WinEnd IS NULL OR (v.ExpiryDate IS NOT NULL
+                                        AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
+                                  THEN 1 ELSE 0 END),
+            UsedCount = SUM(CASE WHEN v.Status = 'Used'
+                                  AND (@WinEnd IS NULL OR (v.ExpiryDate IS NOT NULL
+                                       AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
+                                 THEN 1 ELSE 0 END),
+            UnusedCount = SUM(CASE WHEN v.Status = 'Unused'
+                                    AND (@WinEnd IS NULL OR (v.ExpiryDate IS NOT NULL
+                                         AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
+                                   THEN 1 ELSE 0 END),
+            ExpiredCount = SUM(CASE WHEN v.Status = 'Expired'
+                                     AND (@WinEnd IS NULL OR (v.ExpiryDate IS NOT NULL
+                                          AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
+                                    THEN 1 ELSE 0 END),
+            InvalidCount = SUM(CASE WHEN v.Status = 'Invalid'
+                                     AND (@WinEnd IS NULL OR (v.ExpiryDate IS NOT NULL
+                                          AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
+                                    THEN 1 ELSE 0 END),
+            NotSetCount = SUM(CASE WHEN v.Id IS NOT NULL AND v.Status IS NULL
+                                    AND (@WinEnd IS NULL OR (v.ExpiryDate IS NOT NULL
+                                         AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
+                                   THEN 1 ELSE 0 END)
         FROM dbo.VoucherProvider_Table p
         LEFT JOIN dbo.VoucherStock_Table v
                ON v.ProviderId = p.Id
@@ -117,6 +147,30 @@ BEGIN
         WHERE (@Category IS NULL OR p.Category = @Category)
         GROUP BY p.Id, p.Name, p.Category, p.Status
         ORDER BY p.Id;
+    END
+
+    /* ---------- the figures across the top of the dashboard ---------- */
+    ELSE IF @Action = 'SelectDashboardTotals'
+    BEGIN
+        DECLARE @MonthStart DATE = DATEFROMPARTS(YEAR(@Today), MONTH(@Today), 1);
+
+        SELECT
+            TotalVoucher = COUNT(*),
+            Used     = SUM(CASE WHEN Status = 'Used'    THEN 1 ELSE 0 END),
+            Unused   = SUM(CASE WHEN Status = 'Unused'  THEN 1 ELSE 0 END),
+            Expired  = SUM(CASE WHEN Status = 'Expired' THEN 1 ELSE 0 END),
+            Invalid  = SUM(CASE WHEN Status = 'Invalid' THEN 1 ELSE 0 END),
+            NotSet   = SUM(CASE WHEN Status IS NULL     THEN 1 ELSE 0 END),
+            /* the "expiring soon" card - a 30 day window from today */
+            ExpiringSoon = SUM(CASE WHEN ExpiryDate BETWEEN @Today AND DATEADD(DAY, 30, @Today)
+                                    THEN 1 ELSE 0 END),
+            /* stock as it stood at the start of this month, so the page can say
+               how far it has moved since. Read off AddedDate - there is no daily
+               snapshot anywhere, so this measures stock added, not stock held. */
+            BeforeThisMonth = SUM(CASE WHEN AddedDate < @MonthStart THEN 1 ELSE 0 END),
+            Providers = (SELECT COUNT(*) FROM dbo.VoucherProvider_Table),
+            Products  = (SELECT COUNT(*) FROM dbo.VoucherProduct_Table WHERE Status = 'A')
+        FROM dbo.VoucherStock_Table;
     END
 
     ELSE IF @Action = 'SelectDropdown'

@@ -23,6 +23,11 @@ namespace DSL_CMS.BAL
             return VoucherDAL.GetAllProvider();
         }
 
+        public static DataTable GetDashboardTotals()
+        {
+            return VoucherDAL.GetDashboardTotals();
+        }
+
         public static DataTable GetProvider(string Id)
         {
             return VoucherDAL.GetProvider(Id);

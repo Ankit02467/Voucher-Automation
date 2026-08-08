@@ -36,6 +36,13 @@ namespace DSL_CMS.DAL
             return SqlHelper.ExecuteDataTable("Sp_VoucherProvider_Table", true, "@Action", "SelectDropdown");
         }
 
+        /// <summary>Figures for the cards across the top of the dashboard.</summary>
+        public static DataTable GetDashboardTotals()
+        {
+            return SqlHelper.ExecuteDataTable("Sp_VoucherProvider_Table", true,
+                "@Action", "SelectDashboardTotals");
+        }
+
         public static DataTable GetProvider(string Id)
         {
             return SqlHelper.ExecuteDataTable("Sp_VoucherProvider_Table", true, "@Action", "SelectId", "@Id", Id);

@@ -9,14 +9,17 @@ using System.Web.UI.WebControls;
 
 namespace DSL_CMS
 {
-    public partial class voucher_status : System.Web.UI.Page
+    public partial class voucher_status : System.Web.UI.Page, ISearchablePage
     {
         protected Repeater rptStatus, rptWindows, rptCategory, rptSummary, rptPager, rptPerformance;
         protected PlaceHolder phEmpty, phPager, phPerfEmpty;
         protected Panel pnlWindows, pnlFilters, pnlProviderGrid, pnlPerformance;
         protected LinkButton lnkPrev, lnkNext, lnkEarlyExpiry;
         protected HyperLink lnkStudentPerf, lnkProductPerf;
-        protected Literal litCountHead, litPageInfo;
+        protected Literal litCountHead, litPageInfo,
+                          litProviderCount, litProductCount,
+                          litKpiTotal, litKpiTrend, litKpiUsed, litKpiUsedPct,
+                          litKpiUnused, litKpiUnusedPct, litKpiExpiring, litKpiInvalid;
 
         private const int PageSize = 10;
         private const string StatusAll = "All";
@@ -166,6 +169,82 @@ namespace DSL_CMS
             BindCategoryPills();
             ApplyStatus();
             BindGrid();
+            BindKpis();
+        }
+
+        /// <summary>Narrows the provider list from the topbar search box.</summary>
+        private string ProviderSearch
+        {
+            get { return (string)(ViewState["Search"] ?? string.Empty); }
+            set { ViewState["Search"] = value; }
+        }
+
+        /// <summary>
+        /// A student sees their own performance here, not the provider list, so
+        /// there is nothing for the box to narrow.
+        /// </summary>
+        public bool SearchEnabled { get { return !IsStudent; } }
+
+        public void ApplySearch(string term)
+        {
+            ProviderSearch = term ?? string.Empty;
+            PageIndex = 0;
+            BindGrid();
+        }
+
+        /// <summary>
+        /// The figures across the top. Independent of the status pills - they
+        /// describe the whole stock, which is the point of a summary.
+        /// </summary>
+        private void BindKpis()
+        {
+            DataTable dt = VoucherBAL.GetDashboardTotals();
+            if (dt == null || dt.Rows.Count == 0) return;
+
+            DataRow r = dt.Rows[0];
+
+            int total = Convert.ToInt32(r["TotalVoucher"]);
+            int used = Convert.ToInt32(r["Used"]);
+            int unused = Convert.ToInt32(r["Unused"]);
+            int before = Convert.ToInt32(r["BeforeThisMonth"]);
+
+            litProviderCount.Text = Convert.ToString(r["Providers"]);
+            litProductCount.Text = Convert.ToString(r["Products"]);
+
+            litKpiTotal.Text = total.ToString();
+            litKpiUsed.Text = used.ToString();
+            litKpiUnused.Text = unused.ToString();
+            litKpiExpiring.Text = Convert.ToString(r["ExpiringSoon"]);
+            litKpiInvalid.Text = Convert.ToString(r["Invalid"]);
+
+            litKpiUsedPct.Text = Percent(used, total);
+            litKpiUnusedPct.Text = Percent(unused, total);
+
+            litKpiTrend.Text = TrendText(total, before);
+        }
+
+        private static string Percent(int part, int whole)
+        {
+            if (whole <= 0) return "0%";
+            return Math.Round(part * 100.0 / whole, 1).ToString("0.#") + "%";
+        }
+
+        /// <summary>
+        /// Growth since the 1st of this month, read off AddedDate. There is no
+        /// daily snapshot of stock anywhere, so this measures what was added, and
+        /// says nothing at all when there is no earlier month to compare against
+        /// rather than inventing a percentage.
+        /// </summary>
+        private static string TrendText(int total, int before)
+        {
+            if (before <= 0) return "<span class=\"vs-num\">new this month</span>";
+
+            double pct = (total - before) * 100.0 / before;
+            string arrow = (pct >= 0) ? "&#9650;" : "&#9660;";
+            string css = (pct >= 0) ? "vs-up" : "vs-down";
+
+            return "<span class=\"" + css + "\">" + arrow + " "
+                 + Math.Abs(Math.Round(pct, 1)).ToString("0.#") + "%</span> vs last month";
         }
 
         /// <summary>
@@ -192,7 +271,7 @@ namespace DSL_CMS
         {
             litCountHead.Text = StatusLabel(SelectedStatus);
 
-            lnkEarlyExpiry.CssClass = EarlyExpiry ? "pill-btn on" : "pill-btn";
+            lnkEarlyExpiry.CssClass = EarlyExpiry ? "vs-chip on" : "vs-chip";
             pnlWindows.Visible = EarlyExpiry;
 
             if (EarlyExpiry)
@@ -250,6 +329,19 @@ namespace DSL_CMS
         {
             DataTable dt = VoucherBAL.GetProviderSummary(
                 SelectedStatus, SelectedDays, SelectedCategory, string.Empty, string.Empty);
+
+            // topbar search: narrow by provider name, in memory - the list is five
+            // rows long, so a round trip to filter it would be silly
+            if (dt != null && ProviderSearch.Length > 0)
+            {
+                DataTable hit = dt.Clone();
+                foreach (DataRow r in dt.Rows)
+                {
+                    if (Convert.ToString(r["Name"]).IndexOf(ProviderSearch, StringComparison.OrdinalIgnoreCase) >= 0)
+                        hit.ImportRow(r);
+                }
+                dt = hit;
+            }
 
             int rowCount = (dt == null) ? 0 : dt.Rows.Count;
             int pageCount = Pager.PageCount(rowCount, PageSize);
@@ -391,26 +483,131 @@ namespace DSL_CMS
         protected string StatusPillClass(object pillValue)
         {
             string value = Convert.ToString(pillValue);
-            string css = "pill-btn " + StatusColourClass(value);
+            string css = "vs-chip " + StatusColourClass(value);
 
             if (string.Equals(value, SelectedStatus, StringComparison.OrdinalIgnoreCase))
                 css += " on";
 
-            return css.TrimEnd();
+            return css.Trim();
+        }
+
+        /// <summary>The coloured dot on a status chip.</summary>
+        protected string StatusPipStyle(object pillValue)
+        {
+            switch (Convert.ToString(pillValue).ToLowerInvariant())
+            {
+                case "used": return "background: var(--st-used);";
+                case "unused": return "background: var(--st-unused);";
+                case "expired": return "background: var(--st-expired);";
+                case "invalid": return "background: var(--st-invalid);";
+                case "notset": return "background: var(--st-notset);";
+                default: return "background: var(--brand);";
+            }
         }
 
         protected string WindowPillClass(object pillValue)
         {
             return string.Equals(Convert.ToString(pillValue), SelectedDays, StringComparison.Ordinal)
-                ? "pill-btn on"
-                : "pill-btn";
+                ? "vs-chip on"
+                : "vs-chip";
         }
 
         protected string CategoryPillClass(object pillValue)
         {
             return string.Equals(Convert.ToString(pillValue), SelectedCategory, StringComparison.OrdinalIgnoreCase)
-                ? "pill-btn on"
-                : "pill-btn";
+                ? "vs-chip on"
+                : "vs-chip";
+        }
+
+        /// <summary>Pager links come back as "pg" / "pg on"; the new table wants vs-pg.</summary>
+        protected string PagerClass(object cssClass)
+        {
+            string css = Convert.ToString(cssClass);
+            return css.Replace("pg", "vs-pg");
+        }
+
+        protected string CaretClass(object providerId)
+        {
+            return IsExpanded(providerId) ? "vs-caret open" : "vs-caret";
+        }
+
+        /// <summary>Two letters for the provider tile.</summary>
+        protected string ProviderInitials(object name)
+        {
+            string text = Convert.ToString(name).Trim();
+            if (text.Length == 0) return "?";
+
+            string[] parts = text.Split(new[] { ' ', '-' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 1)
+                return parts[0].Substring(0, Math.Min(3, parts[0].Length)).ToUpperInvariant();
+
+            return (parts[0].Substring(0, 1) + parts[1].Substring(0, 1)).ToUpperInvariant();
+        }
+
+        /// <summary>
+        /// Tile colour, derived from the name so a provider keeps the same colour
+        /// between visits and a new provider gets one without anybody choosing it.
+        /// </summary>
+        protected string ProviderLogoStyle(object name)
+        {
+            string[] palette =
+            {
+                "#ff9900", "#0f6cbd", "#7a2ff2", "#e0392b", "#0e9f6e",
+                "#d946ef", "#0891b2", "#ea580c"
+            };
+
+            string text = Convert.ToString(name);
+            int hash = 0;
+            foreach (char c in text) hash = (hash * 31 + c) & 0x7fffffff;
+
+            return "background: " + palette[hash % palette.Length] + ";";
+        }
+
+        /// <summary>
+        /// The stacked bar plus its legend. Shows the whole status split of the
+        /// provider's stock - it is not narrowed by the status chip, because a bar
+        /// filtered to one status would just be one solid block.
+        /// </summary>
+        protected string DistributionCell(object dataItem)
+        {
+            var row = dataItem as DataRowView;
+            if (row == null) return string.Empty;
+
+            int total = ToInt(row["TotalCount"]);
+            if (total <= 0) return "<span class=\"muted\">&mdash;</span>";
+
+            var parts = new[]
+            {
+                new { Key = "Used",    Val = ToInt(row["UsedCount"]),    Colour = "var(--st-used)" },
+                new { Key = "Unused",  Val = ToInt(row["UnusedCount"]),  Colour = "var(--st-unused)" },
+                new { Key = "Expired", Val = ToInt(row["ExpiredCount"]), Colour = "var(--st-expired)" },
+                new { Key = "Not set", Val = ToInt(row["NotSetCount"]),  Colour = "var(--st-notset)" },
+                new { Key = "Invalid", Val = ToInt(row["InvalidCount"]), Colour = "var(--st-invalid)" }
+            };
+
+            var bar = new StringBuilder("<div class=\"vs-distrib\"><div class=\"vs-bar\">");
+            var legend = new StringBuilder("<div class=\"vs-legend\">");
+
+            foreach (var p in parts)
+            {
+                if (p.Val <= 0) continue;
+
+                double pct = p.Val * 100.0 / total;
+                bar.Append("<i style=\"width:").Append(pct.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))
+                   .Append("%; background:").Append(p.Colour).Append(";\" title=\"")
+                   .Append(p.Key).Append(' ').Append(p.Val).Append("\"></i>");
+
+                legend.Append("<span><span class=\"pip\" style=\"background:").Append(p.Colour).Append(";\"></span>")
+                      .Append(p.Key).Append(" <b>").Append(p.Val).Append("</b></span>");
+            }
+
+            bar.Append("</div>").Append(legend).Append("</div></div>");
+            return bar.ToString();
+        }
+
+        private static int ToInt(object value)
+        {
+            return (value == null || value == DBNull.Value) ? 0 : Convert.ToInt32(value);
         }
 
         /// <summary>Used = red, Unused = green, Expired = yellow, Invalid = blue, Not Set = grey, All = plain.</summary>
@@ -466,14 +663,15 @@ namespace DSL_CMS
                 string id = (i < ids.Length) ? ids[i].Trim() : string.Empty;
                 string count = (i < counts.Length) ? counts[i].Trim() : string.Empty;
 
-                sb.Append("<a class=\"prod-link\" href=\"")
+                sb.Append("<a class=\"vs-prodlink\" href=\"")
                   .Append(Server.HtmlEncode(ViewDataUrl(providerId, id)))
-                  .Append("\">")
-                  .Append(Server.HtmlEncode(name));
+                  .Append("\"><span>")
+                  .Append(Server.HtmlEncode(name))
+                  .Append("</span>");
 
                 // the figure explains why a product is or is not in this list
                 if (count.Length > 0)
-                    sb.Append("<span class=\"prod-count\">").Append(Server.HtmlEncode(count)).Append("</span>");
+                    sb.Append("<span class=\"cnt\">").Append(Server.HtmlEncode(count)).Append("</span>");
 
                 sb.Append("</a>");
             }
