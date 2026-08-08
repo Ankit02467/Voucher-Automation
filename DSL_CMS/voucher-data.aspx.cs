@@ -366,7 +366,7 @@ namespace DSL_CMS
             ddlFilterCheckedBy.Items.Clear();
             ddlFilterCheckedBy.Items.Add(new ListItem("-- All --", string.Empty));
 
-            DataTable dt = VoucherBAL.GetCheckedByList();
+            DataTable dt = VoucherBAL.GetCheckedByList(ProviderId);
             if (dt == null) return;
 
             foreach (DataRow r in dt.Rows)

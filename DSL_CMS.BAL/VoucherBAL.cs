@@ -162,9 +162,9 @@ namespace DSL_CMS.BAL
             VoucherDAL.UpdateVoucherCheck(Id, checkedBy, userId);
         }
 
-        public static DataTable GetCheckedByList()
+        public static DataTable GetCheckedByList(string providerId)
         {
-            return VoucherDAL.GetCheckedByList();
+            return VoucherDAL.GetCheckedByList(providerId);
         }
 
         public static DataTable GetVoucherCount(string providerId)

@@ -174,9 +174,14 @@ BEGIN
         LEFT JOIN dbo.User_Table u ON u.Id = v.AddedBy
         WHERE v.Id = @IdInt;
 
+    /* Names that have checked a voucher FOR THIS PROVIDER. Without the provider
+       filter the drop-down offered people whose checks were all on another
+       provider - an option that could only ever return an empty grid. */
     ELSE IF @Action = 'SelectCheckedBy'
         SELECT DISTINCT CheckedBy FROM dbo.VoucherStock_Table
-        WHERE CheckedBy IS NOT NULL AND CheckedBy <> '' ORDER BY CheckedBy;
+        WHERE CheckedBy IS NOT NULL AND CheckedBy <> ''
+          AND (@ProviderInt IS NULL OR ProviderId = @ProviderInt)
+        ORDER BY CheckedBy;
 
     ELSE IF @Action = 'SelectDealerColumns'
         SELECT MaxSeq = ISNULL(MAX(d.Seq), 1)

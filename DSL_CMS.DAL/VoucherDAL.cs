@@ -314,9 +314,16 @@ namespace DSL_CMS.DAL
                 "@AddedBy", userId);
         }
 
-        public static DataTable GetCheckedByList()
+        /// <summary>
+        /// Names offered by the "Checked By" filter. Scoped to one provider -
+        /// offering a name whose checks are all on another provider gives a filter
+        /// that can only return nothing. Blank means every provider.
+        /// </summary>
+        public static DataTable GetCheckedByList(string providerId)
         {
-            return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true, "@Action", "SelectCheckedBy");
+            return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,
+                "@Action", "SelectCheckedBy",
+                "@ProviderId", providerId);
         }
 
         public static DataTable GetVoucherCount(string providerId)
