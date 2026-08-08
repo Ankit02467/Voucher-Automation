@@ -1,8 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="ETS">
-  <!-- Placeholder tile, not the ETS logo. Replace with the official SVG when
-       you have it. -->
-  <rect width="48" height="48" rx="10" fill="#E0392B"/>
-  <text x="24" y="30" text-anchor="middle"
-        font-family="'Segoe UI', Arial, Helvetica, sans-serif"
-        font-size="14" font-weight="700" fill="#ffffff" letter-spacing="0.5">ETS</text>
+  <!-- The ETS asterisk: eight points made from four crossing bars, in ETS's
+       near-black. Drawn from the supplied artwork. -->
+  <rect width="48" height="48" rx="10" fill="#ffffff"/>
+  <g fill="#0D0D14">
+    <rect x="21" y="8"  width="6" height="32"/>
+    <rect x="8"  y="21" width="32" height="6"/>
+    <rect x="21" y="8"  width="6" height="32" transform="rotate(45 24 24)"/>
+    <rect x="21" y="8"  width="6" height="32" transform="rotate(-45 24 24)"/>
+  </g>
 </svg>

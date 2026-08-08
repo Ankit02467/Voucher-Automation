@@ -1,8 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="LanguageCERT">
-  <!-- Placeholder tile, not the LanguageCERT logo. Replace with the official
-       SVG when you have it. -->
-  <rect width="48" height="48" rx="10" fill="#0E9F6E"/>
-  <text x="24" y="30" text-anchor="middle"
+  <!-- LanguageCERT's circular mark in its red, taken from the supplied artwork:
+       a filled circle carrying a lowercase a. The LANGUAGECERT wordmark beside
+       it is unreadable at 40px, so only the mark is used. Approximate - drop the
+       official SVG over this file to replace it. -->
+  <rect width="48" height="48" rx="10" fill="#ffffff"/>
+  <circle cx="24" cy="24" r="15" fill="#E1251B"/>
+  <text x="24" y="31" text-anchor="middle"
         font-family="'Segoe UI', Arial, Helvetica, sans-serif"
-        font-size="14" font-weight="700" fill="#ffffff" letter-spacing="0.5">LC</text>
+        font-size="20" font-weight="600" fill="#ffffff">a</text>
 </svg>
