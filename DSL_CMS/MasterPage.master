@@ -72,5 +72,32 @@
 
     </div>
     </form>
+
+    <%-- Freezes the page behind an open dialog. The dialogs are server-rendered
+         panels that only exist in the markup while they are open, so their mere
+         presence is the signal. Runs again after every postback, which is how
+         these dialogs open and close. --%>
+    <script>
+        (function () {
+            function applyModalLock() {
+                var body = document.body;
+                if (document.querySelector('.modal-back')) {
+                    // Hiding the scrollbar frees up its width and the page lurches
+                    // sideways; hold that width back so nothing moves.
+                    var gutter = window.innerWidth - document.documentElement.clientWidth;
+                    if (gutter > 0) { body.style.paddingRight = gutter + 'px'; }
+                    body.className += (body.className ? ' ' : '') + 'modal-open';
+                } else {
+                    body.className = body.className.replace(/\bmodal-open\b/g, '').trim();
+                    body.style.paddingRight = '';
+                }
+            }
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', applyModalLock);
+            } else {
+                applyModalLock();
+            }
+        })();
+    </script>
 </body>
 </html>

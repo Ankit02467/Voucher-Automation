@@ -261,6 +261,12 @@ a { color: var(--blue-dark); text-decoration: none; }
 }
 .modal-head, .modal-foot { flex: 0 0 auto; }
 .modal-body { flex: 1 1 auto; overflow-y: auto; }
+
+/* While a dialog is open the page behind it must stay put. Scrolling belongs to
+   the dialog's own body, which is the only thing that can overflow now.
+   The class is put on <body> by the script at the end of MasterPage - the
+   dialogs are server-rendered panels, so there is nothing to hook on the way in. */
+body.modal-open { overflow: hidden; }
 .modal.sm { max-width: 760px; }
 .modal.lg { max-width: 1100px; }
 .modal.xl { max-width: 1400px; }
