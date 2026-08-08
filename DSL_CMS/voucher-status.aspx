@@ -27,10 +27,10 @@
                         Text='<%# Eval("Text") %>' CausesValidation="false" />
                 </ItemTemplate>
             </asp:Repeater>
-        </div>
 
-        <%-- Early expiry lives on its own row; the status pills never reveal it --%>
-        <div class="pill-row" style="margin-top: 14px;">
+            <%-- Sits on the same row, straight after Invalid. It is a sibling view
+                 of the statuses rather than an extra filter, so it belongs beside
+                 them - and picking one clears the other. --%>
             <asp:LinkButton ID="lnkEarlyExpiry" runat="server" CssClass="pill-btn"
                 OnClick="lnkEarlyExpiry_Click" CausesValidation="false"
                 ToolTip="Show vouchers lapsing within a chosen window">View Early Expiry</asp:LinkButton>
