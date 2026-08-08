@@ -5,6 +5,13 @@
 
 <asp:Content ContentPlaceHolderID="MainContent" runat="server">
 
+    <%-- ---------------- Toolbar ---------------- --%>
+    <div class="toolbar">
+        <a class="btn-back" href='<%= ResolveUrl("~/voucher-status.aspx") %>'
+           title="Back to Voucher Status">&#8592; Back</a>
+        <h1>Manage Product</h1>
+    </div>
+
     <asp:Panel ID="pnlMsg" runat="server" Visible="false" CssClass="msg msg-ok">
         <asp:Literal ID="litMsg" runat="server" />
     </asp:Panel>
