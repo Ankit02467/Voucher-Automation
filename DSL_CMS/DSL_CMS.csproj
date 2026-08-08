@@ -137,6 +137,10 @@
       <DependentUpon>student-performance.aspx</DependentUpon>
       <SubType>ASPXCodeBehind</SubType>
     </Compile>
+    <Compile Include="product-performance.aspx.cs">
+      <DependentUpon>product-performance.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
     <Compile Include="manage-product.aspx.cs">
       <DependentUpon>manage-product.aspx</DependentUpon>
       <SubType>ASPXCodeBehind</SubType>
@@ -150,6 +154,7 @@
     <Content Include="voucher-status.aspx" />
     <Content Include="voucher-data.aspx" />
     <Content Include="student-performance.aspx" />
+    <Content Include="product-performance.aspx" />
     <Content Include="manage-product.aspx" />
     <Content Include="assets\css\site.css" />
     <Content Include="assets\css\login.css" />

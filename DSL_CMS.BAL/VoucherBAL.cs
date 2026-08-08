@@ -153,6 +153,16 @@ namespace DSL_CMS.BAL
             return VoucherDAL.GetPerformanceByStudent(providerId);
         }
 
+        public static DataTable GetProviderChecks()
+        {
+            return VoucherDAL.GetProviderChecks();
+        }
+
+        public static DataTable GetProductChecks(string providerId)
+        {
+            return VoucherDAL.GetProductChecks(providerId);
+        }
+
         #endregion
 
         /* InsertVoucherDetail / UpdateVoucherDetail removed - see VoucherDAL. */

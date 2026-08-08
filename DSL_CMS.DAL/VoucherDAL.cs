@@ -277,6 +277,24 @@ namespace DSL_CMS.DAL
                 "@ProviderId", providerId);
         }
 
+        /// <summary>
+        /// Checked-voucher counts per provider, by anyone. Top level of the
+        /// Product wise performance screen.
+        /// </summary>
+        public static DataTable GetProviderChecks()
+        {
+            return SqlHelper.ExecuteDataTable("Sp_VoucherPerformance_Table", true,
+                "@Action", "SelectProviderChecks");
+        }
+
+        /// <summary>The same, split by product - what a provider row expands into.</summary>
+        public static DataTable GetProductChecks(string providerId)
+        {
+            return SqlHelper.ExecuteDataTable("Sp_VoucherPerformance_Table", true,
+                "@Action", "SelectProductChecks",
+                "@ProviderId", providerId);
+        }
+
         #endregion
 
         public static DataTable GetData(string Id)

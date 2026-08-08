@@ -53,6 +53,34 @@ BEGIN
 
     IF @Action = 'SelectSummary'
     BEGIN
+        /* Product list under each provider, counted against whatever status and
+           expiry window are in force.
+
+           With a status picked, a product holding none of it is dropped: opening
+           a provider under "Unused" to be shown products with nothing unused is
+           noise. With no status (All), every active product stays, because there
+           the list is describing the catalogue rather than a result set. */
+        ;WITH ProductRow AS
+        (
+            SELECT pr.Id, pr.ProviderId, pr.Name,
+                   Cnt = COUNT(v.Id)
+            FROM dbo.VoucherProduct_Table pr
+            LEFT JOIN dbo.VoucherStock_Table v
+                   ON v.ProductId = pr.Id
+                  AND (@Status IS NULL
+                       OR (@Status =  'NotSet' AND v.Status IS NULL)
+                       OR (@Status <> 'NotSet' AND v.Status = @Status))
+                  AND (@WinEnd IS NULL
+                       OR (v.ExpiryDate IS NOT NULL
+                           AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
+            WHERE pr.Status = 'A'
+            GROUP BY pr.Id, pr.ProviderId, pr.Name
+        ),
+        Shown AS
+        (
+            SELECT * FROM ProductRow
+            WHERE (@Status IS NULL AND @WinEnd IS NULL) OR Cnt > 0
+        )
         SELECT
             p.Id,
             p.Name,
@@ -68,17 +96,19 @@ BEGIN
                            OR (v.ExpiryDate IS NOT NULL
                                AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
                      THEN 1 ELSE 0 END),
-            /* names and ids share one ORDER BY, so index N matches index N */
+            /* names, ids and counts share one ORDER BY, so index N of each
+               lines up with index N of the others */
             ProductNames = ISNULL((
-                SELECT STRING_AGG(pr.Name, '|') WITHIN GROUP (ORDER BY pr.Name)
-                FROM dbo.VoucherProduct_Table pr
-                WHERE pr.ProviderId = p.Id AND pr.Status = 'A'), ''),
+                SELECT STRING_AGG(s.Name, '|') WITHIN GROUP (ORDER BY s.Name)
+                FROM Shown s WHERE s.ProviderId = p.Id), ''),
             ProductIds = ISNULL((
-                SELECT STRING_AGG(CONVERT(VARCHAR(20), pr.Id), '|') WITHIN GROUP (ORDER BY pr.Name)
-                FROM dbo.VoucherProduct_Table pr
-                WHERE pr.ProviderId = p.Id AND pr.Status = 'A'), ''),
-            ProductCount = (SELECT COUNT(*) FROM dbo.VoucherProduct_Table pr
-                            WHERE pr.ProviderId = p.Id AND pr.Status = 'A')
+                SELECT STRING_AGG(CONVERT(VARCHAR(20), s.Id), '|') WITHIN GROUP (ORDER BY s.Name)
+                FROM Shown s WHERE s.ProviderId = p.Id), ''),
+            ProductCounts = ISNULL((
+                SELECT STRING_AGG(CONVERT(VARCHAR(20), s.Cnt), '|') WITHIN GROUP (ORDER BY s.Name)
+                FROM Shown s WHERE s.ProviderId = p.Id), ''),
+            /* the number beside the provider name must agree with what opens */
+            ProductCount = (SELECT COUNT(*) FROM Shown s WHERE s.ProviderId = p.Id)
         FROM dbo.VoucherProvider_Table p
         LEFT JOIN dbo.VoucherStock_Table v
                ON v.ProviderId = p.Id

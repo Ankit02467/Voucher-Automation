@@ -9,6 +9,8 @@
     <div class="toolbar">
         <h1>Voucher Status</h1>
         <span class="spacer"></span>
+        <asp:HyperLink ID="lnkProductPerf" runat="server" CssClass="pill-btn" Visible="false"
+            Text="Product wise Performance" />
         <asp:HyperLink ID="lnkStudentPerf" runat="server" CssClass="pill-btn" Visible="false"
             Text="Student wise Performance" />
     </div>
@@ -94,7 +96,7 @@
                                 </asp:LinkButton>
                                 <%-- products open inside this same cell, not on a new row --%>
                                 <asp:PlaceHolder runat="server" Visible='<%# IsExpanded(Eval("Id")) %>'>
-                                    <div class="prod-list"><%# ProductLinks(Eval("Id"), Eval("ProductNames"), Eval("ProductIds")) %></div>
+                                    <div class="prod-list"><%# ProductLinks(Eval("Id"), Eval("ProductNames"), Eval("ProductIds"), Eval("ProductCounts")) %></div>
                                 </asp:PlaceHolder>
                             </td>
                             <td><%# Eval("StatusCount", "{0:00}") %></td>

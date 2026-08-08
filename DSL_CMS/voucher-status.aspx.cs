@@ -15,7 +15,7 @@ namespace DSL_CMS
         protected PlaceHolder phEmpty, phPager, phPerfEmpty;
         protected Panel pnlWindows, pnlFilters, pnlProviderGrid, pnlPerformance;
         protected LinkButton lnkPrev, lnkNext, lnkEarlyExpiry;
-        protected HyperLink lnkStudentPerf;
+        protected HyperLink lnkStudentPerf, lnkProductPerf;
         protected Literal litCountHead, litPageInfo;
 
         private const int PageSize = 10;
@@ -146,6 +146,9 @@ namespace DSL_CMS
 
             lnkStudentPerf.Visible = CanSeeStudentPerformance;
             lnkStudentPerf.NavigateUrl = ResolveUrl("~/student-performance.aspx");
+
+            lnkProductPerf.Visible = CanManageProduct;   // admin only
+            lnkProductPerf.NavigateUrl = ResolveUrl("~/product-performance.aspx");
 
             // A student gets their own figures here; everyone else gets the
             // provider summary with its filters.
@@ -440,13 +443,19 @@ namespace DSL_CMS
         /// N of the other. Each link opens View Data already narrowed to that one
         /// product, carrying the status and expiry window along with it.
         /// </summary>
-        protected string ProductLinks(object providerId, object productNames, object productIds)
+        protected string ProductLinks(object providerId, object productNames, object productIds,
+            object productCounts)
         {
             string rawNames = Convert.ToString(productNames);
-            if (string.IsNullOrWhiteSpace(rawNames)) return "<span class=\"muted\">No products.</span>";
+
+            // With a status picked, the proc has already dropped products holding
+            // none of it - so an empty list here means exactly that.
+            if (string.IsNullOrWhiteSpace(rawNames))
+                return "<span class=\"muted\">No data to show yet.</span>";
 
             string[] names = rawNames.Split('|');
             string[] ids = Convert.ToString(productIds).Split('|');
+            string[] counts = Convert.ToString(productCounts).Split('|');
 
             var sb = new StringBuilder();
             for (int i = 0; i < names.Length; i++)
@@ -455,12 +464,18 @@ namespace DSL_CMS
                 if (name.Length == 0) continue;
 
                 string id = (i < ids.Length) ? ids[i].Trim() : string.Empty;
+                string count = (i < counts.Length) ? counts[i].Trim() : string.Empty;
 
                 sb.Append("<a class=\"prod-link\" href=\"")
                   .Append(Server.HtmlEncode(ViewDataUrl(providerId, id)))
                   .Append("\">")
-                  .Append(Server.HtmlEncode(name))
-                  .Append("</a>");
+                  .Append(Server.HtmlEncode(name));
+
+                // the figure explains why a product is or is not in this list
+                if (count.Length > 0)
+                    sb.Append("<span class=\"prod-count\">").Append(Server.HtmlEncode(count)).Append("</span>");
+
+                sb.Append("</a>");
             }
             return sb.ToString();
         }

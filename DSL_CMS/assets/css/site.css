@@ -192,6 +192,15 @@ a { color: var(--blue-dark); text-decoration: none; }
     text-decoration: none;
 }
 .prod-link:hover { background: #eff5ff; color: var(--blue-dark); text-decoration: underline; }
+.prod-link .prod-count {
+    float: right; min-width: 22px; text-align: center;
+    padding: 0 6px; border-radius: 999px;
+    background: #eef2f7; color: var(--muted); font-size: 11px; font-weight: 700;
+}
+
+/* product rows inside the performance table, indented under their provider */
+.data tr.sub-row td { background: #f8fafc; }
+.data tr.sub-row .sub-name { padding-left: 34px; color: var(--muted); font-weight: 600; }
 
 .prod-chip {
     display: inline-block; padding: 4px 12px; border-radius: 999px;
