@@ -246,7 +246,12 @@ a { color: var(--blue-dark); text-decoration: none; }
 /* ---- modal ---- */
 .modal-back {
     position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 50;
-    background: rgba(15, 23, 42, .55);
+    /* Blur pushes the grid behind out of focus so the dialog reads as the only
+       live thing on screen. The dialog is a child of this element, so it is
+       drawn on top and stays sharp. */
+    background: rgba(15, 23, 42, .45);
+    -webkit-backdrop-filter: blur(5px);
+    backdrop-filter: blur(5px);
     display: flex; align-items: center; justify-content: center;
     padding: 24px 20px; overflow: auto;
 }
