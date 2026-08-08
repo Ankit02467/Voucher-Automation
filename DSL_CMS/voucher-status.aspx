@@ -7,8 +7,6 @@
 
 <div class="vs-page">
 
-    <div class="vs-crumb">Home <span>&rsaquo;</span> Vouchers <span>&rsaquo;</span> <b>Status</b></div>
-
     <div class="vs-head">
         <div>
             <h1>Voucher status</h1>
@@ -30,7 +28,7 @@
         </div>
     </div>
 
-<asp:Panel ID="pnlFilters" runat="server">
+<asp:Panel ID="pnlFilters" runat="server" CssClass="vs-stack">
 
     <%-- ---------------- KPI cards ---------------- --%>
     <div class="vs-kpis">
@@ -171,7 +169,7 @@
                                 <td class="vs-sn"><%# string.Format("{0:00}", Container.ItemIndex + 1 + RowOffset) %></td>
                                 <td>
                                     <div class="vs-prov">
-                                        <span class="logo" style='<%# ProviderLogoStyle(Eval("Name")) %>'><%# ProviderInitials(Eval("Name")) %></span>
+                                        <span class="logo" style='<%# ProviderLogoStyle(Eval("Id")) %>'><%# ProviderInitials(Eval("Name")) %></span>
                                         <span class="nm">
                                             <asp:LinkButton runat="server" CommandName="ToggleProducts"
                                                 CommandArgument='<%# Eval("Id") %>' CausesValidation="false"

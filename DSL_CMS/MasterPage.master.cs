@@ -7,25 +7,9 @@ using System.Web.UI.WebControls;
 
 namespace DSL_CMS
 {
-    /// <summary>
-    /// Implemented by a page that wants the topbar search box. The master shows
-    /// the box only for pages that can actually do something with it, rather
-    /// than offering a search that searches nothing.
-    /// </summary>
-    public interface ISearchablePage
-    {
-        /// <summary>False when the page is showing something the box cannot narrow.</summary>
-        bool SearchEnabled { get; }
-
-        void ApplySearch(string term);
-    }
-
     public partial class MasterPage : System.Web.UI.MasterPage
     {
         protected LinkButton lnkLogout;
-        protected Panel pnlSearch;
-        protected TextBox txtTopSearch;
-        protected Button btnTopSearch;
         protected Literal litUserRole;
 
         /// <summary>
@@ -89,11 +73,6 @@ namespace DSL_CMS
                 return;
             }
 
-            // Only offered where it does something. The page's own Load has
-            // already run by now, so it knows which view it is showing.
-            var searchable = Page as ISearchablePage;
-            pnlSearch.Visible = (searchable != null && searchable.SearchEnabled);
-
             litUserRole.Text = Server.HtmlEncode(VoucherRole());
         }
 
@@ -119,12 +98,6 @@ namespace DSL_CMS
 
             Session["VoucherRole"] = role;
             return role;
-        }
-
-        protected void btnTopSearch_Click(object sender, EventArgs e)
-        {
-            var target = Page as ISearchablePage;
-            if (target != null) target.ApplySearch(txtTopSearch.Text.Trim());
         }
 
         /// <summary>Marks the sidebar link for the page currently being served.</summary>

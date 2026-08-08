@@ -40,19 +40,6 @@
 
         <div class="main">
             <div class="topbar">
-                <%-- Filters the provider list on Voucher Status. It is a real
-                     control, not decoration - the source design showed a search
-                     box that searched nothing. --%>
-                <asp:Panel ID="pnlSearch" runat="server" Visible="false" CssClass="search"
-                           DefaultButton="btnTopSearch">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                         stroke-linecap="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4-4" /></svg>
-                    <asp:TextBox ID="txtTopSearch" runat="server" placeholder="Search providers…" />
-                    <asp:Button ID="btnTopSearch" runat="server" Text="Search"
-                        OnClick="btnTopSearch_Click" CausesValidation="false"
-                        style="position:absolute; left:-9999px;" />
-                </asp:Panel>
-
                 <span class="tb-spacer"></span>
 
                 <div class="user">

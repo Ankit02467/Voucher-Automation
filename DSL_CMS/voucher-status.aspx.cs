@@ -9,7 +9,7 @@ using System.Web.UI.WebControls;
 
 namespace DSL_CMS
 {
-    public partial class voucher_status : System.Web.UI.Page, ISearchablePage
+    public partial class voucher_status : System.Web.UI.Page
     {
         protected Repeater rptStatus, rptWindows, rptCategory, rptSummary, rptPager, rptPerformance;
         protected PlaceHolder phEmpty, phPager, phPerfEmpty;
@@ -172,26 +172,6 @@ namespace DSL_CMS
             BindKpis();
         }
 
-        /// <summary>Narrows the provider list from the topbar search box.</summary>
-        private string ProviderSearch
-        {
-            get { return (string)(ViewState["Search"] ?? string.Empty); }
-            set { ViewState["Search"] = value; }
-        }
-
-        /// <summary>
-        /// A student sees their own performance here, not the provider list, so
-        /// there is nothing for the box to narrow.
-        /// </summary>
-        public bool SearchEnabled { get { return !IsStudent; } }
-
-        public void ApplySearch(string term)
-        {
-            ProviderSearch = term ?? string.Empty;
-            PageIndex = 0;
-            BindGrid();
-        }
-
         /// <summary>
         /// The figures across the top. Independent of the status pills - they
         /// describe the whole stock, which is the point of a summary.
@@ -329,19 +309,6 @@ namespace DSL_CMS
         {
             DataTable dt = VoucherBAL.GetProviderSummary(
                 SelectedStatus, SelectedDays, SelectedCategory, string.Empty, string.Empty);
-
-            // topbar search: narrow by provider name, in memory - the list is five
-            // rows long, so a round trip to filter it would be silly
-            if (dt != null && ProviderSearch.Length > 0)
-            {
-                DataTable hit = dt.Clone();
-                foreach (DataRow r in dt.Rows)
-                {
-                    if (Convert.ToString(r["Name"]).IndexOf(ProviderSearch, StringComparison.OrdinalIgnoreCase) >= 0)
-                        hit.ImportRow(r);
-                }
-                dt = hit;
-            }
 
             int rowCount = (dt == null) ? 0 : dt.Rows.Count;
             int pageCount = Pager.PageCount(rowCount, PageSize);
@@ -545,22 +512,31 @@ namespace DSL_CMS
         }
 
         /// <summary>
-        /// Tile colour, derived from the name so a provider keeps the same colour
-        /// between visits and a new provider gets one without anybody choosing it.
+        /// Tile colour, taken straight off the provider id.
+        ///
+        /// Hashing the name looked cleverer but collided - ETS and LanguageCERT
+        /// both landed on green. Walking the palette by id cannot collide until
+        /// there are more providers than colours, and each provider keeps its
+        /// colour for good.
         /// </summary>
-        protected string ProviderLogoStyle(object name)
+        protected string ProviderLogoStyle(object providerId)
         {
             string[] palette =
             {
-                "#ff9900", "#0f6cbd", "#7a2ff2", "#e0392b", "#0e9f6e",
-                "#d946ef", "#0891b2", "#ea580c"
+                "#ff9900",  // orange
+                "#0f6cbd",  // blue
+                "#7a2ff2",  // violet
+                "#e0392b",  // red
+                "#0e9f6e",  // green
+                "#d946ef",  // magenta
+                "#0891b2",  // teal
+                "#b45309"   // amber
             };
 
-            string text = Convert.ToString(name);
-            int hash = 0;
-            foreach (char c in text) hash = (hash * 31 + c) & 0x7fffffff;
+            int id;
+            if (!int.TryParse(Convert.ToString(providerId), out id) || id < 1) id = 1;
 
-            return "background: " + palette[hash % palette.Length] + ";";
+            return "background: " + palette[(id - 1) % palette.Length] + ";";
         }
 
         /// <summary>
