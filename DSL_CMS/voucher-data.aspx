@@ -264,7 +264,7 @@
                 <thead>
                     <tr>
                         <th runat="server" id="thPick" visible="false" style="width: 40px;"></th>
-                        <th style="width: 150px;">Actions</th>
+                        <th runat="server" id="thActions" style="width: 150px;">Actions</th>
                         <th style="width: 70px;">S.No</th>
                         <th>Product Name</th>
                         <th>Voucher Code</th>
@@ -288,7 +288,7 @@
                                     <asp:CheckBox runat="server" ID="chkPickRow"
                                         ToolTip="Tick to reassign this entry" />
                                 </td>
-                                <td style="white-space: nowrap;">
+                                <td runat="server" visible='<%# ShowActions %>' style="white-space: nowrap;">
                                     <asp:LinkButton runat="server" CssClass="btn-out btn-sm" CommandName="EditRow"
                                         CommandArgument='<%# Eval("Id") %>'
                                         Visible='<%# CanEdit %>'>Edit</asp:LinkButton>

@@ -146,9 +146,11 @@ a { color: var(--blue-dark); text-decoration: none; }
 .pill-btn.s-expired:hover   { background: #fffbeb; }
 .pill-btn.s-expired.on      { background: #f59e0b; border-color: #f59e0b; color: #452c03; }
 
-.pill-btn.s-invalid         { border-color: #2563eb; color: #2563eb; }
-.pill-btn.s-invalid:hover   { background: #eff6ff; }
-.pill-btn.s-invalid.on      { background: #2563eb; border-color: #2563eb; color: #fff; }
+/* Violet, not blue: the active "View Early Expiry" button is solid blue, and a
+   blue Invalid pill sitting next to it read as the same control. */
+.pill-btn.s-invalid         { border-color: #7c3aed; color: #6d28d9; }
+.pill-btn.s-invalid:hover   { background: #f5f3ff; }
+.pill-btn.s-invalid.on      { background: #7c3aed; border-color: #7c3aed; color: #fff; }
 
 .pill-btn.s-notset          { border-color: #94a3b8; color: #475569; }
 .pill-btn.s-notset:hover    { background: #f8fafc; }
@@ -159,7 +161,7 @@ a { color: var(--blue-dark); text-decoration: none; }
 .st-used    { background: #fee2e2; color: #b91c1c; }
 .st-unused  { background: #dcfce7; color: #15803d; }
 .st-expired { background: #fef3c7; color: #b45309; }
-.st-invalid { background: #dbeafe; color: #1d4ed8; }
+.st-invalid { background: #ede9fe; color: #6d28d9; }
 .st-none    { background: #f1f5f9; color: #64748b; }
 
 .btn-sm[disabled], .act .btn-fill[disabled] { opacity: .45; pointer-events: none; }
@@ -245,10 +247,20 @@ a { color: var(--blue-dark); text-decoration: none; }
 .modal-back {
     position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 50;
     background: rgba(15, 23, 42, .55);
-    display: flex; align-items: flex-start; justify-content: center;
-    padding: 40px 20px; overflow: auto;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px 20px; overflow: auto;
 }
-.modal { background: #fff; border-radius: 12px; width: 100%; box-shadow: 0 24px 60px rgba(0,0,0,.3); }
+/* Capped to the viewport so the page never scrolls behind the dialog. A tall
+   dialog scrolls inside its own body instead, keeping the title and the Save
+   row on screen. */
+.modal {
+    background: #fff; border-radius: 12px; width: 100%;
+    box-shadow: 0 24px 60px rgba(0,0,0,.3);
+    max-height: calc(100vh - 48px);
+    display: flex; flex-direction: column;
+}
+.modal-head, .modal-foot { flex: 0 0 auto; }
+.modal-body { flex: 1 1 auto; overflow-y: auto; }
 .modal.sm { max-width: 760px; }
 .modal.lg { max-width: 1100px; }
 .modal.xl { max-width: 1400px; }

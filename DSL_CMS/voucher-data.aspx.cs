@@ -35,7 +35,7 @@ namespace DSL_CMS
         protected PlaceHolder phEmpty, phPager, phHistoryEmpty, phAssignEmpty, phStudentsEmpty;
         protected Button btnSearch, btnResetFilter, btnSaveEdit, btnCancelEdit,
                          btnUploadSave, btnAssignPick, btnAssignSave, btnReassignSave;
-        protected System.Web.UI.HtmlControls.HtmlTableCell thPick, thAddedBy, thCheckedBy;
+        protected System.Web.UI.HtmlControls.HtmlTableCell thPick, thActions, thAddedBy, thCheckedBy;
 
         #endregion
 
@@ -169,6 +169,13 @@ namespace DSL_CMS
         protected bool CanReassign { get { return Role == RoleSubAdmin && DoneMode; } }
 
         /// <summary>
+        /// The Actions column earns its place only when there is an action in it.
+        /// The voucher team has neither Edit nor Reassign, so they would otherwise
+        /// stare at an empty column with a heading.
+        /// </summary>
+        protected bool ShowActions { get { return CanEdit || CanReassign; } }
+
+        /// <summary>
         /// Dealer name and sale date are for the admin and the voucher team only.
         /// The sub-admin and the student never see them.
         /// </summary>
@@ -269,6 +276,7 @@ namespace DSL_CMS
 
             // header cells; the matching body cells carry their own Visible binding
             thPick.Visible = CanReassign;
+            thActions.Visible = ShowActions;
             thAddedBy.Visible = ShowAddedBy;
             thCheckedBy.Visible = ShowCheckedBy;
 
