@@ -335,8 +335,10 @@ namespace DSL_CMS
             rptPager.DataSource = Pager.Links(pageCount, PageIndex);
             rptPager.DataBind();
 
-            lnkPrev.CssClass = (PageIndex == 0) ? "pg off" : "pg";
-            lnkNext.CssClass = (PageIndex >= pageCount - 1) ? "pg off" : "pg";
+            // vs-pg, not the old pg: these two are set here rather than in the
+            // markup, so they were the only pager buttons left unstyled.
+            lnkPrev.CssClass = (PageIndex == 0) ? "vs-pg off" : "vs-pg";
+            lnkNext.CssClass = (PageIndex >= pageCount - 1) ? "vs-pg off" : "vs-pg";
         }
 
         #endregion
