@@ -285,9 +285,12 @@ namespace DSL_CMS
         {
             if (e.CommandName != "PickStatus") return;
 
-            // Changing the status keeps the early-expiry window in place, so the
-            // two filters compose instead of cancelling each other out.
+            // Status and early expiry are two separate views of the same list, not
+            // filters that stack. Picking a status drops the expiry window, the
+            // same way picking the window drops the status.
             SelectedStatus = Convert.ToString(e.CommandArgument);
+            EarlyExpiry = false;
+            SelectedDays = string.Empty;
             PageIndex = 0;
 
             BindStatusPills();
@@ -302,9 +305,21 @@ namespace DSL_CMS
         protected void lnkEarlyExpiry_Click(object sender, EventArgs e)
         {
             EarlyExpiry = !EarlyExpiry;
-            if (!EarlyExpiry) SelectedDays = string.Empty;
+
+            if (EarlyExpiry)
+            {
+                // switching into the expiry view clears whatever status was picked,
+                // so the two are never lit at once
+                SelectedStatus = StatusAll;
+            }
+            else
+            {
+                SelectedDays = string.Empty;
+            }
+
             PageIndex = 0;
 
+            BindStatusPills();   // repaint so the old status pill loses its highlight
             ApplyStatus();
             BindGrid();
         }
