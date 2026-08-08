@@ -498,17 +498,100 @@ namespace DSL_CMS
             return IsExpanded(providerId) ? "vs-caret open" : "vs-caret";
         }
 
-        /// <summary>Two letters for the provider tile.</summary>
+        /// <summary>
+        /// Letters for the provider tile when there is no logo file. Capitals
+        /// carried in the name work better than the first few characters:
+        /// LanguageCERT gives "LC", not "LAN".
+        /// </summary>
         protected string ProviderInitials(object name)
         {
             string text = Convert.ToString(name).Trim();
             if (text.Length == 0) return "?";
 
-            string[] parts = text.Split(new[] { ' ', '-' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length == 1)
-                return parts[0].Substring(0, Math.Min(3, parts[0].Length)).ToUpperInvariant();
+            // A name that is already an acronym is shown whole: AWS, PTE, ETS.
+            bool acronym = true;
+            foreach (char c in text)
+                if (char.IsLetter(c) && !char.IsUpper(c)) { acronym = false; break; }
 
-            return (parts[0].Substring(0, 1) + parts[1].Substring(0, 1)).ToUpperInvariant();
+            if (acronym)
+                return text.Substring(0, Math.Min(3, text.Length)).ToUpperInvariant();
+
+            // Otherwise two capitals: LanguageCERT gives LC, not LCE.
+            var caps = new StringBuilder();
+            foreach (char c in text)
+            {
+                if (char.IsUpper(c)) caps.Append(c);
+                if (caps.Length == 2) break;
+            }
+
+            if (caps.Length == 2) return caps.ToString();
+
+            return text.Substring(0, Math.Min(2, text.Length)).ToUpperInvariant();
+        }
+
+        /// <summary>
+        /// Filenames already checked this request. Server.MapPath plus a disk hit
+        /// per provider per render is wasteful when the answer cannot change.
+        /// </summary>
+        private readonly Dictionary<string, string> _logoCache =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// The provider tile. Uses a logo from ~/assets/img/providers if one is
+        /// there, otherwise falls back to coloured initials, so dropping a file
+        /// in is all it takes and a missing file never leaves a hole.
+        ///
+        /// Expected name: the provider name lowercased with anything that is not
+        /// a letter or digit removed - AWS becomes aws.png, LanguageCERT becomes
+        /// languagecert.png. png, svg, jpg and webp are all looked for.
+        /// </summary>
+        protected string ProviderTile(object providerId, object name)
+        {
+            string logo = ProviderLogoUrl(name);
+
+            if (logo.Length > 0)
+            {
+                return "<span class=\"logo has-img\"><img src=\"" + Server.HtmlEncode(logo)
+                     + "\" alt=\"" + Server.HtmlEncode(Convert.ToString(name)) + "\" /></span>";
+            }
+
+            return "<span class=\"logo\" style=\"" + ProviderLogoStyle(providerId) + "\">"
+                 + Server.HtmlEncode(ProviderInitials(name)) + "</span>";
+        }
+
+        private string ProviderLogoUrl(object name)
+        {
+            string slug = Slug(Convert.ToString(name));
+            if (slug.Length == 0) return string.Empty;
+
+            string cached;
+            if (_logoCache.TryGetValue(slug, out cached)) return cached;
+
+            string found = string.Empty;
+            foreach (string ext in new[] { ".png", ".svg", ".jpg", ".jpeg", ".webp" })
+            {
+                string rel = "~/assets/img/providers/" + slug + ext;
+                try
+                {
+                    if (System.IO.File.Exists(Server.MapPath(rel)))
+                    {
+                        found = ResolveUrl(rel);
+                        break;
+                    }
+                }
+                catch { }
+            }
+
+            _logoCache[slug] = found;
+            return found;
+        }
+
+        private static string Slug(string text)
+        {
+            var sb = new StringBuilder();
+            foreach (char c in text ?? string.Empty)
+                if (char.IsLetterOrDigit(c)) sb.Append(char.ToLowerInvariant(c));
+            return sb.ToString();
         }
 
         /// <summary>

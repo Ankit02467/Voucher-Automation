@@ -43,7 +43,15 @@ namespace DSL_CMS.Helpers
         public static List<PageLink> Links(int pageCount, int currentIndex, int window = 2)
         {
             var links = new List<PageLink>();
-            if (pageCount <= 1) return links;
+
+            // A single page still gets its number. Returning nothing left the
+            // pager as a bare "Showing 1-5 of 5" with an empty space where the
+            // buttons belong, which reads as something failing to load.
+            if (pageCount <= 1)
+            {
+                links.Add(new PageLink(0, currentIndex));
+                return links;
+            }
 
             int first = Math.Max(0, currentIndex - window);
             int last = Math.Min(pageCount - 1, currentIndex + window);

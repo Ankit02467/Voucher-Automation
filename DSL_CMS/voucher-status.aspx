@@ -169,7 +169,7 @@
                                 <td class="vs-sn"><%# string.Format("{0:00}", Container.ItemIndex + 1 + RowOffset) %></td>
                                 <td>
                                     <div class="vs-prov">
-                                        <span class="logo" style='<%# ProviderLogoStyle(Eval("Id")) %>'><%# ProviderInitials(Eval("Name")) %></span>
+                                        <%# ProviderTile(Eval("Id"), Eval("Name")) %>
                                         <span class="nm">
                                             <asp:LinkButton runat="server" CommandName="ToggleProducts"
                                                 CommandArgument='<%# Eval("Id") %>' CausesValidation="false"
