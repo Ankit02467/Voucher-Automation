@@ -623,6 +623,17 @@ namespace DSL_CMS
             if (dt == null || dt.Rows.Count == 0) return;
 
             DataRow r = dt.Rows[0];
+
+            // A student may only open what is theirs. The proc checks this again
+            // on save - the id travels in a hidden field, so this alone would be
+            // no protection at all.
+            if (UsesStatusButtons
+                && Convert.ToString(r["AssignedTo"]) != Convert.ToString(Session["UserId"]))
+            {
+                ShowMessage("That voucher is not assigned to you.", false);
+                return;
+            }
+
             hfId.Value = id;
 
             bool dealerMode = (Role == RoleTeam);
@@ -904,8 +915,14 @@ namespace DSL_CMS
 
                 // status and used date only - candidate and exam details are not
                 // shown to a student and must not be blanked by this save
-                VoucherBAL.UpdateStatusOnly(id, PickedStatus, txtUsedDate.Text.Trim(),
-                    checkedBy, userId);
+                int outcome = VoucherBAL.UpdateStatusOnly(id, PickedStatus,
+                    txtUsedDate.Text.Trim(), checkedBy, userId);
+
+                if (outcome == -3)
+                {
+                    ShowMessage("That voucher is not assigned to you, so nothing was saved.", false);
+                    return;
+                }
 
                 ShowMessage("Status set to " + PickedStatus
                     + ". This entry moves to the sub admin after midnight.", true);

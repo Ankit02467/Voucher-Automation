@@ -107,10 +107,10 @@ namespace DSL_CMS.BAL
             return VoucherDAL.AutoMove();
         }
 
-        public static void UpdateStatusOnly(string id, string status, string usedDate,
+        public static int UpdateStatusOnly(string id, string status, string usedDate,
             string checkedBy, string userId)
         {
-            VoucherDAL.UpdateStatusOnly(id, status, usedDate, checkedBy, userId);
+            return VoucherDAL.UpdateStatusOnly(id, status, usedDate, checkedBy, userId);
         }
 
         public static void UpdateStatusEntry(string id, string status, string usedDate,

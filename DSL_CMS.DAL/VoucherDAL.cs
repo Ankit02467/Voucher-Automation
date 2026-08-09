@@ -192,16 +192,23 @@ namespace DSL_CMS.DAL
         /// candidate and exam details alone - the student is never shown those
         /// fields, so a full status update would blank them.
         /// </summary>
-        public static void UpdateStatusOnly(string id, string status, string usedDate,
+        /// <summary>
+        /// Returns the voucher id, or -3 when the voucher is not assigned to
+        /// <paramref name="userId"/>. The id reaches us from a hidden field, so
+        /// the proc re-checks ownership and this is how it reports a refusal.
+        /// </summary>
+        public static int UpdateStatusOnly(string id, string status, string usedDate,
             string checkedBy, string userId)
         {
-            SqlHelper.ExecuteNonQuery("Sp_VoucherStock_Table", true,
+            object result = SqlHelper.ExecuteScalar("Sp_VoucherStock_Table", true,
                 "@Action", "UpdateStatusOnly",
                 "@Id", id,
                 "@Status", status,
                 "@UsedDate", usedDate,
                 "@CheckedBy", checkedBy,
                 "@AddedBy", userId);
+
+            return (result == null || result == DBNull.Value) ? 0 : Convert.ToInt32(result);
         }
 
         /// <summary>Student / sub-admin - status entry. Check date and CheckedBy are stamped in the proc.</summary>

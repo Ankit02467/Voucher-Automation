@@ -3,10 +3,22 @@
 Target server : `(localdb)\MSSQLLocalDB`
 Target database : `DSL_New` (existing — shared with the current site)
 
-## Run order
+## ⚠ Do not run this folder in order on a live database
+
+Some scripts here **delete data**. `04_Updates/02_Reseed_VoucherStatus_Demo.sql`
+opens by emptying all three voucher tables, and two others overwrite `ExpiryDate`
+on every unused voucher. They exist to build a demo dataset and are fine on a
+development copy.
+
+**Before touching a production database, follow
+[DEPLOYMENT.md](../DEPLOYMENT.md)**, which lists exactly which scripts to run and
+which to skip. The order below is the development order.
+
+## Run order (development only)
 
 Run the folders in numeric order. Every script is **re-runnable** (guarded by
-`IF OBJECT_ID(...) IS NULL` / `DROP ... IF EXISTS` / `NOT EXISTS`).
+`IF OBJECT_ID(...) IS NULL` / `DROP ... IF EXISTS` / `NOT EXISTS`) — but
+re-running the demo scripts re-does their deletes.
 
 ```
 01_Tables/

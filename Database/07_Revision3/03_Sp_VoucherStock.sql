@@ -480,9 +480,23 @@ BEGIN
         SELECT Moved = @Ins;
     END
 
-    /* ---------- student status buttons: status and used date only ---------- */
+    /* ---------- student status buttons: status and used date only ----------
+
+       AssignedTo = @UserInt is the security check, not a convenience. The
+       voucher id arrives from a hidden field, which is the caller's to edit -
+       a student was able to open one of their own vouchers, swap the id for
+       someone else's and save, stamping their own name on another student's
+       row. Anything that trusts the posted id has to re-check ownership here,
+       because here is the only place that cannot be tampered with. */
     ELSE IF @Action = 'UpdateStatusOnly'
     BEGIN
+        IF NOT EXISTS (SELECT 1 FROM dbo.VoucherStock_Table
+                        WHERE Id = @IdInt AND AssignedTo = @UserInt)
+        BEGIN
+            SELECT -3;              -- not this student's voucher
+            RETURN;
+        END
+
         SET @Old = (SELECT Status FROM dbo.VoucherStock_Table WHERE Id = @IdInt);
 
         UPDATE dbo.VoucherStock_Table
@@ -493,7 +507,8 @@ BEGIN
                AutoMoveAfter    = @NextMidnight,
                ModifiedBy       = @UserInt,
                ModifiedDate     = GETDATE()
-         WHERE Id = @IdInt;
+         WHERE Id = @IdInt
+           AND AssignedTo = @UserInt;
 
         INSERT INTO dbo.VoucherHistory_Table
             (VoucherId, ProductId, VoucherCode, OldStatus, Status, CheckedBy,
