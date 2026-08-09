@@ -516,9 +516,19 @@ html.nav-collapsed .navtoggle svg { transform: scaleX(-1); }
    The class is put on <body> by the script at the end of MasterPage - the
    dialogs are server-rendered panels, so there is nothing to hook on the way in. */
 body.modal-open { overflow: hidden; }
+/* Sized to what is inside, not to the screen. The edit dialog picks one of
+   these per role in OpenEditor. */
+.modal.xs { max-width: 460px; }
+.modal.md { max-width: 720px; }
 .modal.sm { max-width: 760px; }
 .modal.lg { max-width: 1100px; }
 .modal.xl { max-width: 1400px; }
+
+/* The student's three status buttons share the row evenly instead of each
+   holding the 122px minimum meant for the filter bar. */
+.status-picker .pill-row { gap: 10px; }
+.status-picker .pill-btn { flex: 1 1 0; min-width: 0; padding: 0 12px; }
+.status-picker .filter-label { margin-bottom: 8px; }
 
 .modal-head {
     display: flex; align-items: center; justify-content: space-between;

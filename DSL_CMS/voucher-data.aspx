@@ -90,7 +90,9 @@
 
     <%-- ---------------- Edit modal ---------------- --%>
     <asp:Panel ID="pnlEdit" runat="server" Visible="false" CssClass="modal-back">
-      <div class="modal lg">
+      <%-- width is set per role in OpenEditor: a student picking one of three
+           buttons does not need the same dialog as an admin editing nine fields --%>
+      <div runat="server" id="divEditModal" class="modal lg">
         <div class="modal-head">
             <h2><asp:Literal ID="litEditTitle" runat="server" /></h2>
             <asp:LinkButton ID="lnkEditClose" runat="server" CssClass="btn btn-light btn-sm"
@@ -183,7 +185,7 @@
             <asp:Panel ID="pnlEditStatus" runat="server" Visible="false">
 
                 <%-- Student: three buttons instead of a dropdown --%>
-                <asp:Panel ID="pnlStatusButtons" runat="server" Visible="false">
+                <asp:Panel ID="pnlStatusButtons" runat="server" Visible="false" CssClass="status-picker">
                     <div class="filter-label">Voucher Status</div>
                     <div class="pill-row">
                         <asp:LinkButton ID="lnkStatusUsed" runat="server" CssClass="pill-btn s-used"
@@ -198,7 +200,10 @@
                     </div>
                 </asp:Panel>
 
-                <div class="form-grid">
+                <%-- Hidden outright when nothing inside it is showing - a student
+                     with a status other than Used would otherwise get an empty
+                     grid holding the dialog open below the buttons. --%>
+                <div runat="server" id="divStatusFields" class="form-grid">
                     <%-- Sub-admin / admin: the full dropdown --%>
                     <asp:Panel ID="pnlStatusDropdown" runat="server" CssClass="field">
                         <label>Voucher Status</label>

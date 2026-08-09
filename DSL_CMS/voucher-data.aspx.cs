@@ -36,6 +36,7 @@ namespace DSL_CMS
         protected Button btnSearch, btnResetFilter, btnSaveEdit, btnCancelEdit,
                          btnUploadSave, btnAssignPick, btnAssignSave, btnReassignSave;
         protected System.Web.UI.HtmlControls.HtmlTableCell thPick, thActions, thAddedBy, thCheckedBy;
+        protected System.Web.UI.HtmlControls.HtmlGenericControl divEditModal, divStatusFields;
 
         #endregion
 
@@ -621,6 +622,11 @@ namespace DSL_CMS
             pnlStatusDropdown.Visible = !UsesStatusButtons;
             pnlStatusExtras.Visible = !UsesStatusButtons;
 
+            // The dialog is only as wide as the role's fields need. Admin edits
+            // nine fields plus dealer pairs; a student picks one of three buttons.
+            divEditModal.Attributes["class"] = "modal " +
+                (adminMode ? "lg" : dealerMode ? "md" : UsesStatusButtons ? "xs" : "md");
+
             string title = dealerMode ? "Dealer Details" : (adminMode ? "Edit Voucher" : "Status Entry");
             litEditTitle.Text = title + " - " + Server.HtmlEncode(Convert.ToString(r["VoucherCode"]));
 
@@ -652,7 +658,7 @@ namespace DSL_CMS
                 // student: status only, chosen with buttons
                 PickedStatus = Convert.ToString(r["Status"]);
                 txtUsedDate.Text = FormatDate(r["UsedDate"]);
-                pnlUsedDate.Visible = (PickedStatus == "Used");
+                ShowStatusFields(PickedStatus == "Used");
                 BindStatusButtons();
             }
             else
@@ -662,8 +668,25 @@ namespace DSL_CMS
                 txtCandidate.Text = Convert.ToString(r["CandidateName"]);
                 txtExamDate.Text = FormatDate(r["ExamDate"]);
                 SelectIfPresent(ddlExamMode, Convert.ToString(r["ExamMode"]));
-                pnlUsedDate.Visible = (ddlEditStatus.SelectedValue == "Used");
+                ShowStatusFields(ddlEditStatus.SelectedValue == "Used");
             }
+        }
+
+        /// <summary>
+        /// Shows the field grid and the used-date box together.
+        ///
+        /// The parent is set before the child on purpose. Control.Visible reports
+        /// false whenever an ancestor is hidden, whatever the control itself was
+        /// set to - so deciding the grid by reading pnlUsedDate.Visible always
+        /// came back false once the grid had been hidden, and the used date could
+        /// never reappear.
+        /// </summary>
+        private void ShowStatusFields(bool usedDate)
+        {
+            // a student sees the grid only for the used date; everyone else
+            // always has the dropdown and the exam details in it
+            divStatusFields.Visible = !UsesStatusButtons || usedDate;
+            pnlUsedDate.Visible = usedDate;
         }
 
         /// <summary>One editor row per dealer slot, padded out to DealerColumns.</summary>
@@ -748,7 +771,7 @@ namespace DSL_CMS
 
         protected void ddlEditStatus_SelectedIndexChanged(object sender, EventArgs e)
         {
-            pnlUsedDate.Visible = (ddlEditStatus.SelectedValue == "Used");
+            ShowStatusFields(ddlEditStatus.SelectedValue == "Used");
         }
 
         /// <summary>
@@ -781,7 +804,8 @@ namespace DSL_CMS
             PickedStatus = btn.CommandArgument;
 
             bool used = (PickedStatus == "Used");
-            pnlUsedDate.Visible = used;
+            ShowStatusFields(used);
+
             if (used && txtUsedDate.Text.Trim().Length == 0)
                 txtUsedDate.Text = DateTime.Today.ToString("yyyy-MM-dd");
 
