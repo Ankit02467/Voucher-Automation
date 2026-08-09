@@ -165,6 +165,13 @@ namespace DSL_CMS
                 return;
             }
 
+            // Coming back from View Data or Manage Product. Those screens hand the
+            // provider back so the row reopens where it was left; the anchor on
+            // the row takes care of the scroll, which a fresh GET would otherwise
+            // start at the top of the page.
+            string from = (Request.QueryString["providerId"] ?? string.Empty).Trim();
+            if (from.Length > 0) ExpandedProvider = from;
+
             BindStatusPills();
             BindCategoryPills();
             ApplyStatus();

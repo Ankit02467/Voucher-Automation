@@ -104,6 +104,23 @@ namespace DSL_CMS
 
         protected bool HasProductLock { get { return LockedProductId.Length > 0; } }
 
+        /// <summary>
+        /// Back to Voucher Status, carrying the provider so its row reopens and
+        /// the anchor puts the page back where it was. Without it the dashboard
+        /// returns collapsed and scrolled to the top, which is a long way from
+        /// the provider you were just looking at.
+        /// </summary>
+        protected string BackUrl
+        {
+            get
+            {
+                string url = ResolveUrl("~/voucher-status.aspx");
+                if (ProviderId.Length == 0) return url;
+
+                return url + "?providerId=" + Server.UrlEncode(ProviderId) + "#prov-" + ProviderId;
+            }
+        }
+
         private bool RoleUnmapped
         {
             get { return (bool)(ViewState["RoleUnmapped"] ?? false); }

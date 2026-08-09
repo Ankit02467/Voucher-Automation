@@ -165,7 +165,8 @@
                 <tbody>
                     <asp:Repeater ID="rptSummary" runat="server" OnItemCommand="rptSummary_ItemCommand">
                         <ItemTemplate>
-                            <tr>
+                            <%-- the anchor the Back link on the other screens returns to --%>
+                            <tr id='<%# "prov-" + Eval("Id") %>'>
                                 <td class="vs-sn"><%# string.Format("{0:00}", Container.ItemIndex + 1 + RowOffset) %></td>
                                 <td>
                                     <div class="vs-prov">

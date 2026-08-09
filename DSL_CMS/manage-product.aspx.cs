@@ -49,6 +49,23 @@ namespace DSL_CMS
             }
         }
 
+        /// <summary>
+        /// Back to Voucher Status with the provider, so its row reopens there and
+        /// the anchor restores the scroll. Read from the query string, which is
+        /// how this screen is reached from the dashboard.
+        /// </summary>
+        protected string BackUrl
+        {
+            get
+            {
+                string url = ResolveUrl("~/voucher-status.aspx");
+                string provider = (Request.QueryString["providerId"] ?? string.Empty).Trim();
+
+                if (provider.Length == 0) return url;
+                return url + "?providerId=" + Server.UrlEncode(provider) + "#prov-" + provider;
+            }
+        }
+
         protected void Page_Load(object sender, EventArgs e)
         {
             // Hiding the "Manage Product" link on Voucher Status is not a gate -

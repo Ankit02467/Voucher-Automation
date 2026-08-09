@@ -7,7 +7,7 @@
 
     <%-- ---------------- Toolbar ---------------- --%>
     <div class="toolbar">
-        <a class="btn-back" href='<%= ResolveUrl("~/voucher-status.aspx") %>'
+        <a class="btn-back" href='<%= BackUrl %>'
            title="Back to Voucher Status">&#8592; Back</a>
         <h1>Manage Product</h1>
     </div>
