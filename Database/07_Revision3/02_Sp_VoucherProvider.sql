@@ -28,14 +28,23 @@ CREATE OR ALTER PROCEDURE dbo.Sp_VoucherProvider_Table
     @Id       NVARCHAR(50)  = NULL,
     @Name     NVARCHAR(150) = NULL,
     @Category NVARCHAR(100) = NULL,
-    @Status   NVARCHAR(20)  = NULL,
-    @Days     NVARCHAR(10)  = NULL,
-    @FromDate NVARCHAR(30)  = NULL,
-    @ToDate   NVARCHAR(30)  = NULL
+    @Status     NVARCHAR(20)  = NULL,
+    @Days       NVARCHAR(10)  = NULL,
+    @FromDate   NVARCHAR(30)  = NULL,
+    @ToDate     NVARCHAR(30)  = NULL,
+    /* Same two the grid on View Data uses. Without them the dashboard counted
+       every voucher while View Data showed only the ones that role can see - a
+       sub-admin read 24 against AWS and landed on 19 rows, because the other
+       five had already moved to the done list. */
+    @AssignedTo NVARCHAR(50)  = NULL,
+    @IsMoved    NVARCHAR(5)   = NULL
 )
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    DECLARE @AssignInt INT = TRY_CONVERT(INT, NULLIF(LTRIM(RTRIM(@AssignedTo)), ''));
+    DECLARE @MovedBit  INT = TRY_CONVERT(INT, NULLIF(LTRIM(RTRIM(@IsMoved)), ''));
 
     DECLARE @IdInt INT  = TRY_CONVERT(INT,  NULLIF(LTRIM(RTRIM(@Id)), ''));
     DECLARE @From  DATE = TRY_CONVERT(DATE, NULLIF(LTRIM(RTRIM(@FromDate)), ''));
@@ -73,6 +82,8 @@ BEGIN
                   AND (@WinEnd IS NULL
                        OR (v.ExpiryDate IS NOT NULL
                            AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
+                  AND (@AssignInt IS NULL OR v.AssignedTo = @AssignInt)
+                  AND (@MovedBit  IS NULL OR v.IsMoved    = @MovedBit)
             WHERE pr.Status = 'A'
             GROUP BY pr.Id, pr.ProviderId, pr.Name
         ),
@@ -144,6 +155,10 @@ BEGIN
                ON v.ProviderId = p.Id
               AND (@From IS NULL OR v.SaleDate >= @From)
               AND (@To   IS NULL OR v.SaleDate <= @To)
+              /* every count below inherits these, so the figure in the row and
+                 the bar beside it describe the same vouchers View Data will list */
+              AND (@AssignInt IS NULL OR v.AssignedTo = @AssignInt)
+              AND (@MovedBit  IS NULL OR v.IsMoved    = @MovedBit)
         WHERE (@Category IS NULL OR p.Category = @Category)
         GROUP BY p.Id, p.Name, p.Category, p.Status
         ORDER BY p.Id;
@@ -170,7 +185,11 @@ BEGIN
             BeforeThisMonth = SUM(CASE WHEN AddedDate < @MonthStart THEN 1 ELSE 0 END),
             Providers = (SELECT COUNT(*) FROM dbo.VoucherProvider_Table),
             Products  = (SELECT COUNT(*) FROM dbo.VoucherProduct_Table WHERE Status = 'A')
-        FROM dbo.VoucherStock_Table;
+        FROM dbo.VoucherStock_Table
+        /* scoped the same way as the grid below them - cards reading 128 above a
+           table whose rows add up to less is the same mismatch, one level up */
+        WHERE (@AssignInt IS NULL OR AssignedTo = @AssignInt)
+          AND (@MovedBit  IS NULL OR IsMoved    = @MovedBit);
     END
 
     ELSE IF @Action = 'SelectDropdown'

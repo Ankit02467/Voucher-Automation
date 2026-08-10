@@ -111,6 +111,30 @@ namespace DSL_CMS
             get { return string.Equals(VoucherRole, "Voucher Student", StringComparison.OrdinalIgnoreCase); }
         }
 
+        /// <summary>
+        /// The row filters View Data will apply for this role. The dashboard has
+        /// to use the same ones, or its numbers promise rows the next screen will
+        /// not show: a sub-admin's grid lists only open entries, so counting the
+        /// ones already moved to the done list made every figure too high.
+        ///
+        /// Mirrors MovedFilter / AssignedToFilter on voucher-data.aspx.cs.
+        /// </summary>
+        private string RowAssignedTo
+        {
+            get { return IsStudent ? Convert.ToString(Session["UserId"]) : string.Empty; }
+        }
+
+        private string RowIsMoved
+        {
+            get
+            {
+                if (IsStudent) return "0";
+                if (string.Equals(VoucherRole, "Voucher Sub Admin", StringComparison.OrdinalIgnoreCase))
+                    return "0";     // the dashboard opens the sub-admin's open list
+                return string.Empty;
+            }
+        }
+
         /// <summary>Student wise performance is open to admin and sub-admin.</summary>
         protected bool CanSeeStudentPerformance
         {
@@ -185,7 +209,7 @@ namespace DSL_CMS
         /// </summary>
         private void BindKpis()
         {
-            DataTable dt = VoucherBAL.GetDashboardTotals();
+            DataTable dt = VoucherBAL.GetDashboardTotals(RowAssignedTo, RowIsMoved);
             if (dt == null || dt.Rows.Count == 0) return;
 
             DataRow r = dt.Rows[0];
@@ -315,7 +339,8 @@ namespace DSL_CMS
         private void BindGrid()
         {
             DataTable dt = VoucherBAL.GetProviderSummary(
-                SelectedStatus, SelectedDays, SelectedCategory, string.Empty, string.Empty);
+                SelectedStatus, SelectedDays, SelectedCategory, string.Empty, string.Empty,
+                RowAssignedTo, RowIsMoved);
 
             int rowCount = (dt == null) ? 0 : dt.Rows.Count;
             int pageCount = Pager.PageCount(rowCount, PageSize);

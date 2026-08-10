@@ -18,14 +18,21 @@ namespace DSL_CMS.BAL
             return VoucherDAL.GetProviderSummary(status, days, category, fromDate, toDate);
         }
 
+        public static DataTable GetProviderSummary(string status, string days, string category,
+            string fromDate, string toDate, string assignedTo, string isMoved)
+        {
+            return VoucherDAL.GetProviderSummary(status, days, category, fromDate, toDate,
+                assignedTo, isMoved);
+        }
+
         public static DataTable GetAllProvider()
         {
             return VoucherDAL.GetAllProvider();
         }
 
-        public static DataTable GetDashboardTotals()
+        public static DataTable GetDashboardTotals(string assignedTo, string isMoved)
         {
-            return VoucherDAL.GetDashboardTotals();
+            return VoucherDAL.GetDashboardTotals(assignedTo, isMoved);
         }
 
         public static DataTable GetProvider(string Id)

@@ -22,13 +22,27 @@ namespace DSL_CMS.DAL
         public static DataTable GetProviderSummary(string status, string days, string category,
             string fromDate, string toDate)
         {
+            return GetProviderSummary(status, days, category, fromDate, toDate,
+                string.Empty, string.Empty);
+        }
+
+        /// <summary>
+        /// <paramref name="assignedTo"/> and <paramref name="isMoved"/> must match
+        /// whatever View Data will apply for the same role, or the dashboard
+        /// promises a number the next screen cannot show.
+        /// </summary>
+        public static DataTable GetProviderSummary(string status, string days, string category,
+            string fromDate, string toDate, string assignedTo, string isMoved)
+        {
             return SqlHelper.ExecuteDataTable("Sp_VoucherProvider_Table", true,
                 "@Action", "SelectSummary",
                 "@Status", status,
                 "@Days", days,
                 "@Category", category,
                 "@FromDate", fromDate,
-                "@ToDate", toDate);
+                "@ToDate", toDate,
+                "@AssignedTo", assignedTo,
+                "@IsMoved", isMoved);
         }
 
         public static DataTable GetAllProvider()
@@ -36,11 +50,16 @@ namespace DSL_CMS.DAL
             return SqlHelper.ExecuteDataTable("Sp_VoucherProvider_Table", true, "@Action", "SelectDropdown");
         }
 
-        /// <summary>Figures for the cards across the top of the dashboard.</summary>
-        public static DataTable GetDashboardTotals()
+        /// <summary>
+        /// Figures for the cards across the top of the dashboard, scoped the same
+        /// way as the grid beneath them.
+        /// </summary>
+        public static DataTable GetDashboardTotals(string assignedTo, string isMoved)
         {
             return SqlHelper.ExecuteDataTable("Sp_VoucherProvider_Table", true,
-                "@Action", "SelectDashboardTotals");
+                "@Action", "SelectDashboardTotals",
+                "@AssignedTo", assignedTo,
+                "@IsMoved", isMoved);
         }
 
         public static DataTable GetProvider(string Id)
