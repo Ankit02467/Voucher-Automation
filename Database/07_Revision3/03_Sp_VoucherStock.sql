@@ -46,6 +46,15 @@
 USE DSL_New;
 GO
 
+/* VoucherStock_Table carries a filtered index on AutoMoveAfter, and a proc is
+   stamped with the QUOTED_IDENTIFIER in force when it was created. sqlcmd
+   defaults that OFF, so running this file with plain sqlcmd bakes OFF into the
+   proc and every UPDATE branch then fails with msg 1934 at runtime - Move,
+   Reassign, AutoMove, BulkInsert, all of them, while the SELECTs carry on
+   working. Set it here so the file is safe whatever runs it. */
+SET QUOTED_IDENTIFIER ON;
+GO
+
 CREATE OR ALTER PROCEDURE dbo.Sp_VoucherStock_Table
 (
     @Action           NVARCHAR(50),
@@ -533,6 +542,21 @@ BEGIN
         WHERE (@ProviderInt IS NULL OR v.ProviderId = @ProviderInt)
           AND (@ProductInt  IS NULL OR v.ProductId  = @ProductInt)
           AND v.AssignedTo IS NULL
+        ORDER BY pr.Name, v.Id;
+
+    /* The done list, offered in the same picker Assign uses. Reassign is the
+       same job pointed at vouchers that have already come back from a student,
+       rather than ones nobody has held yet. */
+    ELSE IF @Action = 'SelectForReassign'
+        SELECT v.Id, v.VoucherCode, v.ExpiryDate, v.Status,
+               ProductName = pr.Name, v.ProductId,
+               AssignedToName = ISNULL(a.FullName, '')
+        FROM dbo.VoucherStock_Table v
+        INNER JOIN dbo.VoucherProduct_Table pr ON pr.Id = v.ProductId
+        LEFT  JOIN dbo.User_Table a ON a.Id = v.AssignedTo
+        WHERE (@ProviderInt IS NULL OR v.ProviderId = @ProviderInt)
+          AND (@ProductInt  IS NULL OR v.ProductId  = @ProductInt)
+          AND v.IsMoved = 1
         ORDER BY pr.Name, v.Id;
 
     ELSE IF @Action = 'Assign'

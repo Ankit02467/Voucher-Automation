@@ -61,6 +61,23 @@ On a full SQL Server, move it to an Agent job.
 It only moves vouchers where `AssignedTo IS NOT NULL`. A move carries a voucher
 *from a student to the sub-admin*; an unheld voucher has no such journey.
 
+### 7. Re-run the stock proc with `sqlcmd -I`, or the writes die silently
+
+`sqlcmd` defaults `QUOTED_IDENTIFIER` **off** and a proc keeps the setting it
+was created under. `VoucherStock_Table` has a filtered index on `AutoMoveAfter`,
+so a proc created with it off throws **msg 1934** on every `UPDATE` branch —
+Move, Reassign, AutoMove, BulkInsert — while every `SELECT` keeps working. Pages
+load, grids fill, nothing saves.
+
+`07_Revision3/03_Sp_VoucherStock.sql` and `05_AutoMove_Schema.sql` set it
+themselves now. To check a live one:
+
+```sql
+SELECT o.name, m.uses_quoted_identifier
+FROM sys.sql_modules m JOIN sys.objects o ON o.object_id = m.object_id
+WHERE o.name LIKE 'Sp_Voucher%';   -- all should read 1
+```
+
 ---
 
 ## Conventions
@@ -134,6 +151,13 @@ The Edit modal differs by role. Admin sees voucher code, added by, candidate
 name and exam details **greyed out** — and `UpdateAdminEntry` does not write
 them either. A disabled input is a hint to the browser, not a rule; the proc
 is where it is enforced.
+
+Assign and reassign are **one button and one modal**, not two features. On the
+open list it reads "+ Assign" and offers `SelectForAssign` — vouchers nobody
+holds. On the done list it reads "Reassign" and offers `SelectForReassign` —
+`IsMoved = 1` — and saves through `ReassignMany`. `ReassignMode` on
+`voucher-data.aspx.cs` is the switch. A row still has its own Reassign button
+for the one-off case.
 
 A student's Voucher Status screen shows their own performance instead of the
 provider summary.

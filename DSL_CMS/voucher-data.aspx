@@ -30,11 +30,10 @@
             OnClick="lnkUpload_Click" CausesValidation="false">Upload Entry</asp:LinkButton>
         <asp:LinkButton ID="lnkHistory" runat="server" CssClass="pill-btn" Visible="false"
             OnClick="lnkHistory_Click" CausesValidation="false">View History</asp:LinkButton>
+        <%-- Same button either way: it assigns unheld vouchers on the open list
+             and reassigns finished ones on the done list. --%>
         <asp:LinkButton ID="lnkAssign" runat="server" CssClass="pill-btn" Visible="false"
             OnClick="lnkAssign_Click" CausesValidation="false">+ Assign</asp:LinkButton>
-        <asp:LinkButton ID="lnkReassignPicked" runat="server" CssClass="pill-btn" Visible="false"
-            OnClick="lnkReassignPicked_Click" CausesValidation="false"
-            ToolTip="Reassign every ticked entry to one student">Reassign Selected</asp:LinkButton>
     </div>
 
     <asp:Panel ID="pnlRoleNote" runat="server" Visible="false" CssClass="note">
@@ -268,7 +267,6 @@
             <table class="data">
                 <thead>
                     <tr>
-                        <th runat="server" id="thPick" visible="false" style="width: 40px;"></th>
                         <th runat="server" id="thActions" style="width: 150px;">Actions</th>
                         <th style="width: 70px;">S.No</th>
                         <th>Product Name</th>
@@ -289,10 +287,6 @@
                     <asp:Repeater ID="rptVoucher" runat="server" OnItemCommand="rptVoucher_ItemCommand">
                         <ItemTemplate>
                             <tr>
-                                <td runat="server" visible='<%# CanReassign %>'>
-                                    <asp:CheckBox runat="server" ID="chkPickRow"
-                                        ToolTip="Tick to reassign this entry" />
-                                </td>
                                 <td runat="server" visible='<%# ShowActions %>' style="white-space: nowrap;">
                                     <asp:LinkButton runat="server" CssClass="btn-out btn-sm" CommandName="EditRow"
                                         CommandArgument='<%# Eval("Id") %>'
@@ -449,7 +443,7 @@
     <asp:Panel ID="pnlAssign" runat="server" Visible="false" CssClass="modal-back">
         <div class="modal xl">
             <div class="modal-head">
-                <h2>Assign Vouchers</h2>
+                <h2><asp:Literal ID="litAssignTitle" runat="server" Text="Assign Vouchers" /></h2>
                 <asp:LinkButton ID="lnkAssignClose" runat="server" CssClass="btn btn-light btn-sm"
                     OnClick="lnkAssignClose_Click" CausesValidation="false">Close</asp:LinkButton>
             </div>
@@ -476,7 +470,8 @@
 
                 <div class="assign-split">
                     <div class="box">
-                        <h3>Unassigned Vouchers (<asp:Literal ID="litAssignCount" runat="server" Text="0" />)</h3>
+                        <h3><asp:Literal ID="litAssignBox" runat="server" Text="Unassigned Vouchers" />
+                            (<asp:Literal ID="litAssignCount" runat="server" Text="0" />)</h3>
                         <div class="scroll">
                             <table class="data" style="border: 0;">
                                 <thead>
@@ -503,7 +498,9 @@
                                         </ItemTemplate>
                                     </asp:Repeater>
                                     <asp:PlaceHolder ID="phAssignEmpty" runat="server" Visible="false">
-                                        <tr><td colspan="4" class="empty">No unassigned vouchers.</td></tr>
+                                        <tr><td colspan="4" class="empty">
+                                            <asp:Literal ID="litAssignEmpty" runat="server" Text="No unassigned vouchers." />
+                                        </td></tr>
                                     </asp:PlaceHolder>
                                 </tbody>
                             </table>

@@ -255,6 +255,18 @@ namespace DSL_CMS.DAL
                 "@ProductId", productId);
         }
 
+        /// <summary>
+        /// Done entries offered in the same modal when the sub-admin is looking at
+        /// the done list. Same picker, different set.
+        /// </summary>
+        public static DataTable GetForReassign(string providerId, string productId)
+        {
+            return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,
+                "@Action", "SelectForReassign",
+                "@ProviderId", providerId,
+                "@ProductId", productId);
+        }
+
         public static DataTable Assign(string ids, string assignedTo, string userId)
         {
             return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,

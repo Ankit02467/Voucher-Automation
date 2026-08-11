@@ -68,6 +68,18 @@ the comment that reads "Demo data only" and stop there.
 `Sp_VoucherStock_Table` is defined in **three** places. `07_Revision3/03_Sp_VoucherStock.sql`
 runs last and wins; the two copies in `06_Revision2/` are dead. Edit the 07 one.
 
+### Run these with `sqlcmd -I`
+
+`sqlcmd` defaults `QUOTED_IDENTIFIER` **off**, and a proc keeps whatever was in
+force when it was created. `VoucherStock_Table` carries a filtered index, so a
+proc created with it off fails at runtime on every `UPDATE` — Move, Reassign,
+AutoMove, BulkInsert — with msg 1934, while the `SELECT`s carry on working. The
+screen loads, the grid fills, and only the writes are dead.
+
+`07_Revision3/03_Sp_VoucherStock.sql` and `05_AutoMove_Schema.sql` now set it
+themselves, so they are safe either way. Pass `-I` anyway when running the rest;
+SSMS and Visual Studio already have it on.
+
 ---
 
 ## 3. Test logins must not reach production

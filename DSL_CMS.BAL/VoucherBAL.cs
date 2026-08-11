@@ -131,6 +131,11 @@ namespace DSL_CMS.BAL
             return VoucherDAL.GetForAssign(providerId, productId);
         }
 
+        public static DataTable GetForReassign(string providerId, string productId)
+        {
+            return VoucherDAL.GetForReassign(providerId, productId);
+        }
+
         public static DataTable Assign(string ids, string assignedTo, string userId)
         {
             return VoucherDAL.Assign(ids, assignedTo, userId);

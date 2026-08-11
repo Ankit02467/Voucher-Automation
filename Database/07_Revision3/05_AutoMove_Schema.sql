@@ -25,6 +25,11 @@
 USE DSL_New;
 GO
 
+/* The filtered index below cannot be built, and the backfill below it cannot
+   run, unless this is on. sqlcmd defaults it off. */
+SET QUOTED_IDENTIFIER ON;
+GO
+
 IF COL_LENGTH('dbo.VoucherStock_Table', 'AutoMoveAfter') IS NULL
 BEGIN
     ALTER TABLE dbo.VoucherStock_Table ADD AutoMoveAfter DATETIME NULL;

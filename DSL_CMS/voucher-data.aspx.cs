@@ -15,12 +15,13 @@ namespace DSL_CMS
 
         protected Literal litProvider, litRole, litMsg, litCount, litPageInfo, litEditTitle,
                           litUploadMsg, litUploadHint, litAssignMsg, litAssignCount,
+                          litAssignTitle, litAssignBox, litAssignEmpty,
                           litDealerHeaders, litGridTitle, litReassignMsg, litReassignCode;
         protected Panel pnlMsg, pnlRoleNote, pnlRoleSwitch, pnlEdit, pnlEditDealer, pnlEditStatus, pnlEditAdmin,
                         pnlUsedDate, pnlUpload, pnlUploadMsg, pnlHistory, pnlAssign, pnlAssignMsg,
                         pnlFilterDealer, pnlReassign, pnlReassignMsg,
                         pnlStatusButtons, pnlStatusDropdown, pnlStatusExtras;
-        protected LinkButton lnkStatusUsed, lnkStatusUnused, lnkStatusInvalid, lnkReassignPicked;
+        protected LinkButton lnkStatusUsed, lnkStatusUnused, lnkStatusInvalid;
         protected DropDownList ddlRoleSwitch, ddlFilterProduct, ddlFilterCheckedBy,
                                ddlEditStatus, ddlExamMode, ddlAssignProduct, ddlReassignStudent,
                                ddlAdminStatus;
@@ -35,7 +36,7 @@ namespace DSL_CMS
         protected PlaceHolder phEmpty, phPager, phHistoryEmpty, phAssignEmpty, phStudentsEmpty;
         protected Button btnSearch, btnResetFilter, btnSaveEdit, btnCancelEdit,
                          btnUploadSave, btnAssignPick, btnAssignSave, btnReassignSave;
-        protected System.Web.UI.HtmlControls.HtmlTableCell thPick, thActions, thAddedBy, thCheckedBy;
+        protected System.Web.UI.HtmlControls.HtmlTableCell thActions, thAddedBy, thCheckedBy;
         protected System.Web.UI.HtmlControls.HtmlGenericControl divEditModal, divStatusFields;
 
         #endregion
@@ -187,6 +188,13 @@ namespace DSL_CMS
         protected bool CanReassign { get { return Role == RoleSubAdmin && DoneMode; } }
 
         /// <summary>
+        /// The picker at the top of the screen does two jobs. On the open list it
+        /// hands unheld vouchers to a student; on the done list it hands finished
+        /// ones back. Same modal, same multi-select, different set and different save.
+        /// </summary>
+        protected bool ReassignMode { get { return CanAssign && DoneMode; } }
+
+        /// <summary>
         /// The Actions column earns its place only when there is an action in it.
         /// The voucher team has neither Edit nor Reassign, so they would otherwise
         /// stare at an empty column with a heading.
@@ -288,12 +296,11 @@ namespace DSL_CMS
             lnkUpload.Visible = CanUpload;
             lnkHistory.Visible = CanHistory;
             lnkAssign.Visible = CanAssign;
+            lnkAssign.Text = ReassignMode ? "Reassign" : "+ Assign";
             lnkDone.Visible = (Role == RoleSubAdmin);
             lnkDone.Text = DoneMode ? "View Open Entries" : "View Done Entries";
-            lnkReassignPicked.Visible = CanReassign;
 
             // header cells; the matching body cells carry their own Visible binding
-            thPick.Visible = CanReassign;
             thActions.Visible = ShowActions;
             thAddedBy.Visible = ShowAddedBy;
             thCheckedBy.Visible = ShowCheckedBy;
@@ -1256,9 +1263,19 @@ namespace DSL_CMS
 
         private void BindAssign()
         {
-            DataTable dt = VoucherBAL.GetForAssign(ProviderId, ddlAssignProduct.SelectedValue);
+            bool reassign = ReassignMode;
+
+            DataTable dt = reassign
+                ? VoucherBAL.GetForReassign(ProviderId, ddlAssignProduct.SelectedValue)
+                : VoucherBAL.GetForAssign(ProviderId, ddlAssignProduct.SelectedValue);
+
             rptAssignVouchers.DataSource = dt;
             rptAssignVouchers.DataBind();
+
+            litAssignTitle.Text = reassign ? "Reassign Vouchers" : "Assign Vouchers";
+            litAssignBox.Text = reassign ? "Done Entries" : "Unassigned Vouchers";
+            litAssignEmpty.Text = reassign ? "No done entries." : "No unassigned vouchers.";
+            btnAssignSave.Text = reassign ? "Reassign" : "Assign";
 
             int count = (dt == null) ? 0 : dt.Rows.Count;
             litAssignCount.Text = count.ToString();
@@ -1323,6 +1340,11 @@ namespace DSL_CMS
 
         protected void btnAssignSave_Click(object sender, EventArgs e)
         {
+            // The button that opens this modal is guarded; the save that writes
+            // through it was not. Same check, so a forged postback cannot hand
+            // vouchers around.
+            if (!CanAssign) return;
+
             CaptureAssignSelection();
             pnlAssign.Visible = true;
 
@@ -1341,14 +1363,27 @@ namespace DSL_CMS
             }
 
             string ids = string.Join(",", PickedVouchers.ToArray());
-            DataTable dt = VoucherBAL.Assign(ids, PickedStudent, Convert.ToString(Session["UserId"]));
-            int assigned = (dt != null && dt.Rows.Count > 0) ? Convert.ToInt32(dt.Rows[0]["Assigned"]) : 0;
+            string userId = Convert.ToString(Session["UserId"]);
+            int done;
+
+            if (ReassignMode)
+            {
+                DataTable dt = VoucherBAL.ReassignMany(ids, PickedStudent, userId);
+                done = (dt != null && dt.Rows.Count > 0) ? Convert.ToInt32(dt.Rows[0]["Reassigned"]) : 0;
+            }
+            else
+            {
+                DataTable dt = VoucherBAL.Assign(ids, PickedStudent, userId);
+                done = (dt != null && dt.Rows.Count > 0) ? Convert.ToInt32(dt.Rows[0]["Assigned"]) : 0;
+            }
 
             pnlAssign.Visible = false;
             PickedVouchers.Clear();
             PickedStudent = string.Empty;
 
-            ShowMessage(assigned + " voucher(s) assigned to the student.", assigned > 0);
+            ShowMessage(ReassignMode
+                ? done + " voucher(s) reassigned. They are back with the student."
+                : done + " voucher(s) assigned to the student.", done > 0);
             BindGrid();
         }
 
@@ -1378,8 +1413,8 @@ namespace DSL_CMS
         #region Reassign modal
 
         /// <summary>
-        /// Ids queued for reassignment. One entry when a row's own Reassign was
-        /// clicked, many when the tick boxes were used.
+        /// Ids queued for reassignment. This is the single-row path only - a row's
+        /// own Reassign button. Reassigning a batch goes through the picker above.
         /// </summary>
         private List<string> ReassignIds
         {
@@ -1401,31 +1436,6 @@ namespace DSL_CMS
 
             hfReassignId.Value = id;
             litReassignCode.Text = Server.HtmlEncode(Convert.ToString(dt.Rows[0]["VoucherCode"]));
-
-            OpenReassignCommon();
-        }
-
-        /// <summary>Reassign every row whose tick box is on.</summary>
-        protected void lnkReassignPicked_Click(object sender, EventArgs e)
-        {
-            if (!CanReassign) return;
-
-            ReassignIds.Clear();
-            foreach (RepeaterItem item in rptVoucher.Items)
-            {
-                var chk = item.FindControl("chkPickRow") as CheckBox;
-                var hf = item.FindControl("hfCheckId") as HiddenField;
-                if (chk != null && hf != null && chk.Checked) ReassignIds.Add(hf.Value);
-            }
-
-            if (ReassignIds.Count == 0)
-            {
-                ShowMessage("Tick the entries you want to reassign first.", false);
-                return;
-            }
-
-            hfReassignId.Value = string.Empty;
-            litReassignCode.Text = ReassignIds.Count + " voucher(s) selected";
 
             OpenReassignCommon();
         }
