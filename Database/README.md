@@ -33,6 +33,24 @@ re-running the demo scripts re-does their deletes.
   01_Seed_Voucher.sql             -- 5 providers, 7 products, 14 vouchers
 ```
 
+## Encrypted columns
+
+`08_Encryption/01_Encrypt_Voucher_Columns.sql` runs last and turns the voucher
+codes, candidate names, remarks and dealer names into AES-256 ciphertext under
+`VoucherDataKey`. Re-run `07_Revision3/03_Sp_VoucherStock.sql` after it — that
+proc reads and writes through the key.
+
+Two consequences worth knowing before writing any SQL against these tables:
+
+- `SELECT VoucherCode FROM VoucherStock_Table` returns bytes. Open the key and
+  wrap it: `CONVERT(NVARCHAR(200), DECRYPTBYKEY(VoucherCode))`.
+- `UQ_VoucherStock_Code` is gone. Uniqueness lives on `VoucherCodeHash`, because
+  the same code encrypts to different bytes each time. Any insert must set both
+  the code and its `HASHBYTES('SHA2_256', ...)`.
+
+Back up `VoucherDataCert` — see the foot of the migration and
+[DEPLOYMENT.md](../DEPLOYMENT.md).
+
 ## Naming convention
 
 | Kind | Pattern | Example |
@@ -41,7 +59,7 @@ re-running the demo scripts re-does their deletes.
 | Proc | `Sp_<Entity>_Table` | `Sp_VoucherProvider_Table` |
 | PK | `PK_<Table>` | `PK_VoucherStock_Table` |
 | FK | `FK_<Table>_<Ref>` | `FK_VoucherStock_Provider` |
-| Unique | `UQ_<Table>_<Cols>` | `UQ_VoucherStock_Code` |
+| Unique | `UQ_<Table>_<Cols>` | `UQ_VoucherStock_CodeHash` |
 | Check | `CK_<Table>_<Col>` | `CK_VoucherStock_Status` |
 | Index | `IX_<Table>_<Cols>` | `IX_VoucherStock_Provider_Status` |
 | Default | `DF_<Table>_<Col>` | `DF_VoucherStock_Status` |

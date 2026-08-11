@@ -42,6 +42,22 @@
       editor shows the code but greys it out, and the proc will not
       change it whatever is posted. It gained Status and UsedDate,
       which the admin may now set.
+
+   Revision 3d - encryption:
+
+   9. VoucherCode, CandidateName, Remarks and the dealer names are
+      VARBINARY ciphertext. Run 08_Encryption/01 before this file;
+      without VoucherDataKey the proc refuses to run rather than
+      quietly handing back NULLs.
+
+      Duplicate voucher codes are caught on VoucherCodeHash, not on
+      the code, because the same code encrypts differently every
+      time. Anything new that inserts a voucher must set both.
+
+      The VoucherHistory_Table inserts below copy v.VoucherCode
+      straight across. That is deliberate - both columns hold
+      ciphertext under the same key, so the bytes carry over and
+      there is nothing to decrypt and re-encrypt.
    ============================================================ */
 USE DSL_New;
 GO
@@ -82,6 +98,23 @@ CREATE OR ALTER PROCEDURE dbo.Sp_VoucherStock_Table
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    /* Voucher codes, candidate names, dealer names and remarks live in this
+       table as ciphertext - see 08_Encryption. Everything below reads and
+       writes them through this key.
+
+       The key stays open for the rest of the connection. Left closed,
+       DECRYPTBYKEY does not complain, it just returns NULL: grids would fill
+       with blank voucher codes and an upload would happily store rows nobody
+       can read. So this refuses to run instead. */
+    IF NOT EXISTS (SELECT 1 FROM sys.openkeys WHERE key_name = 'VoucherDataKey')
+        OPEN SYMMETRIC KEY VoucherDataKey DECRYPTION BY CERTIFICATE VoucherDataCert;
+
+    IF NOT EXISTS (SELECT 1 FROM sys.openkeys WHERE key_name = 'VoucherDataKey')
+    BEGIN
+        RAISERROR('VoucherDataKey could not be opened. Voucher data cannot be read or written. Check that VoucherDataCert exists and that this login has VIEW DEFINITION on both.', 16, 1);
+        RETURN;
+    END
 
     DECLARE @IdInt       INT  = TRY_CONVERT(INT,  NULLIF(LTRIM(RTRIM(@Id)), ''));
     DECLARE @ProviderInt INT  = TRY_CONVERT(INT,  NULLIF(LTRIM(RTRIM(@ProviderId)), ''));
@@ -126,10 +159,12 @@ BEGIN
         SELECT
             v.Id, v.ProviderId, ProviderName = p.Name,
             v.ProductId, ProductName = pr.Name,
-            v.VoucherCode, v.ExpiryDate,
+            VoucherCode = CONVERT(NVARCHAR(200), DECRYPTBYKEY(v.VoucherCode)),
+            v.ExpiryDate,
             AddedByName = ISNULL(u.FullName, ''),
             DealerNames = ISNULL((
-                SELECT STRING_AGG(ISNULL(d.DealerName, ''), '|') WITHIN GROUP (ORDER BY d.Seq)
+                SELECT STRING_AGG(ISNULL(CONVERT(NVARCHAR(300), DECRYPTBYKEY(d.DealerName)), ''), '|')
+                       WITHIN GROUP (ORDER BY d.Seq)
                 FROM dbo.VoucherDealer_Table d WHERE d.VoucherId = v.Id), ''),
             SaleDates = ISNULL((
                 SELECT STRING_AGG(ISNULL(CONVERT(VARCHAR(10), d.SaleDate, 23), ''), '|')
@@ -137,10 +172,12 @@ BEGIN
                 FROM dbo.VoucherDealer_Table d WHERE d.VoucherId = v.Id), ''),
             DealerCount = (SELECT COUNT(*) FROM dbo.VoucherDealer_Table d WHERE d.VoucherId = v.Id),
             v.Status, v.UsedDate, v.VoucherCheckDate, v.CheckedBy,
-            v.CandidateName, v.ExamDate, v.ExamMode,
+            CandidateName = CONVERT(NVARCHAR(300), DECRYPTBYKEY(v.CandidateName)),
+            v.ExamDate, v.ExamMode,
             v.AssignedTo, AssignedToName = ISNULL(a.FullName, ''),
             v.IsMoved, v.MovedDate, v.AutoMoveAfter,
-            v.Remarks, v.AddedDate
+            Remarks = CONVERT(NVARCHAR(1000), DECRYPTBYKEY(v.Remarks)),
+            v.AddedDate
         FROM dbo.VoucherStock_Table v
         INNER JOIN dbo.VoucherProvider_Table p  ON p.Id  = v.ProviderId
         INNER JOIN dbo.VoucherProduct_Table  pr ON pr.Id = v.ProductId
@@ -148,7 +185,11 @@ BEGIN
         LEFT  JOIN dbo.User_Table a ON a.Id = v.AssignedTo
         WHERE (@ProviderInt IS NULL OR v.ProviderId  = @ProviderInt)
           AND (@ProductInt  IS NULL OR v.ProductId   = @ProductInt)
-          AND (@VoucherCode IS NULL OR v.VoucherCode LIKE '%' + @VoucherCode + '%')
+          /* A partial match cannot use an index on ciphertext - this decrypts
+             every candidate row. Fine at this table's size; if it ever grows
+             past a few tens of thousands, search will need rethinking. */
+          AND (@VoucherCode IS NULL
+               OR CONVERT(NVARCHAR(200), DECRYPTBYKEY(v.VoucherCode)) LIKE '%' + @VoucherCode + '%')
           AND (@CheckedBy   IS NULL OR v.CheckedBy   = @CheckedBy)
           AND (@Status      IS NULL
                OR (@Status =  'NotSet' AND v.Status IS NULL)
@@ -161,18 +202,25 @@ BEGIN
           AND (@MovedBit    IS NULL OR v.IsMoved     = @MovedBit)
           AND (@DealerName  IS NULL OR EXISTS (
                   SELECT 1 FROM dbo.VoucherDealer_Table d
-                  WHERE d.VoucherId = v.Id AND d.DealerName LIKE '%' + @DealerName + '%'))
+                  WHERE d.VoucherId = v.Id
+                    AND CONVERT(NVARCHAR(300), DECRYPTBYKEY(d.DealerName))
+                        LIKE '%' + @DealerName + '%'))
         ORDER BY v.Id DESC;
     END
 
     ELSE IF @Action = 'SelectId'
-        SELECT v.Id, v.ProviderId, v.ProductId, v.VoucherCode, v.ExpiryDate,
+        SELECT v.Id, v.ProviderId, v.ProductId,
+               VoucherCode = CONVERT(NVARCHAR(200), DECRYPTBYKEY(v.VoucherCode)),
+               v.ExpiryDate,
                v.Status, v.UsedDate, v.VoucherCheckDate, v.CheckedBy,
-               v.CandidateName, v.ExamDate, v.ExamMode, v.AssignedTo,
-               v.IsMoved, v.Remarks,
+               CandidateName = CONVERT(NVARCHAR(300), DECRYPTBYKEY(v.CandidateName)),
+               v.ExamDate, v.ExamMode, v.AssignedTo,
+               v.IsMoved,
+               Remarks = CONVERT(NVARCHAR(1000), DECRYPTBYKEY(v.Remarks)),
                AddedByName = ISNULL(u.FullName, ''),
                DealerNames = ISNULL((
-                   SELECT STRING_AGG(ISNULL(d.DealerName, ''), '|') WITHIN GROUP (ORDER BY d.Seq)
+                   SELECT STRING_AGG(ISNULL(CONVERT(NVARCHAR(300), DECRYPTBYKEY(d.DealerName)), ''), '|')
+                          WITHIN GROUP (ORDER BY d.Seq)
                    FROM dbo.VoucherDealer_Table d WHERE d.VoucherId = v.Id), ''),
                SaleDates = ISNULL((
                    SELECT STRING_AGG(ISNULL(CONVERT(VARCHAR(10), d.SaleDate, 23), ''), '|')
@@ -256,12 +304,19 @@ BEGIN
 
         SET @Total = (SELECT COUNT(*) FROM @Rows);
 
+        /* The duplicate check compares hashes, not codes. Two uploads of the
+           same code encrypt to different bytes, so comparing the stored
+           ciphertext would let every duplicate straight through. */
         INSERT INTO dbo.VoucherStock_Table
-            (ProviderId, ProductId, VoucherCode, ExpiryDate, Status, AddedBy)
-        SELECT pr.ProviderId, @ProductInt, r.Code, r.Expiry, NULL, @UserInt
+            (ProviderId, ProductId, VoucherCode, VoucherCodeHash, ExpiryDate, Status, AddedBy)
+        SELECT pr.ProviderId, @ProductInt,
+               ENCRYPTBYKEY(KEY_GUID('VoucherDataKey'), r.Code),
+               HASHBYTES('SHA2_256', r.Code),
+               r.Expiry, NULL, @UserInt
         FROM @Rows r
         CROSS APPLY (SELECT ProviderId FROM dbo.VoucherProduct_Table WHERE Id = @ProductInt) pr
-        WHERE NOT EXISTS (SELECT 1 FROM dbo.VoucherStock_Table v WHERE v.VoucherCode = r.Code);
+        WHERE NOT EXISTS (SELECT 1 FROM dbo.VoucherStock_Table v
+                          WHERE v.VoucherCodeHash = HASHBYTES('SHA2_256', r.Code));
 
         SET @Ins = @@ROWCOUNT;
         SELECT Inserted = @Ins, Skipped = @Total - @Ins;
@@ -276,7 +331,7 @@ BEGIN
             INSERT INTO dbo.VoucherDealer_Table (VoucherId, Seq, DealerName, SaleDate)
             SELECT @IdInt,
                    ROW_NUMBER() OVER (ORDER BY x.Ord),
-                   NULLIF(x.Nm, ''),
+                   ENCRYPTBYKEY(KEY_GUID('VoucherDataKey'), NULLIF(x.Nm, '')),
                    TRY_CONVERT(DATE, NULLIF(x.Dt, ''))
             FROM (
                 SELECT Ord = ROW_NUMBER() OVER (ORDER BY (SELECT NULL)),
@@ -332,7 +387,7 @@ BEGIN
         UPDATE dbo.VoucherStock_Table
            SET Status           = ISNULL(@Status, Status),
                UsedDate         = CASE WHEN @Status = 'Used' THEN @Used ELSE NULL END,
-               CandidateName    = @CandidateName,
+               CandidateName    = ENCRYPTBYKEY(KEY_GUID('VoucherDataKey'), @CandidateName),
                ExamDate         = @Exam,
                ExamMode         = @ExamMode,
                VoucherCheckDate = GETDATE(),
@@ -533,7 +588,9 @@ BEGIN
 
     /* ================= assignment ================= */
     ELSE IF @Action = 'SelectForAssign'
-        SELECT v.Id, v.VoucherCode, v.ExpiryDate, v.Status,
+        SELECT v.Id,
+               VoucherCode = CONVERT(NVARCHAR(200), DECRYPTBYKEY(v.VoucherCode)),
+               v.ExpiryDate, v.Status,
                ProductName = pr.Name, v.ProductId,
                AssignedToName = ISNULL(a.FullName, '')
         FROM dbo.VoucherStock_Table v
@@ -548,7 +605,9 @@ BEGIN
        same job pointed at vouchers that have already come back from a student,
        rather than ones nobody has held yet. */
     ELSE IF @Action = 'SelectForReassign'
-        SELECT v.Id, v.VoucherCode, v.ExpiryDate, v.Status,
+        SELECT v.Id,
+               VoucherCode = CONVERT(NVARCHAR(200), DECRYPTBYKEY(v.VoucherCode)),
+               v.ExpiryDate, v.Status,
                ProductName = pr.Name, v.ProductId,
                AssignedToName = ISNULL(a.FullName, '')
         FROM dbo.VoucherStock_Table v
@@ -590,7 +649,9 @@ BEGIN
 
     /* ================= history ================= */
     ELSE IF @Action = 'SelectHistory'
-        SELECT h.Id, ProductName = pr.Name, h.VoucherCode, h.Status,
+        SELECT h.Id, ProductName = pr.Name,
+               VoucherCode = CONVERT(NVARCHAR(200), DECRYPTBYKEY(h.VoucherCode)),
+               h.Status,
                h.CheckedBy, h.VoucherCheckDate, h.ChangedDate,
                h.Activity, h.AssignedToName
         FROM dbo.VoucherHistory_Table h
@@ -601,15 +662,19 @@ BEGIN
 
     ELSE IF @Action = 'Insert'
     BEGIN
-        IF EXISTS (SELECT 1 FROM dbo.VoucherStock_Table WHERE VoucherCode = @VoucherCode)
+        IF EXISTS (SELECT 1 FROM dbo.VoucherStock_Table
+                    WHERE VoucherCodeHash = HASHBYTES('SHA2_256', @VoucherCode))
         BEGIN SELECT -1; RETURN; END
         INSERT INTO dbo.VoucherStock_Table
-            (ProviderId, ProductId, VoucherCode, ExpiryDate, Status, AddedBy)
-        VALUES (@ProviderInt, @ProductInt, @VoucherCode, @Expiry, @Status, @UserInt);
+            (ProviderId, ProductId, VoucherCode, VoucherCodeHash, ExpiryDate, Status, AddedBy)
+        VALUES (@ProviderInt, @ProductInt,
+                ENCRYPTBYKEY(KEY_GUID('VoucherDataKey'), @VoucherCode),
+                HASHBYTES('SHA2_256', @VoucherCode),
+                @Expiry, @Status, @UserInt);
         SELECT CAST(SCOPE_IDENTITY() AS INT);
     END
 END
 GO
 
-PRINT 'Sp_VoucherStock_Table updated (Not Set filter, early-expiry window)';
+PRINT 'Sp_VoucherStock_Table updated (Not Set filter, early-expiry window, encrypted columns)';
 GO

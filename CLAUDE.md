@@ -78,6 +78,36 @@ FROM sys.sql_modules m JOIN sys.objects o ON o.object_id = m.object_id
 WHERE o.name LIKE 'Sp_Voucher%';   -- all should read 1
 ```
 
+### 8. Voucher codes and names are ciphertext, and duplicates hang off a hash
+
+`VoucherCode`, `CandidateName`, `Remarks` and both `DealerName` columns are
+`VARBINARY` under `VoucherDataKey` (AES-256, protected by `VoucherDataCert`).
+`VoucherHistory_Table.VoucherCode` too. See
+[Database/08_Encryption/01_Encrypt_Voucher_Columns.sql](Database/08_Encryption/01_Encrypt_Voucher_Columns.sql)
+for what is encrypted and what is deliberately not.
+
+Three things follow:
+
+`Sp_VoucherStock_Table` opens the key itself and **refuses to run if it
+cannot**. Do not remove that guard — `DECRYPTBYKEY` returns NULL rather than
+raising when the key is shut, so without it the grid quietly fills with blank
+voucher codes and uploads store rows nobody can read. Same failure shape as
+trap 2.
+
+`ENCRYPTBYKEY` is randomised, so the same code encrypts differently every
+time and no comparison on the ciphertext can find a duplicate.
+`VoucherCodeHash` (SHA2_256 of the plain code) carries `UQ_VoucherStock_CodeHash`
+and both duplicate checks. **Anything new that inserts a voucher must write
+the hash as well as the code**, or it will be invisible to every later
+duplicate check.
+
+The history inserts copy `v.VoucherCode` across untouched. That is right —
+both columns hold ciphertext under one key, so the bytes carry over.
+
+Back up the certificate. Restoring `DSL_New` somewhere else without it leaves
+every voucher code unreadable; the rows survive and `DECRYPTBYKEY` just
+returns NULL. The commands are at the bottom of the migration.
+
 ---
 
 ## Conventions

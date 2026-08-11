@@ -46,7 +46,8 @@ are case-insensitive, so a stray `Sp_Voucher_Table` would overwrite the live pro
 | `05_ViewData/04_Fix_BulkInsert_Count.sql` | procs |
 | `06_Revision2/01_Schema.sql` | schema |
 | `06_Revision2/02_Sp_VoucherProvider.sql` | superseded by 07, harmless |
-| `07_Revision3/` | **all five, last — these win** |
+| `07_Revision3/` | **all five** — these win |
+| `08_Encryption/01_Encrypt_Voucher_Columns.sql` | **last**, then re-run `07_Revision3/03_Sp_VoucherStock.sql` |
 
 ### Never run on production
 
@@ -67,6 +68,38 @@ the comment that reads "Demo data only" and stop there.
 
 `Sp_VoucherStock_Table` is defined in **three** places. `07_Revision3/03_Sp_VoucherStock.sql`
 runs last and wins; the two copies in `06_Revision2/` are dead. Edit the 07 one.
+
+### Encryption — three things that must not be skipped
+
+`08_Encryption/01_Encrypt_Voucher_Columns.sql` converts voucher codes,
+candidate names, remarks and dealer names to AES-256 ciphertext and creates
+the key material. It is re-runnable and guarded on column type, so running it
+twice does not double-encrypt.
+
+**1. Run it before, not after, the data matters.** It encrypts whatever is in
+the table at the time. Rows written afterwards go through the proc and are
+encrypted on the way in.
+
+**2. Back up the certificate the moment it is created.** Without
+`VoucherDataCert`'s private key the data is gone — rows intact, every voucher
+code NULL. The `BACKUP CERTIFICATE` and restore commands are in section 8 of
+the migration. Keep the files off the database server and keep the master key
+password with them.
+
+**3. Grant the application login rights on the key.** LocalDB under integrated
+security runs as `dbo` and needs nothing. A production SQL login does:
+
+```sql
+GRANT VIEW DEFINITION ON SYMMETRIC KEY::VoucherDataKey TO [your_app_login];
+GRANT VIEW DEFINITION ON CERTIFICATE::VoucherDataCert  TO [your_app_login];
+```
+
+Without these the proc raises `VoucherDataKey could not be opened` on every
+call. That is deliberate — the alternative is a screen full of blank voucher
+codes and no indication anything is wrong.
+
+Nothing changes in the application code or `Web.config`. The procs do the
+encrypting and decrypting, so the pages receive the same columns they always did.
 
 ### Run these with `sqlcmd -I`
 

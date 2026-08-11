@@ -25,7 +25,24 @@
 USE DSL_New;
 GO
 
+/* Filtered index on AutoMoveAfter - see CLAUDE.md trap 7. */
+SET QUOTED_IDENTIFIER ON;
+GO
+
 SET NOCOUNT ON;
+
+/* Voucher codes, candidate names and dealer names are encrypted - see
+   08_Encryption. This seed writes and matches through the key like the proc
+   does, which is also why "DEMO%" has to be decrypted before it can be
+   compared. */
+IF NOT EXISTS (SELECT 1 FROM sys.openkeys WHERE key_name = 'VoucherDataKey')
+    OPEN SYMMETRIC KEY VoucherDataKey DECRYPTION BY CERTIFICATE VoucherDataCert;
+
+IF NOT EXISTS (SELECT 1 FROM sys.openkeys WHERE key_name = 'VoucherDataKey')
+BEGIN
+    RAISERROR('VoucherDataKey is not open - run 08_Encryption/01 first.', 16, 1);
+    RETURN;
+END
 
 DECLARE @Admin    INT  = (SELECT TOP 1 Id FROM dbo.User_Table WHERE Email = 'voucher.admin@dsucceedlearners.com');
 DECLARE @SubAdmin INT  = (SELECT TOP 1 Id FROM dbo.User_Table WHERE Email = 'voucher.subadmin@dsucceedlearners.com');
@@ -41,13 +58,14 @@ END
 /* ---------- clear anything a previous run left ---------- */
 DELETE h FROM dbo.VoucherHistory_Table h
  INNER JOIN dbo.VoucherStock_Table v ON v.Id = h.VoucherId
- WHERE v.VoucherCode LIKE 'DEMO%';
+ WHERE CONVERT(NVARCHAR(200), DECRYPTBYKEY(v.VoucherCode)) LIKE 'DEMO%';
 
 DELETE d FROM dbo.VoucherDealer_Table d
  INNER JOIN dbo.VoucherStock_Table v ON v.Id = d.VoucherId
- WHERE v.VoucherCode LIKE 'DEMO%';
+ WHERE CONVERT(NVARCHAR(200), DECRYPTBYKEY(v.VoucherCode)) LIKE 'DEMO%';
 
-DELETE FROM dbo.VoucherStock_Table WHERE VoucherCode LIKE 'DEMO%';
+DELETE FROM dbo.VoucherStock_Table
+ WHERE CONVERT(NVARCHAR(200), DECRYPTBYKEY(VoucherCode)) LIKE 'DEMO%';
 
 /* ---------- what we can hang vouchers off ---------- */
 DECLARE @Prod TABLE (Seq INT IDENTITY(1,1), ProductId INT, ProviderId INT);
@@ -116,18 +134,25 @@ r AS (
     INNER JOIN @Prod p ON p.Seq = ((n.rn - 1) % @ProdCount) + 1
     INNER JOIN @Stu  s ON s.Seq = ((n.rn / 3) % @StuCount)  + 1
 )
+, coded AS (
+    SELECT r.*,
+           /* every seventeenth code carries spaces, like the real ones do */
+           Code = CAST(CASE WHEN r.rn % 17 = 0
+                            THEN 'DEMO CODE ' + RIGHT('000' + CAST(r.rn AS VARCHAR(4)), 4)
+                            ELSE 'DEMO-'      + RIGHT('000' + CAST(r.rn AS VARCHAR(4)), 4)
+                       END AS NVARCHAR(200))
+    FROM r
+)
 INSERT INTO dbo.VoucherStock_Table
-    (ProviderId, ProductId, VoucherCode, ExpiryDate, Status, UsedDate,
+    (ProviderId, ProductId, VoucherCode, VoucherCodeHash, ExpiryDate, Status, UsedDate,
      VoucherCheckDate, CheckedBy, CandidateName, ExamDate, ExamMode,
      AssignedTo, AssignedBy, AssignedDate, IsMoved, MovedDate, MovedBy,
      AutoMoveAfter, AddedBy, AddedDate)
 SELECT
     r.ProviderId,
     r.ProductId,
-    /* every seventeenth code carries spaces, like the real ones do */
-    VoucherCode = CASE WHEN r.rn % 17 = 0
-                       THEN 'DEMO CODE ' + RIGHT('000' + CAST(r.rn AS VARCHAR(4)), 4)
-                       ELSE 'DEMO-'      + RIGHT('000' + CAST(r.rn AS VARCHAR(4)), 4) END,
+    ENCRYPTBYKEY(KEY_GUID('VoucherDataKey'), r.Code),
+    HASHBYTES('SHA2_256', r.Code),
     r.Expiry,
     r.Status,
     UsedDate = CASE WHEN r.Status = 'Used' THEN DATEADD(DAY, -(r.rn % 20), @Today) END,
@@ -136,7 +161,9 @@ SELECT
     VoucherCheckDate = CASE WHEN r.Status IS NOT NULL AND r.StudentId IS NOT NULL THEN r.CheckedOn END,
     CheckedBy        = CASE WHEN r.Status IS NOT NULL AND r.StudentId IS NOT NULL THEN r.StudentName END,
 
-    CandidateName = CASE WHEN r.Status = 'Used' THEN 'Candidate ' + CAST(r.rn AS VARCHAR(4)) END,
+    CandidateName = ENCRYPTBYKEY(KEY_GUID('VoucherDataKey'),
+                        CASE WHEN r.Status = 'Used'
+                             THEN CAST('Candidate ' + CAST(r.rn AS VARCHAR(4)) AS NVARCHAR(300)) END),
     ExamDate      = CASE WHEN r.Status = 'Used' THEN DATEADD(DAY, (r.rn % 30) + 1, @Today) END,
     ExamMode      = CASE WHEN r.Status = 'Used' THEN CASE WHEN r.rn % 2 = 0 THEN 'Online' ELSE 'Test Centre' END END,
 
@@ -157,24 +184,26 @@ SELECT
 
     AddedBy   = @Admin,
     AddedDate = DATEADD(DAY, -(r.rn % 40), GETDATE())
-FROM r;
+FROM coded r;
 
 PRINT CONCAT('Vouchers created: ', @@ROWCOUNT);
 
 /* ---------- dealers on roughly a third of them ---------- */
 INSERT INTO dbo.VoucherDealer_Table (VoucherId, Seq, DealerName, SaleDate)
 SELECT v.Id, 1,
-       'Dealer ' + CAST((v.Id % 7) + 1 AS VARCHAR(2)),
+       ENCRYPTBYKEY(KEY_GUID('VoucherDataKey'),
+           CAST('Dealer ' + CAST((v.Id % 7) + 1 AS VARCHAR(2)) AS NVARCHAR(300))),
        DATEADD(DAY, -((v.Id % 15) + 1), CAST(GETDATE() AS DATE))
 FROM dbo.VoucherStock_Table v
-WHERE v.VoucherCode LIKE 'DEMO%' AND v.Id % 3 = 0;
+WHERE CONVERT(NVARCHAR(200), DECRYPTBYKEY(v.VoucherCode)) LIKE 'DEMO%' AND v.Id % 3 = 0;
 
 INSERT INTO dbo.VoucherDealer_Table (VoucherId, Seq, DealerName, SaleDate)
 SELECT v.Id, 2,
-       'Reseller ' + CAST((v.Id % 4) + 1 AS VARCHAR(2)),
+       ENCRYPTBYKEY(KEY_GUID('VoucherDataKey'),
+           CAST('Reseller ' + CAST((v.Id % 4) + 1 AS VARCHAR(2)) AS NVARCHAR(300))),
        DATEADD(DAY, -((v.Id % 9) + 1), CAST(GETDATE() AS DATE))
 FROM dbo.VoucherStock_Table v
-WHERE v.VoucherCode LIKE 'DEMO%' AND v.Id % 6 = 0;
+WHERE CONVERT(NVARCHAR(200), DECRYPTBYKEY(v.VoucherCode)) LIKE 'DEMO%' AND v.Id % 6 = 0;
 
 PRINT 'Dealers created';
 
@@ -184,12 +213,14 @@ PRINT 'Dealers created';
 INSERT INTO dbo.VoucherHistory_Table
     (VoucherId, ProductId, VoucherCode, OldStatus, Status, CheckedBy,
      VoucherCheckDate, ChangedBy, ChangedDate, Activity, AssignedToName)
+/* v.VoucherCode goes across as it stands - both columns hold ciphertext
+   under the same key, so there is nothing to decrypt and re-encrypt. */
 SELECT v.Id, v.ProductId, v.VoucherCode, NULL, v.Status, v.CheckedBy,
        v.VoucherCheckDate, v.AssignedTo, v.VoucherCheckDate,
        'Status Update', ISNULL(u.FullName, '')
 FROM dbo.VoucherStock_Table v
 LEFT JOIN dbo.User_Table u ON u.Id = v.AssignedTo
-WHERE v.VoucherCode LIKE 'DEMO%'
+WHERE CONVERT(NVARCHAR(200), DECRYPTBYKEY(v.VoucherCode)) LIKE 'DEMO%'
   AND v.VoucherCheckDate IS NOT NULL;
 
 PRINT CONCAT('History rows created: ', @@ROWCOUNT);
