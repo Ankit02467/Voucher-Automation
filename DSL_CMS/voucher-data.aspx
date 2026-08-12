@@ -523,9 +523,16 @@
                                         <ItemTemplate>
                                             <tr>
                                                 <td>
-                                                    <asp:RadioButton runat="server" ID="rdoStudent" GroupName="student"
-                                                        Checked='<%# IsStudentPicked(Eval("Id")) %>' />
-                                                    <asp:HiddenField runat="server" ID="hfStudentId" Value='<%# Eval("Id") %>' />
+                                                    <%-- A plain input, deliberately not asp:RadioButton. Every
+                                                         RepeaterItem is its own naming container, so ASP.NET gives
+                                                         each row a different name - ctl00$student, ctl01$student -
+                                                         and the browser then treats every row as a group of one.
+                                                         That is how five students came to be selected at once.
+                                                         One literal name across the whole list is what makes it a
+                                                         single choice, and the value carries the id, so the hidden
+                                                         field is no longer needed. --%>
+                                                    <input type="radio" name="assignStudent"
+                                                           value='<%# Eval("Id") %>' <%# StudentChecked(Eval("Id")) %> />
                                                 </td>
                                                 <td class="left"><%# Eval("FullName") %></td>
                                                 <td class="left"><%# Eval("Email") %></td>

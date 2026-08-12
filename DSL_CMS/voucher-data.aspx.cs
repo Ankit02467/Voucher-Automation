@@ -1330,12 +1330,12 @@ namespace DSL_CMS
                 if (chk != null && hf != null && chk.Checked) picked.Add(hf.Value);
             }
 
-            foreach (RepeaterItem item in rptStudents.Items)
-            {
-                var rdo = item.FindControl("rdoStudent") as RadioButton;
-                var hf = item.FindControl("hfStudentId") as HiddenField;
-                if (rdo != null && hf != null && rdo.Checked) PickedStudent = hf.Value;
-            }
+            // The student radios share one name, so the browser posts exactly one
+            // value and it is the student id. Only overwrite when something came
+            // back - a postback that does not render the list must not clear the
+            // choice already made.
+            string student = Request.Form["assignStudent"];
+            if (!string.IsNullOrEmpty(student)) PickedStudent = student;
         }
 
         protected void btnAssignSave_Click(object sender, EventArgs e)
@@ -1406,6 +1406,15 @@ namespace DSL_CMS
         protected bool IsStudentPicked(object studentId)
         {
             return string.Equals(Convert.ToString(studentId), PickedStudent, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Renders the checked attribute for the plain student radio, so the
+        /// pick survives the product filter and the Select-first-N postbacks.
+        /// </summary>
+        protected string StudentChecked(object studentId)
+        {
+            return IsStudentPicked(studentId) ? "checked=\"checked\"" : string.Empty;
         }
 
         #endregion
