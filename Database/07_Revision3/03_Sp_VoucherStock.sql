@@ -93,6 +93,11 @@ CREATE OR ALTER PROCEDURE dbo.Sp_VoucherStock_Table
     @Days             NVARCHAR(10)   = NULL,
     @Ids              NVARCHAR(MAX)  = NULL,
     @Data             NVARCHAR(MAX)  = NULL,
+    /* BulkInsert only: the dealer pairs pasted alongside each voucher, as
+       "code|seq|name|saledate" records separated by ~. Kept apart from @Data
+       because a voucher carries any number of pairs and @Data is one record
+       per voucher. */
+    @DealerData       NVARCHAR(MAX)  = NULL,
     @AddedBy          NVARCHAR(50)   = NULL
 )
 AS
@@ -304,11 +309,17 @@ BEGIN
 
         SET @Total = (SELECT COUNT(*) FROM @Rows);
 
+        /* What actually went in, so the dealer pairs below can be attached to
+           those rows and only those - a code that was skipped as a duplicate
+           already belongs to somebody, and its dealers are not ours to touch. */
+        DECLARE @New TABLE (Id INT PRIMARY KEY, CodeHash VARBINARY(32));
+
         /* The duplicate check compares hashes, not codes. Two uploads of the
            same code encrypt to different bytes, so comparing the stored
            ciphertext would let every duplicate straight through. */
         INSERT INTO dbo.VoucherStock_Table
             (ProviderId, ProductId, VoucherCode, VoucherCodeHash, ExpiryDate, Status, AddedBy)
+        OUTPUT inserted.Id, inserted.VoucherCodeHash INTO @New (Id, CodeHash)
         SELECT pr.ProviderId, @ProductInt,
                ENCRYPTBYKEY(KEY_GUID('VoucherDataKey'), r.Code),
                HASHBYTES('SHA2_256', r.Code),
@@ -319,6 +330,34 @@ BEGIN
                           WHERE v.VoucherCodeHash = HASHBYTES('SHA2_256', r.Code));
 
         SET @Ins = @@ROWCOUNT;
+
+        /* ---- the dealer pairs that came with them ----
+           Split by position rather than by STRING_SPLIT's row order: that
+           order is not guaranteed, and here it would decide which value is
+           the name and which the date. Seq travels in the record for the
+           same reason - it is the paste's column order, not a row number. */
+        IF @DealerData IS NOT NULL AND LTRIM(RTRIM(@DealerData)) <> ''
+            INSERT INTO dbo.VoucherDealer_Table (VoucherId, Seq, DealerName, SaleDate)
+            SELECT n.Id, d.Seq,
+                   ENCRYPTBYKEY(KEY_GUID('VoucherDataKey'), NULLIF(d.Nm, '')),
+                   TRY_CONVERT(DATE, NULLIF(d.Dt, ''))
+            FROM (
+                SELECT Code = LTRIM(RTRIM(f1.Head)),
+                       Seq  = TRY_CONVERT(INT, f2.Head),
+                       Nm   = LTRIM(RTRIM(f3.Head)),
+                       Dt   = LTRIM(RTRIM(f3.Tail))
+                FROM STRING_SPLIT(@DealerData, '~') s
+                CROSS APPLY (SELECT Head = LEFT(s.value, CHARINDEX('|', s.value + '|') - 1),
+                                    Tail = SUBSTRING(s.value, CHARINDEX('|', s.value + '|') + 1, 4000)) f1
+                CROSS APPLY (SELECT Head = LEFT(f1.Tail, CHARINDEX('|', f1.Tail + '|') - 1),
+                                    Tail = SUBSTRING(f1.Tail, CHARINDEX('|', f1.Tail + '|') + 1, 4000)) f2
+                CROSS APPLY (SELECT Head = LEFT(f2.Tail, CHARINDEX('|', f2.Tail + '|') - 1),
+                                    Tail = SUBSTRING(f2.Tail, CHARINDEX('|', f2.Tail + '|') + 1, 4000)) f3
+                WHERE LTRIM(RTRIM(s.value)) <> ''
+            ) d
+            INNER JOIN @New n ON n.CodeHash = HASHBYTES('SHA2_256', d.Code)
+            WHERE d.Seq IS NOT NULL AND (d.Nm <> '' OR d.Dt <> '');
+
         SELECT Inserted = @Ins, Skipped = @Total - @Ins;
     END
 
@@ -659,6 +698,38 @@ BEGIN
         LEFT JOIN dbo.VoucherStock_Table   v  ON v.Id  = h.VoucherId
         WHERE (@ProviderInt IS NULL OR v.ProviderId = @ProviderInt)
         ORDER BY h.ChangedDate DESC, h.Id DESC;
+
+    /* ---------- the life of one voucher ----------
+       Oldest first, because this is read as a story: assigned, checked,
+       reassigned, checked again. ChangedBy is the person who did it, so a
+       row can say who assigned as well as who it was assigned to.
+
+       Round numbers each hand-off so the caller can say "assigned 3 times"
+       without counting rows itself: it climbs on every assign or reassign
+       and every row after one carries that number. */
+    ELSE IF @Action = 'SelectVoucherHistory'
+    BEGIN
+        ;WITH Ordered AS
+        (
+            SELECT h.Id, h.Activity, h.Status, h.OldStatus,
+                   h.CheckedBy, h.VoucherCheckDate, h.ChangedDate,
+                   h.AssignedToName, h.ChangedBy,
+                   Handoff = CASE WHEN h.Activity IN ('Assigned to Student',
+                                                      'Reassigned to Student')
+                                  THEN 1 ELSE 0 END
+            FROM dbo.VoucherHistory_Table h
+            WHERE h.VoucherId = @IdInt
+        )
+        SELECT o.Id, o.Activity, o.Status, o.OldStatus,
+               o.CheckedBy, o.VoucherCheckDate, o.ChangedDate,
+               o.AssignedToName,
+               ChangedByName = ISNULL(u.FullName, ''),
+               Round = SUM(o.Handoff) OVER (ORDER BY o.ChangedDate, o.Id
+                                            ROWS UNBOUNDED PRECEDING)
+        FROM Ordered o
+        LEFT JOIN dbo.User_Table u ON u.Id = o.ChangedBy
+        ORDER BY o.ChangedDate, o.Id;
+    END
 
     ELSE IF @Action = 'Insert'
     BEGIN

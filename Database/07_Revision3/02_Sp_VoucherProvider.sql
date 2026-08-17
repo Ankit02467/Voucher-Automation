@@ -205,6 +205,12 @@ BEGIN
 
     ELSE IF @Action = 'Insert'
     BEGIN
+        /* UQ_VoucherProvider_Name would raise here, and an unhandled 2627 on a
+           form is a yellow screen rather than an answer. -1 back instead, the
+           same way Sp_VoucherProduct_Table reports a duplicate. */
+        IF EXISTS (SELECT 1 FROM dbo.VoucherProvider_Table WHERE Name = @Name)
+        BEGIN SELECT -1; RETURN; END
+
         INSERT INTO dbo.VoucherProvider_Table (Name, Category, Status)
         VALUES (@Name, @Category, ISNULL(@Status, 'A'));
         SELECT CAST(SCOPE_IDENTITY() AS INT);

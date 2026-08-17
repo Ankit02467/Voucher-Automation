@@ -28,8 +28,8 @@
             OnClick="lnkDone_Click" CausesValidation="false">View Done Entries</asp:LinkButton>
         <asp:LinkButton ID="lnkUpload" runat="server" CssClass="pill-btn" Visible="false"
             OnClick="lnkUpload_Click" CausesValidation="false">Upload Entry</asp:LinkButton>
-        <asp:LinkButton ID="lnkHistory" runat="server" CssClass="pill-btn" Visible="false"
-            OnClick="lnkHistory_Click" CausesValidation="false">View History</asp:LinkButton>
+        <%-- View History used to sit here and list every change the provider had
+             ever seen. It is a per-row action now, beside Edit. --%>
         <%-- Same button either way: it assigns unheld vouchers on the open list
              and reassigns finished ones on the done list. --%>
         <asp:LinkButton ID="lnkAssign" runat="server" CssClass="pill-btn" Visible="false"
@@ -265,22 +265,27 @@
         </div>
         <div class="table-wrap">
             <table class="data">
+                <%-- Built in code, not written out here: which columns exist
+                     depends on the role and on how many dealer pairs the rows
+                     carry, and every one of them has to sort the same way. --%>
                 <thead>
                     <tr>
-                        <th runat="server" id="thActions" style="width: 150px;">Actions</th>
-                        <th style="width: 70px;">S.No</th>
-                        <th>Product Name</th>
-                        <th>Voucher Code</th>
-                        <th>Expiry Date</th>
-                        <th runat="server" id="thAddedBy">Added By</th>
-                        <asp:Literal ID="litDealerHeaders" runat="server" Mode="PassThrough" />
-                        <th>Voucher Status</th>
-                        <th>Voucher Used Date</th>
-                        <th>Voucher Check Date</th>
-                        <th runat="server" id="thCheckedBy">Checked By</th>
-                        <th>Candidate Name</th>
-                        <th>Exam Date</th>
-                        <th>Exam Mode</th>
+                        <asp:Repeater ID="rptHead" runat="server" OnItemCommand="rptHead_ItemCommand">
+                            <ItemTemplate>
+                                <th style='<%# Eval("Width") %>'>
+                                    <asp:LinkButton runat="server" CssClass="sortcol" CommandName="Sort"
+                                        CommandArgument='<%# Eval("Key") %>' CausesValidation="false"
+                                        Visible='<%# SortableCell(Container.DataItem) %>'
+                                        ToolTip='<%# SortTip(Container.DataItem) %>'>
+                                        <%# Server.HtmlEncode(Convert.ToString(Eval("Label"))) %><%# SortArrow(Eval("Key")) %>
+                                    </asp:LinkButton>
+                                    <asp:Literal runat="server" Mode="PassThrough"
+                                        Visible='<%# !SortableCell(Container.DataItem) %>'
+                                        Text='<%# Server.HtmlEncode(Convert.ToString(Eval("Label"))) %>' />
+                                    <%# Eval("Extra") %>
+                                </th>
+                            </ItemTemplate>
+                        </asp:Repeater>
                     </tr>
                 </thead>
                 <tbody>
@@ -291,6 +296,10 @@
                                     <asp:LinkButton runat="server" CssClass="btn-out btn-sm" CommandName="EditRow"
                                         CommandArgument='<%# Eval("Id") %>'
                                         Visible='<%# CanEdit %>'>Edit</asp:LinkButton>
+                                    <asp:LinkButton runat="server" CssClass="btn-out btn-sm" CommandName="HistoryRow"
+                                        CommandArgument='<%# Eval("Id") %>'
+                                        Visible='<%# CanHistory %>'
+                                        ToolTip="Who held this voucher, and when">View History</asp:LinkButton>
                                     <asp:LinkButton runat="server" CssClass="btn-fill btn-sm" CommandName="ReassignRow"
                                         CommandArgument='<%# Eval("Id") %>'
                                         Visible='<%# CanReassign %>'>Reassign</asp:LinkButton>
@@ -302,7 +311,8 @@
                                 <td runat="server" visible='<%# ShowAddedBy %>'><%# Dash(Eval("AddedByName")) %></td>
                                 <%# DealerCells(Eval("DealerNames"), Eval("SaleDates")) %>
                                 <td><%# StatusBadge(Eval("Status")) %></td>
-                                <td><%# DateOrDash(Eval("UsedDate")) %></td>
+                                <%-- check date first, used date after it - the cells
+                                     must stay in the order BindHead lists them --%>
                                 <td>
                                     <asp:HiddenField runat="server" ID="hfCheckId" Value='<%# Eval("Id") %>' />
                                     <asp:CheckBox runat="server" ID="chkCheckDate" AutoPostBack="true"
@@ -313,6 +323,7 @@
                                         Text='<%# " " + DateOrDash(Eval("VoucherCheckDate")) %>' />
                                     <%# MoveNote(Eval("AutoMoveAfter")) %>
                                 </td>
+                                <td><%# DateOrDash(Eval("UsedDate")) %></td>
                                 <td runat="server" visible='<%# ShowCheckedBy %>'><%# Dash(Eval("CheckedBy")) %></td>
                                 <td class="left"><%# Dash(Eval("CandidateName")) %></td>
                                 <td><%# DateOrDash(Eval("ExamDate")) %></td>
@@ -372,16 +383,22 @@
                 </asp:Panel>
 
                 <div class="paste-help">
-                    Copy the <code>Voucher Code</code> and <code>Expiry Date</code> columns from Excel
-                    and paste them here, one voucher per line. Tab, comma, semicolon or pipe all work
-                    as the separator &ndash; not a space, because voucher codes may contain spaces.<br />
+                    Paste from Excel, one voucher per line, columns in this order:<br />
+                    <code>Voucher Code</code> &rarr; <code>Expiry Date</code> &rarr;
+                    <code>Dealer Name 1</code> &rarr; <code>Sale Date 1</code> &rarr;
+                    <code>Dealer Name 2</code> &rarr; <code>Sale Date 2</code> &rarr; &hellip;<br />
+                    Only the first two are needed. Add as many dealer pairs as a voucher has &ndash;
+                    one line may carry one dealer and the next three, and both save.
+                    Leave a pair blank to skip it.<br />
+                    Tab, comma, semicolon or pipe all work as the separator &ndash; not a space,
+                    because voucher codes may contain spaces.<br />
                     Dates are read <strong>day first</strong>:
                     <code>14-08-2026</code>, <code>14/08/2026</code>, <code>14-Aug-2026</code>
                     and <code>2026-08-14</code> all mean 14 August 2026.
                 </div>
 
                 <asp:TextBox ID="txtPaste" runat="server" TextMode="MultiLine" CssClass="paste-area"
-                    placeholder="AWS-FN-100001&#9;31-12-2026&#10;AWS-FN-100002&#9;31-12-2026" />
+                    placeholder="AWS-FN-100001&#9;31-12-2026&#9;Dealer A&#9;05-01-2026&#10;AWS-FN-100002&#9;31-12-2026&#9;Dealer A&#9;05-01-2026&#9;Dealer B&#9;09-02-2026&#10;AWS-FN-100003&#9;31-12-2026" />
             </div>
             <div class="modal-foot">
                 <span class="spacer"><asp:Literal ID="litUploadHint" runat="server" /></span>
@@ -391,50 +408,40 @@
         </div>
     </asp:Panel>
 
-    <%-- ================= View History modal ================= --%>
+    <%-- ================= View History modal =================
+         One voucher's life, oldest first, so it reads as a story: assigned to
+         a student, checked, reassigned, checked again. Grouped by hand-off so
+         the number of rounds is countable at a glance rather than inferred. --%>
     <asp:Panel ID="pnlHistory" runat="server" Visible="false" CssClass="modal-back">
-        <div class="modal xl">
+        <div class="modal lg">
             <div class="modal-head">
-                <h2>Voucher History</h2>
+                <h2>Voucher History &mdash; <asp:Literal ID="litHistCode" runat="server" /></h2>
                 <asp:LinkButton ID="lnkHistoryClose" runat="server" CssClass="btn btn-light btn-sm"
                     OnClick="lnkHistoryClose_Click" CausesValidation="false">Close</asp:LinkButton>
             </div>
             <div class="modal-body">
-                <div class="table-wrap">
-                    <table class="data">
-                        <thead>
-                            <tr>
-                                <th style="width: 80px;">S.No</th>
-                                <th>Product Name</th>
-                                <th>Voucher Code</th>
-                                <th>Voucher Status</th>
-                                <th>Activity</th>
-                                <th>Student</th>
-                                <th>Checked By</th>
-                                <th>Voucher Check Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <asp:Repeater ID="rptHistory" runat="server">
-                                <ItemTemplate>
-                                    <tr>
-                                        <td><%# Container.ItemIndex + 1 %></td>
-                                        <td class="left"><%# Dash(Eval("ProductName")) %></td>
-                                        <td class="left"><strong><%# Eval("VoucherCode") %></strong></td>
-                                        <td><%# StatusBadge(Eval("Status")) %></td>
-                                        <td><%# Dash(Eval("Activity")) %></td>
-                                        <td><%# Dash(Eval("AssignedToName")) %></td>
-                                        <td><%# Dash(Eval("CheckedBy")) %></td>
-                                        <td><%# Eval("ChangedDate", "{0:dd-MMM-yyyy HH:mm}") %></td>
-                                    </tr>
-                                </ItemTemplate>
-                            </asp:Repeater>
-                            <asp:PlaceHolder ID="phHistoryEmpty" runat="server" Visible="false">
-                                <tr><td colspan="8" class="empty">No status changes recorded yet.</td></tr>
-                            </asp:PlaceHolder>
-                        </tbody>
-                    </table>
-                </div>
+                <div class="hist-sum"><asp:Literal ID="litHistSummary" runat="server" /></div>
+
+                <asp:Repeater ID="rptHistory" runat="server">
+                    <ItemTemplate>
+                        <%# RoundHead(Container.DataItem, Container.ItemIndex) %>
+                        <div class='<%# "hist-step " + StepKind(Eval("Activity")) %>'>
+                            <span class="dot"></span>
+                            <div class="what">
+                                <b><%# Server.HtmlEncode(Convert.ToString(Eval("Activity"))) %></b>
+                                <span class="who"><%# HistoryWho(Container.DataItem) %></span>
+                            </div>
+                            <span class="when"><%# Eval("ChangedDate", "{0:dd-MMM-yyyy  HH:mm}") %></span>
+                        </div>
+                    </ItemTemplate>
+                </asp:Repeater>
+
+                <asp:PlaceHolder ID="phHistoryEmpty" runat="server" Visible="false">
+                    <div class="hist-empty">
+                        Nothing recorded against this voucher yet. History starts the
+                        first time it is assigned, checked or edited.
+                    </div>
+                </asp:PlaceHolder>
             </div>
         </div>
     </asp:Panel>

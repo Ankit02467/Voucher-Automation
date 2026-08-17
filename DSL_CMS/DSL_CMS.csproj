@@ -112,6 +112,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Helpers\Pager.cs" />
+    <Compile Include="Helpers\ProviderBrand.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="MasterPage.master.cs">
       <DependentUpon>MasterPage.master</DependentUpon>
@@ -145,6 +146,10 @@
       <DependentUpon>manage-product.aspx</DependentUpon>
       <SubType>ASPXCodeBehind</SubType>
     </Compile>
+    <Compile Include="add-provider.aspx.cs">
+      <DependentUpon>add-provider.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <Content Include="Web.config" />
@@ -156,6 +161,7 @@
     <Content Include="student-performance.aspx" />
     <Content Include="product-performance.aspx" />
     <Content Include="manage-product.aspx" />
+    <Content Include="add-provider.aspx" />
     <Content Include="assets\css\site.css" />
     <Content Include="assets\css\login.css" />
     <Content Include="assets\img\logo\logo.png" />

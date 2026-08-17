@@ -67,6 +67,29 @@ namespace DSL_CMS.DAL
             return SqlHelper.ExecuteDataTable("Sp_VoucherProvider_Table", true, "@Action", "SelectId", "@Id", Id);
         }
 
+        /// <summary>
+        /// Adds a provider and hands back its new id, so the screen that created
+        /// it can go straight on to adding products against it.
+        /// </summary>
+        public static int InsertProvider(string name, string category, string status)
+        {
+            return Convert.ToInt32(SqlHelper.ExecuteScalar("Sp_VoucherProvider_Table", true,
+                "@Action", "Insert",
+                "@Name", name,
+                "@Category", category,
+                "@Status", status));
+        }
+
+        /// <summary>
+        /// Every category, for the chips at the top of the menu. Read on its own
+        /// rather than off the provider list, which is narrowed by the chip that
+        /// is lit - picking one would otherwise leave no way back to the others.
+        /// </summary>
+        public static DataTable GetProviderCategories()
+        {
+            return SqlHelper.ExecuteDataTable("Sp_VoucherProvider_Table", true, "@Action", "SelectCategory");
+        }
+
         #endregion
 
         #region Voucher (voucher-data.aspx)
@@ -126,10 +149,21 @@ namespace DSL_CMS.DAL
         /// <summary>Upload Entry modal - pastes many codes at once. Rows split by '~', fields by '|'.</summary>
         public static DataTable BulkInsert(string productId, string data, string addedBy)
         {
+            return BulkInsert(productId, data, string.Empty, addedBy);
+        }
+
+        /// <summary>
+        /// <paramref name="dealerData"/> carries the dealer pairs pasted beside
+        /// each voucher, as "code|seq|name|saledate" records separated by ~.
+        /// Both dates must already be ISO - see NormaliseDate on voucher-data.
+        /// </summary>
+        public static DataTable BulkInsert(string productId, string data, string dealerData, string addedBy)
+        {
             return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,
                 "@Action", "BulkInsert",
                 "@ProductId", productId,
                 "@Data", data,
+                "@DealerData", dealerData,
                 "@AddedBy", addedBy);
         }
 
@@ -282,6 +316,17 @@ namespace DSL_CMS.DAL
             return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,
                 "@Action", "SelectHistory",
                 "@ProviderId", providerId);
+        }
+
+        /// <summary>
+        /// The life of one voucher, oldest first: who assigned it, who checked
+        /// it and when, who reassigned it, and so on round again.
+        /// </summary>
+        public static DataTable GetVoucherHistory(string voucherId)
+        {
+            return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,
+                "@Action", "SelectVoucherHistory",
+                "@Id", voucherId);
         }
 
         /// <summary>Voucher module role of the signed-in user (blank when not mapped).</summary>

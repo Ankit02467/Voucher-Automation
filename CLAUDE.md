@@ -6,7 +6,7 @@ ASP.NET **Web Forms**, .NET Framework **4.8**, three projects:
 |---|---|
 | [DSL_CMS.DAL](DSL_CMS.DAL/) | `SqlHelper.cs` (Data Access Block), `VoucherDAL.cs`, `LoginDAL.cs` |
 | [DSL_CMS.BAL](DSL_CMS.BAL/) | Thin pass-through wrappers — no logic lives here |
-| [DSL_CMS](DSL_CMS/) | Pages: login, dashboard, voucher-status, voucher-data, manage-product, student-performance |
+| [DSL_CMS](DSL_CMS/) | Pages: login, dashboard, voucher-status, voucher-data, manage-product, add-provider, student-performance |
 | [Database](Database/) | Numbered, re-runnable SQL migration folders |
 
 Database is `DSL_New` on `(localdb)\MSSQLLocalDB` — **shared with the public
@@ -171,16 +171,45 @@ Passwords are stored **Base64, not hashed** — matching the existing site.
 |---|:--:|:--:|:--:|:--:|
 | Upload Entry | ✓ | | ✓ | |
 | View History | ✓ | | | |
+| Add provider | ✓ | | | |
 | Assign / Reassign | | ✓ | | |
-| Edit | ✓ | ✓ | | ✓ |
+| Edit | ✓ | ✓ | ✓ | ✓ |
 | Dealer name / sale date columns | ✓ | | ✓ | |
 | Added By / Checked By columns | ✓ | ✓ | ✓ | |
 | Student-wise performance | ✓ | ✓ | | |
 
-The Edit modal differs by role. Admin sees voucher code, added by, candidate
-name and exam details **greyed out** — and `UpdateAdminEntry` does not write
-them either. A disabled input is a hint to the browser, not a rule; the proc
-is where it is enforced.
+The Edit modal differs by role — that is the whole point of `CanEdit` being
+true for everyone. `OpenEditor` picks the panel: the team gets the dealer
+pairs and nothing else, the student gets the three status buttons, the
+sub-admin gets the status entry, the admin gets the lot. Admin sees voucher
+code, added by, candidate name and exam details **greyed out** — and
+`UpdateAdminEntry` does not write them either. A disabled input is a hint to
+the browser, not a rule; the proc is where it is enforced.
+
+**View History is a row action, not a screen action.** It opens one voucher's
+own history — assigned to a student, checked, reassigned, checked again —
+grouped into rounds by `Sp_VoucherStock_Table @Action='SelectVoucherHistory'`,
+which counts hand-offs with a running `SUM() OVER`. The old toolbar button
+listed every change the whole provider had ever seen and answered nothing.
+
+**Add Provider** (`add-provider.aspx`, reached from the `+` beside Voucher
+Status in the menu) saves the provider first, then opens a products section
+against the new id. Two steps because a product needs a `ProviderId`; holding
+products in memory until one final Save would lose them on any slip. The
+product half calls the same `InsertProductDetail` Manage Product does, with a
+blank validity — that field is only on Manage Product.
+
+**Upload Entry takes dealer columns.** Paste order is voucher code, expiry
+date, then any number of dealer name / sale date pairs; a line may carry none
+and the next three. They travel to `BulkInsert` in a second parameter
+(`@DealerData`, `code|seq|name|saledate~…`) rather than in `@Data`, which is one
+record per voucher. `Seq` is in the record because it is the *column* the pair
+was pasted into — a blank dealer 1 must leave dealer 2 in slot 2, not promote
+it. The proc `OUTPUT`s the rows it inserted and attaches dealers only to those:
+a code skipped as a duplicate already belongs to somebody.
+
+The paste is split with `StringSplitOptions.None` for the same reason. Dropping
+empties would shift every column left of a blank cell.
 
 Assign and reassign are **one button and one modal**, not two features. On the
 open list it reads "+ Assign" and offers `SelectForAssign` — vouchers nobody

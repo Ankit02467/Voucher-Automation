@@ -16,7 +16,8 @@ namespace DSL_CMS
         protected Literal litProvider, litRole, litMsg, litCount, litPageInfo, litEditTitle,
                           litUploadMsg, litUploadHint, litAssignMsg, litAssignCount,
                           litAssignTitle, litAssignBox, litAssignEmpty,
-                          litDealerHeaders, litGridTitle, litReassignMsg, litReassignCode;
+                          litGridTitle, litReassignMsg, litReassignCode,
+                          litHistCode, litHistSummary;
         protected Panel pnlMsg, pnlRoleNote, pnlRoleSwitch, pnlEdit, pnlEditDealer, pnlEditStatus, pnlEditAdmin,
                         pnlUsedDate, pnlUpload, pnlUploadMsg, pnlHistory, pnlAssign, pnlAssignMsg,
                         pnlFilterDealer, pnlReassign, pnlReassignMsg,
@@ -30,13 +31,12 @@ namespace DSL_CMS
                           txtAdminCode, txtAdminExpiry, txtAdminCheckDate, txtAdminUsedDate,
                           txtAdminAddedBy, txtAdminCandidate, txtAdminExamDate, txtAdminExamMode;
         protected HiddenField hfId, hfReassignId;
-        protected LinkButton lnkUpload, lnkHistory, lnkAssign, lnkDone, lnkAddDealer, lnkPrev, lnkNext;
-        protected Repeater rptVoucher, rptPager, rptUploadProduct, rptHistory,
+        protected LinkButton lnkUpload, lnkAssign, lnkDone, lnkAddDealer, lnkPrev, lnkNext;
+        protected Repeater rptHead, rptVoucher, rptPager, rptUploadProduct, rptHistory,
                            rptAssignVouchers, rptStudents, rptDealerEdit, rptAdminDealers;
         protected PlaceHolder phEmpty, phPager, phHistoryEmpty, phAssignEmpty, phStudentsEmpty;
         protected Button btnSearch, btnResetFilter, btnSaveEdit, btnCancelEdit,
                          btnUploadSave, btnAssignPick, btnAssignSave, btnReassignSave;
-        protected System.Web.UI.HtmlControls.HtmlTableCell thActions, thAddedBy, thCheckedBy;
         protected System.Web.UI.HtmlControls.HtmlGenericControl divEditModal, divStatusFields;
 
         #endregion
@@ -164,6 +164,23 @@ namespace DSL_CMS
             set { ViewState["Student"] = value; }
         }
 
+        /// <summary>
+        /// Column the grid is ordered by, blank until one is picked - the proc
+        /// already returns a sensible order and nothing should override it
+        /// before being asked to.
+        /// </summary>
+        private string SortKey
+        {
+            get { return (string)(ViewState["SortKey"] ?? string.Empty); }
+            set { ViewState["SortKey"] = value; }
+        }
+
+        private bool SortDesc
+        {
+            get { return (bool)(ViewState["SortDesc"] ?? false); }
+            set { ViewState["SortDesc"] = value; }
+        }
+
         #endregion
 
         #region Permissions
@@ -172,14 +189,16 @@ namespace DSL_CMS
         protected bool CanHistory { get { return Role == RoleAdmin; } }
         protected bool CanAssign { get { return Role == RoleSubAdmin; } }
         /// <summary>
-        /// The voucher team has no edit rights at all - no Edit button for them.
-        /// Admin, sub-admin and student each get their own set of fields.
+        /// Every role edits, but not the same fields: the voucher team gets the
+        /// dealer pairs, the student the status, and the admin and sub-admin the
+        /// status entry. Which panel opens is decided in OpenEditor.
         /// </summary>
         protected bool CanEdit
         {
             get
             {
-                return Role == RoleStudent || Role == RoleSubAdmin || Role == RoleAdmin;
+                return Role == RoleTeam || Role == RoleStudent
+                    || Role == RoleSubAdmin || Role == RoleAdmin;
             }
         }
         protected bool CanCheck { get { return Role == RoleStudent || Role == RoleSubAdmin; } }
@@ -196,8 +215,6 @@ namespace DSL_CMS
 
         /// <summary>
         /// The Actions column earns its place only when there is an action in it.
-        /// The voucher team has neither Edit nor Reassign, so they would otherwise
-        /// stare at an empty column with a heading.
         /// </summary>
         protected bool ShowActions { get { return CanEdit || CanReassign; } }
 
@@ -294,16 +311,10 @@ namespace DSL_CMS
             if (RoleUnmapped) SelectIfPresent(ddlRoleSwitch, Role);
 
             lnkUpload.Visible = CanUpload;
-            lnkHistory.Visible = CanHistory;
             lnkAssign.Visible = CanAssign;
             lnkAssign.Text = ReassignMode ? "Reassign" : "+ Assign";
             lnkDone.Visible = (Role == RoleSubAdmin);
             lnkDone.Text = DoneMode ? "View Open Entries" : "View Done Entries";
-
-            // header cells; the matching body cells carry their own Visible binding
-            thActions.Visible = ShowActions;
-            thAddedBy.Visible = ShowAddedBy;
-            thCheckedBy.Visible = ShowCheckedBy;
 
             pnlFilterDealer.Visible = ShowDealers;
             ApplyGridTitle();
@@ -433,8 +444,13 @@ namespace DSL_CMS
                 }
             }
 
-            litDealerHeaders.Text = DealerHeaders();
+            // after the scan above, so the header knows the final pair count
+            BindHead();
             ApplyGridTitle();
+
+            // Sorted whole, then paged. Sorting the page instead would only
+            // shuffle the ten rows already on screen.
+            dt = ApplySort(dt);
 
             rptVoucher.DataSource = Pager.Slice(dt, PageIndex, PageSize);
             rptVoucher.DataBind();
@@ -462,30 +478,193 @@ namespace DSL_CMS
 
         #endregion
 
-        #region Dealer columns
+        #region Header and sorting
 
         /// <summary>
-        /// Header cells for the current number of dealer slots. The voucher team
-        /// gets a "+" on the last Dealer Name cell that adds one more pair.
+        /// Every header cell, in order. Built here rather than written out in
+        /// the markup because the set changes with the role and with how many
+        /// dealer pairs the rows carry, and each one has to offer the same sort.
+        ///
+        /// A blank Key means there is nothing to sort on: S.No is a row number
+        /// rather than a field, and Actions holds buttons.
         /// </summary>
-        private string DealerHeaders()
+        private void BindHead()
         {
-            if (!ShowDealers) return string.Empty;
+            var t = new DataTable();
+            t.Columns.Add("Key", typeof(string));
+            t.Columns.Add("Label", typeof(string));
+            t.Columns.Add("Width", typeof(string));
+            t.Columns.Add("Extra", typeof(string));
 
-            var sb = new StringBuilder();
-            for (int i = 1; i <= DealerColumns; i++)
+            if (ShowActions) t.Rows.Add(string.Empty, "Actions", "width: 150px;", string.Empty);
+            t.Rows.Add(string.Empty, "S.No", "width: 70px;", string.Empty);
+            t.Rows.Add("ProductName", "Product Name", string.Empty, string.Empty);
+            t.Rows.Add("VoucherCode", "Voucher Code", string.Empty, string.Empty);
+            t.Rows.Add("ExpiryDate", "Expiry Date", string.Empty, string.Empty);
+            if (ShowAddedBy) t.Rows.Add("AddedByName", "Added By", string.Empty, string.Empty);
+
+            if (ShowDealers)
             {
-                sb.Append("<th>Dealer Name ").Append(i);
+                for (int i = 1; i <= DealerColumns; i++)
+                {
+                    // the voucher team gets a "+" on the last pair that adds one more
+                    string extra = (i == DealerColumns && Role == RoleTeam) ? AddDealerButton() : string.Empty;
 
-                if (i == DealerColumns && Role == RoleTeam)
-                    sb.Append("<a href=\"javascript:__doPostBack('")
-                      .Append(lnkAddDealer.UniqueID)
-                      .Append("','')\" class=\"col-add\" title=\"Add another dealer column\">+</a>");
-
-                sb.Append("</th><th>Sale Date ").Append(i).Append("</th>");
+                    t.Rows.Add("Dealer:" + i, "Dealer Name " + i, string.Empty, extra);
+                    t.Rows.Add("SaleDate:" + i, "Sale Date " + i, string.Empty, string.Empty);
+                }
             }
-            return sb.ToString();
+
+            // used date follows the check date, not the other way round
+            t.Rows.Add("Status", "Voucher Status", string.Empty, string.Empty);
+            t.Rows.Add("VoucherCheckDate", "Voucher Check Date", string.Empty, string.Empty);
+            t.Rows.Add("UsedDate", "Voucher Used Date", string.Empty, string.Empty);
+            if (ShowCheckedBy) t.Rows.Add("CheckedBy", "Checked By", string.Empty, string.Empty);
+            t.Rows.Add("CandidateName", "Candidate Name", string.Empty, string.Empty);
+            t.Rows.Add("ExamDate", "Exam Date", string.Empty, string.Empty);
+            t.Rows.Add("ExamMode", "Exam Mode", string.Empty, string.Empty);
+
+            rptHead.DataSource = t;
+            rptHead.DataBind();
         }
+
+        private string AddDealerButton()
+        {
+            return "<a href=\"javascript:__doPostBack('" + lnkAddDealer.UniqueID
+                 + "','')\" class=\"col-add\" title=\"Add another dealer column\">+</a>";
+        }
+
+        protected bool SortableCell(object dataItem)
+        {
+            var row = dataItem as DataRowView;
+            return row != null && Convert.ToString(row["Key"]).Length > 0;
+        }
+
+        protected string SortTip(object dataItem)
+        {
+            var row = dataItem as DataRowView;
+            if (row == null) return string.Empty;
+
+            string key = Convert.ToString(row["Key"]);
+            if (key.Length == 0) return string.Empty;
+
+            return (key == SortKey && !SortDesc) ? "Sort Z to A" : "Sort A to Z";
+        }
+
+        /// <summary>
+        /// The mark beside a heading. Every sortable column carries one, so the
+        /// ones that sort can be told from the ones that do not without clicking.
+        /// </summary>
+        protected string SortArrow(object key)
+        {
+            string k = Convert.ToString(key);
+            if (k.Length == 0) return string.Empty;
+
+            if (k != SortKey) return "<span class=\"sortarrow\">&#8645;</span>";
+
+            return SortDesc
+                ? "<span class=\"sortarrow on\">&#9660;</span>"
+                : "<span class=\"sortarrow on\">&#9650;</span>";
+        }
+
+        protected void rptHead_ItemCommand(object source, RepeaterCommandEventArgs e)
+        {
+            if (e.CommandName != "Sort") return;
+
+            string key = Convert.ToString(e.CommandArgument);
+            if (key.Length == 0) return;
+
+            // the same column again turns it round; a new one always starts A to Z
+            if (key == SortKey)
+            {
+                SortDesc = !SortDesc;
+            }
+            else
+            {
+                SortKey = key;
+                SortDesc = false;
+            }
+
+            // back to page 1, or the sort lands on a page that means nothing now
+            PageIndex = 0;
+            BindGrid();
+        }
+
+        /// <summary>
+        /// Reorders the whole result.
+        ///
+        /// Dealer name and sale date arrive as one pipe separated column each,
+        /// while the grid shows the Nth of each as a column of its own. Sorting
+        /// on the raw column would order by the first pair whichever one was
+        /// clicked, so the Nth value is pulled into a column of its own instead.
+        /// </summary>
+        private DataTable ApplySort(DataTable dt)
+        {
+            if (dt == null || dt.Rows.Count == 0 || SortKey.Length == 0) return dt;
+
+            string column = SortKey;
+            int slot;
+
+            if (TrySlot(SortKey, "Dealer:", out slot))
+                column = SlotColumn(dt, "DealerNames", slot, false);
+            else if (TrySlot(SortKey, "SaleDate:", out slot))
+                column = SlotColumn(dt, "SaleDates", slot, true);
+
+            if (column == null || !dt.Columns.Contains(column)) return dt;
+
+            try
+            {
+                dt.DefaultView.Sort = "[" + column + "] " + (SortDesc ? "DESC" : "ASC");
+                return dt.DefaultView.ToTable();
+            }
+            catch (Exception)
+            {
+                // a column that will not sort must not take the grid down with it
+                return dt;
+            }
+        }
+
+        private static bool TrySlot(string key, string prefix, out int slot)
+        {
+            slot = 0;
+            return key.StartsWith(prefix, StringComparison.Ordinal)
+                && int.TryParse(key.Substring(prefix.Length), out slot);
+        }
+
+        /// <summary>
+        /// Pulls the Nth item out of a pipe separated column into one of its own
+        /// and hands back its name; null when the source column is not there.
+        /// </summary>
+        private static string SlotColumn(DataTable dt, string source, int slot, bool asDate)
+        {
+            if (!dt.Columns.Contains(source)) return null;
+
+            const string name = "__sortkey";
+            if (dt.Columns.Contains(name)) dt.Columns.Remove(name);
+            dt.Columns.Add(name, asDate ? typeof(DateTime) : typeof(string));
+
+            foreach (DataRow r in dt.Rows)
+            {
+                string[] parts = Split(r[source]);
+                string value = (slot >= 1 && slot <= parts.Length) ? parts[slot - 1].Trim() : string.Empty;
+
+                if (!asDate)
+                {
+                    r[name] = value;
+                    continue;
+                }
+
+                // blanks stay NULL so they gather at one end instead of reading as 1900
+                DateTime parsed;
+                r[name] = DateTime.TryParse(value, out parsed) ? (object)parsed : DBNull.Value;
+            }
+
+            return name;
+        }
+
+        #endregion
+
+        #region Dealer columns
 
         /// <summary>Row cells, read from the pipe separated lists the proc returns.</summary>
         protected string DealerCells(object dealerNames, object saleDates)
@@ -617,6 +796,10 @@ namespace DSL_CMS
             if (e.CommandName == "EditRow" && CanEdit)
             {
                 OpenEditor(id);
+            }
+            else if (e.CommandName == "HistoryRow" && CanHistory)
+            {
+                OpenHistory(id);
             }
             else if (e.CommandName == "ReassignRow" && CanReassign)
             {
@@ -1060,7 +1243,8 @@ namespace DSL_CMS
             }
 
             int unreadableDates;
-            string payload = BuildPayload(txtPaste.Text, out unreadableDates);
+            string dealerPayload;
+            string payload = BuildPayload(txtPaste.Text, out dealerPayload, out unreadableDates);
 
             if (payload.Length == 0)
             {
@@ -1068,16 +1252,17 @@ namespace DSL_CMS
                 return;
             }
 
-            // Refuse rather than save vouchers with the expiry date quietly missing.
+            // Refuse rather than save vouchers with a date quietly missing.
             if (unreadableDates > 0)
             {
-                ShowUploadError(unreadableDates + " line(s) have an expiry date that cannot be read, "
-                    + "so nothing was saved. Use dd-MM-yyyy (14-08-2026), dd/MM/yyyy, "
-                    + "dd-MMM-yyyy or yyyy-MM-dd.");
+                ShowUploadError(unreadableDates + " date(s) cannot be read, so nothing was saved. "
+                    + "Use dd-MM-yyyy (14-08-2026), dd/MM/yyyy, dd-MMM-yyyy or yyyy-MM-dd "
+                    + "for both the expiry date and any sale date.");
                 return;
             }
 
-            DataTable dt = VoucherBAL.BulkInsert(UploadProductId, payload, Convert.ToString(Session["UserId"]));
+            DataTable dt = VoucherBAL.BulkInsert(UploadProductId, payload, dealerPayload,
+                Convert.ToString(Session["UserId"]));
 
             int inserted = 0, skipped = 0;
             if (dt != null && dt.Rows.Count > 0)
@@ -1146,24 +1331,37 @@ namespace DSL_CMS
         }
 
         /// <summary>
-        /// Turns pasted Excel rows into the "code|date~code|date" payload the proc
-        /// expects. Tab, comma, semicolon and pipe separate the two columns.
+        /// Turns pasted Excel rows into the two payloads the proc expects:
+        /// "code|date~code|date" for the vouchers, and
+        /// "code|seq|name|saledate~..." for whatever dealer pairs came with them.
         ///
-        /// Space is deliberately NOT a separator - real voucher codes contain
-        /// spaces ("AWS CODE 246"), and splitting on it would chop them in half.
-        /// A line with no separator at all is still given a chance: if its last
+        /// Columns are, in order: voucher code, expiry date, then any number of
+        /// dealer name / sale date pairs. A line that stops after the expiry
+        /// date is complete; one that carries three dealers is too.
+        ///
+        /// Tab, comma, semicolon and pipe separate the columns. Space is
+        /// deliberately NOT a separator - real voucher codes contain spaces
+        /// ("AWS CODE 246"), and splitting on it would chop them in half. A line
+        /// with no separator at all is still given a chance: if its last
         /// whitespace-separated word reads as a date, it is taken as one.
         ///
-        /// <paramref name="unreadableDates"/> counts lines that carried something
-        /// in the date position that could not be read, so the upload can say so
-        /// instead of silently dropping it.
+        /// Empty entries are kept rather than dropped, because the columns are
+        /// read by position now: a row with no dealer 1 but a dealer 2 pastes as
+        /// two empty cells, and collapsing them would shift dealer 2 into
+        /// dealer 1's place.
+        ///
+        /// <paramref name="unreadableDates"/> counts dates - expiry or sale -
+        /// that carried something which could not be read, so the upload can say
+        /// so instead of silently dropping them.
         /// </summary>
-        private static string BuildPayload(string pasted, out int unreadableDates)
+        private static string BuildPayload(string pasted, out string dealerPayload, out int unreadableDates)
         {
             unreadableDates = 0;
+            dealerPayload = string.Empty;
             if (string.IsNullOrEmpty(pasted)) return string.Empty;
 
             var sb = new StringBuilder();
+            var dealers = new StringBuilder();
             string[] lines = pasted.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
 
             foreach (string raw in lines)
@@ -1171,14 +1369,14 @@ namespace DSL_CMS
                 string line = raw.Trim();
                 if (line.Length == 0) continue;
 
-                string[] parts = line.Split(new[] { '\t', '|', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+                string[] parts = line.Split(new[] { '\t', '|', ',', ';' });
                 if (parts.Length == 0) continue;
 
                 string code = parts[0].Trim();
                 string rawDate = (parts.Length > 1) ? parts[1].Trim() : string.Empty;
 
                 // no separator, but the line may still end in a date
-                if (rawDate.Length == 0)
+                if (rawDate.Length == 0 && parts.Length == 1)
                 {
                     int gap = code.LastIndexOfAny(new[] { ' ', '\t' });
                     if (gap > 0)
@@ -1199,8 +1397,30 @@ namespace DSL_CMS
 
                 if (sb.Length > 0) sb.Append('~');
                 sb.Append(code).Append('|').Append(date);
+
+                // ---- whatever is left: dealer name / sale date, in pairs ----
+                int seq = 0;
+                for (int i = 2; i < parts.Length; i += 2)
+                {
+                    seq++;
+
+                    string dealer = parts[i].Trim();
+                    string rawSale = (i + 1 < parts.Length) ? parts[i + 1].Trim() : string.Empty;
+
+                    string sale = NormaliseDate(rawSale);
+                    if (rawSale.Length > 0 && sale.Length == 0) unreadableDates++;
+
+                    // an empty pair still counts towards seq - the column it sits
+                    // in is which dealer it is
+                    if (dealer.Length == 0 && sale.Length == 0) continue;
+
+                    if (dealers.Length > 0) dealers.Append('~');
+                    dealers.Append(code).Append('|').Append(seq).Append('|')
+                           .Append(dealer).Append('|').Append(sale);
+                }
             }
 
+            dealerPayload = dealers.ToString();
             return sb.ToString();
         }
 
@@ -1227,16 +1447,156 @@ namespace DSL_CMS
 
         #region History modal
 
-        protected void lnkHistory_Click(object sender, EventArgs e)
+        /// <summary>
+        /// One voucher's history. Opened from the row rather than the toolbar:
+        /// the old screen listed every change the whole provider had ever seen,
+        /// which answered no question anyone actually had.
+        /// </summary>
+        private void OpenHistory(string id)
         {
             if (!CanHistory) return;
 
-            DataTable dt = VoucherBAL.GetHistory(ProviderId);
+            DataTable dt = VoucherBAL.GetVoucherHistory(id);
+
             rptHistory.DataSource = dt;
             rptHistory.DataBind();
 
+            litHistCode.Text = Server.HtmlEncode(VoucherCodeOf(id));
+            litHistSummary.Text = HistorySummary(dt);
+
             phHistoryEmpty.Visible = (dt == null || dt.Rows.Count == 0);
             pnlHistory.Visible = true;
+        }
+
+        private string VoucherCodeOf(string id)
+        {
+            DataTable dt = VoucherBAL.GetData(id);
+            return (dt == null || dt.Rows.Count == 0)
+                ? string.Empty
+                : Convert.ToString(dt.Rows[0]["VoucherCode"]);
+        }
+
+        /// <summary>
+        /// The line above the timeline. Counts hand-offs and checks rather than
+        /// rows, because "12 entries" says nothing about how many students have
+        /// held this voucher.
+        /// </summary>
+        private string HistorySummary(DataTable dt)
+        {
+            if (dt == null || dt.Rows.Count == 0) return string.Empty;
+
+            int assigned = 0, reassigned = 0, checks = 0;
+
+            foreach (DataRow r in dt.Rows)
+            {
+                switch (Convert.ToString(r["Activity"]))
+                {
+                    case "Assigned to Student": assigned++; break;
+                    case "Reassigned to Student": reassigned++; break;
+                    case "Voucher Checked": checks++; break;
+                }
+            }
+
+            var sb = new StringBuilder();
+            sb.Append("<span><b>").Append(assigned + reassigned).Append("</b> hand-off")
+              .Append((assigned + reassigned) == 1 ? string.Empty : "s").Append("</span>");
+            sb.Append("<span><b>").Append(assigned).Append("</b> assigned</span>");
+            sb.Append("<span><b>").Append(reassigned).Append("</b> reassigned</span>");
+            sb.Append("<span><b>").Append(checks).Append("</b> checked</span>");
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Opens a "Round N" heading each time the voucher changes hands. Round
+        /// comes off the proc, which counts the hand-offs in order.
+        /// </summary>
+        protected string RoundHead(object dataItem, int index)
+        {
+            var row = dataItem as DataRowView;
+            if (row == null) return string.Empty;
+
+            int round = ToInt(row["Round"]);
+
+            // anything before the first hand-off belongs to no round at all
+            if (round < 1) return (index == 0) ? "<div class=\"hist-round\">Before assignment</div>" : string.Empty;
+
+            // only the row that opens a round prints the heading
+            if (index > 0 && ToInt(PreviousRound(row)) == round) return string.Empty;
+
+            return "<div class=\"hist-round\">Round " + round + "</div>";
+        }
+
+        private static object PreviousRound(DataRowView row)
+        {
+            int index = row.DataView.Table.Rows.IndexOf(row.Row);
+            if (index <= 0) return 0;
+            return row.DataView.Table.Rows[index - 1]["Round"];
+        }
+
+        private static int ToInt(object value)
+        {
+            return (value == null || value == DBNull.Value) ? 0 : Convert.ToInt32(value);
+        }
+
+        /// <summary>The person and, where there is one, the student involved.</summary>
+        protected string HistoryWho(object dataItem)
+        {
+            var row = dataItem as DataRowView;
+            if (row == null) return string.Empty;
+
+            string by = Convert.ToString(row["ChangedByName"]).Trim();
+            string student = Convert.ToString(row["AssignedToName"]).Trim();
+            string checkedBy = Convert.ToString(row["CheckedBy"]).Trim();
+            string activity = Convert.ToString(row["Activity"]);
+
+            var parts = new List<string>();
+
+            if (activity == "Assigned to Student" || activity == "Reassigned to Student")
+            {
+                if (by.Length > 0) parts.Add("by " + Server.HtmlEncode(by));
+                if (student.Length > 0) parts.Add("to <b>" + Server.HtmlEncode(student) + "</b>");
+            }
+            else if (activity == "Voucher Checked")
+            {
+                string name = (checkedBy.Length > 0) ? checkedBy : student;
+                if (name.Length > 0) parts.Add("by <b>" + Server.HtmlEncode(name) + "</b>");
+            }
+            else
+            {
+                if (by.Length > 0) parts.Add("by " + Server.HtmlEncode(by));
+                if (student.Length > 0) parts.Add("held by " + Server.HtmlEncode(student));
+            }
+
+            string status = Convert.ToString(row["Status"]).Trim();
+            if (status.Length > 0 && activity != "Assigned to Student"
+                                  && activity != "Reassigned to Student")
+                parts.Add("status " + Server.HtmlEncode(status));
+
+            // The check stamp is the thing being asked for on these rows, and it
+            // is not always the moment the row was written - a status saved days
+            // later carries the date the voucher was actually checked.
+            if (row["VoucherCheckDate"] != DBNull.Value
+                && activity != "Assigned to Student" && activity != "Reassigned to Student")
+            {
+                parts.Add("checked "
+                    + Convert.ToDateTime(row["VoucherCheckDate"]).ToString("dd-MMM-yyyy HH:mm"));
+            }
+
+            return string.Join(" &middot; ", parts.ToArray());
+        }
+
+        /// <summary>Colours the dot: a hand-off, a check, or anything else.</summary>
+        protected string StepKind(object activity)
+        {
+            switch (Convert.ToString(activity))
+            {
+                case "Assigned to Student": return "k-assign";
+                case "Reassigned to Student": return "k-reassign";
+                case "Voucher Checked": return "k-check";
+                case "Moved to Sub Admin":
+                case "Auto Moved to Sub Admin": return "k-move";
+                default: return "k-edit";
+            }
         }
 
         protected void lnkHistoryClose_Click(object sender, EventArgs e)

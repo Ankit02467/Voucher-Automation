@@ -1,7 +1,6 @@
 using DSL_CMS.BAL;
 using DSL_CMS.Helpers;
 using System;
-using System.Collections.Generic;
 using System.Data;
 using System.Text;
 using System.Web.UI;
@@ -11,18 +10,20 @@ namespace DSL_CMS
 {
     public partial class voucher_status : System.Web.UI.Page
     {
-        protected Repeater rptStatus, rptWindows, rptCategory, rptSummary, rptPager, rptPerformance;
+        protected Repeater rptStatus, rptWindows, rptSummary, rptPager, rptPerformance;
         protected PlaceHolder phEmpty, phPager, phPerfEmpty;
         protected Panel pnlWindows, pnlFilters, pnlProviderGrid, pnlPerformance;
         protected LinkButton lnkPrev, lnkNext, lnkEarlyExpiry;
-        protected HyperLink lnkStudentPerf, lnkProductPerf;
-        protected Literal litCountHead, litPageInfo,
-                          litProviderCount, litProductCount,
+        protected LinkButton kpiTotal, kpiUsed, kpiUnused, kpiExpiring, kpiInvalid;
+        protected Literal litCountHead, litPageInfo, litCategoryNote,
                           litKpiTotal, litKpiTrend, litKpiUsed, litKpiUsedPct,
                           litKpiUnused, litKpiUnusedPct, litKpiExpiring, litKpiInvalid;
 
         private const int PageSize = 10;
         private const string StatusAll = "All";
+
+        /// <summary>The window the "Expiring soon" card counts, and the one it opens.</summary>
+        private const string ExpiringWindow = "30";
 
         /// <summary>
         /// Status pills. "All" is the default and counts every voucher; "NotSet"
@@ -58,6 +59,10 @@ namespace DSL_CMS
             set { ViewState["Status"] = value; }
         }
 
+        /// <summary>
+        /// Set from the sidebar, which is the only thing that offers it now that
+        /// the category chips have gone from the filter bar.
+        /// </summary>
         public string SelectedCategory
         {
             get { return (string)(ViewState["Category"] ?? string.Empty); }
@@ -135,16 +140,6 @@ namespace DSL_CMS
             }
         }
 
-        /// <summary>Student wise performance is open to admin and sub-admin.</summary>
-        protected bool CanSeeStudentPerformance
-        {
-            get
-            {
-                return string.Equals(VoucherRole, "Voucher Admin", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(VoucherRole, "Voucher Sub Admin", StringComparison.OrdinalIgnoreCase);
-            }
-        }
-
         private string VoucherRole
         {
             get
@@ -171,12 +166,6 @@ namespace DSL_CMS
         {
             if (IsPostBack) return;
 
-            lnkStudentPerf.Visible = CanSeeStudentPerformance;
-            lnkStudentPerf.NavigateUrl = ResolveUrl("~/student-performance.aspx");
-
-            lnkProductPerf.Visible = CanManageProduct;   // admin only
-            lnkProductPerf.NavigateUrl = ResolveUrl("~/product-performance.aspx");
-
             // A student gets their own figures here; everyone else gets the
             // provider summary with its filters.
             pnlFilters.Visible = !IsStudent;
@@ -196,8 +185,11 @@ namespace DSL_CMS
             string from = (Request.QueryString["providerId"] ?? string.Empty).Trim();
             if (from.Length > 0) ExpandedProvider = from;
 
+            // The sidebar's Categories menu links back here with the category on
+            // the query string; there is no chip row on the page any more.
+            SelectedCategory = (Request.QueryString["category"] ?? string.Empty).Trim();
+
             BindStatusPills();
-            BindCategoryPills();
             ApplyStatus();
             BindGrid();
             BindKpis();
@@ -218,9 +210,6 @@ namespace DSL_CMS
             int used = Convert.ToInt32(r["Used"]);
             int unused = Convert.ToInt32(r["Unused"]);
             int before = Convert.ToInt32(r["BeforeThisMonth"]);
-
-            litProviderCount.Text = Convert.ToString(r["Providers"]);
-            litProductCount.Text = Convert.ToString(r["Products"]);
 
             litKpiTotal.Text = total.ToString();
             litKpiUsed.Text = used.ToString();
@@ -282,7 +271,7 @@ namespace DSL_CMS
         {
             litCountHead.Text = StatusLabel(SelectedStatus);
 
-            lnkEarlyExpiry.CssClass = EarlyExpiry ? "vs-chip on" : "vs-chip";
+            lnkEarlyExpiry.CssClass = EarlyExpiry ? "vs-chip ghost on" : "vs-chip ghost";
             pnlWindows.Visible = EarlyExpiry;
 
             if (EarlyExpiry)
@@ -294,6 +283,14 @@ namespace DSL_CMS
             {
                 SelectedDays = string.Empty;
             }
+
+            // Nothing on the page sets the category, so say where it came from
+            // and offer the way out of it.
+            litCategoryNote.Text = (SelectedCategory.Length == 0)
+                ? string.Empty
+                : "<span class=\"vs-catnote\">Category <b>" + Server.HtmlEncode(SelectedCategory)
+                  + "</b><a href=\"" + Server.HtmlEncode(ResolveUrl("~/voucher-status.aspx"))
+                  + "\" title=\"Show every category\">&times;</a></span>";
         }
 
         /// <summary>Pill value to the wording used in the column heading.</summary>
@@ -308,32 +305,6 @@ namespace DSL_CMS
         {
             rptStatus.DataSource = StatusPills;
             rptStatus.DataBind();
-        }
-
-        private void BindCategoryPills()
-        {
-            DataTable dt = VoucherBAL.GetProviderSummary(StatusAll, string.Empty,
-                string.Empty, string.Empty, string.Empty);
-
-            var seen = new List<string>();
-            DataTable categories = new DataTable();
-            categories.Columns.Add("Category", typeof(string));
-
-            if (dt != null)
-            {
-                foreach (DataRow r in dt.Rows)
-                {
-                    string category = Convert.ToString(r["Category"]).Trim();
-                    if (category.Length > 0 && !seen.Contains(category))
-                    {
-                        seen.Add(category);
-                        categories.Rows.Add(category);
-                    }
-                }
-            }
-
-            rptCategory.DataSource = categories;
-            rptCategory.DataBind();
         }
 
         private void BindGrid()
@@ -362,7 +333,7 @@ namespace DSL_CMS
 
             int from = (PageIndex * PageSize) + 1;
             int to = Math.Min(from + PageSize - 1, rowCount);
-            litPageInfo.Text = string.Format("Showing {0}-{1} of {2}", from, to, rowCount);
+            litPageInfo.Text = string.Format("Showing <b>{0}-{1}</b> of {2} providers", from, to, rowCount);
 
             rptPager.DataSource = Pager.Links(pageCount, PageIndex);
             rptPager.DataBind();
@@ -380,11 +351,43 @@ namespace DSL_CMS
         protected void rptStatus_ItemCommand(object source, RepeaterCommandEventArgs e)
         {
             if (e.CommandName != "PickStatus") return;
+            PickStatus(Convert.ToString(e.CommandArgument));
+        }
 
-            // Status and early expiry are two separate views of the same list, not
-            // filters that stack. Picking a status drops the expiry window, the
-            // same way picking the window drops the status.
-            SelectedStatus = Convert.ToString(e.CommandArgument);
+        /// <summary>
+        /// The cards are the headline figures and each one is a shortcut to the
+        /// rows behind it - a card that looks clickable and is not is worse than
+        /// one that never offered.
+        /// </summary>
+        protected void kpi_Command(object sender, CommandEventArgs e)
+        {
+            string card = Convert.ToString(e.CommandArgument);
+
+            if (string.Equals(card, "Expiring", StringComparison.OrdinalIgnoreCase))
+            {
+                // The card counts a 30 day window, so it opens the same one.
+                SelectedStatus = StatusAll;
+                EarlyExpiry = true;
+                SelectedDays = ExpiringWindow;
+                PageIndex = 0;
+
+                BindStatusPills();
+                ApplyStatus();
+                BindGrid();
+                return;
+            }
+
+            PickStatus(card);
+        }
+
+        /// <summary>
+        /// Status and early expiry are two separate views of the same list, not
+        /// filters that stack. Picking a status drops the expiry window, the same
+        /// way picking the window drops the status.
+        /// </summary>
+        private void PickStatus(string status)
+        {
+            SelectedStatus = status;
             EarlyExpiry = false;
             SelectedDays = string.Empty;
             PageIndex = 0;
@@ -434,18 +437,6 @@ namespace DSL_CMS
             BindGrid();
         }
 
-        protected void rptCategory_ItemCommand(object source, RepeaterCommandEventArgs e)
-        {
-            if (e.CommandName != "PickCategory") return;
-
-            string picked = Convert.ToString(e.CommandArgument);
-            SelectedCategory = (SelectedCategory == picked) ? string.Empty : picked;
-            PageIndex = 0;
-
-            BindCategoryPills();
-            BindGrid();
-        }
-
         protected void rptSummary_ItemCommand(object source, RepeaterCommandEventArgs e)
         {
             if (e.CommandName != "ToggleProducts") return;
@@ -486,7 +477,7 @@ namespace DSL_CMS
             string value = Convert.ToString(pillValue);
             string css = "vs-chip " + StatusColourClass(value);
 
-            if (string.Equals(value, SelectedStatus, StringComparison.OrdinalIgnoreCase))
+            if (!EarlyExpiry && string.Equals(value, SelectedStatus, StringComparison.OrdinalIgnoreCase))
                 css += " on";
 
             return css.Trim();
@@ -513,13 +504,6 @@ namespace DSL_CMS
                 : "vs-chip";
         }
 
-        protected string CategoryPillClass(object pillValue)
-        {
-            return string.Equals(Convert.ToString(pillValue), SelectedCategory, StringComparison.OrdinalIgnoreCase)
-                ? "vs-chip on"
-                : "vs-chip";
-        }
-
         /// <summary>Pager links come back as "pg" / "pg on"; the new table wants vs-pg.</summary>
         protected string PagerClass(object cssClass)
         {
@@ -532,175 +516,19 @@ namespace DSL_CMS
             return IsExpanded(providerId) ? "vs-caret open" : "vs-caret";
         }
 
-        /// <summary>
-        /// Letters for the provider tile when there is no logo file. Capitals
-        /// carried in the name work better than the first few characters:
-        /// LanguageCERT gives "LC", not "LAN".
-        /// </summary>
-        protected string ProviderInitials(object name)
+        protected string RowClass(object providerId)
         {
-            string text = Convert.ToString(name).Trim();
-            if (text.Length == 0) return "?";
-
-            // A name that is already an acronym is shown whole: AWS, PTE, ETS.
-            bool acronym = true;
-            foreach (char c in text)
-                if (char.IsLetter(c) && !char.IsUpper(c)) { acronym = false; break; }
-
-            if (acronym)
-                return text.Substring(0, Math.Min(3, text.Length)).ToUpperInvariant();
-
-            // Otherwise two capitals: LanguageCERT gives LC, not LCE.
-            var caps = new StringBuilder();
-            foreach (char c in text)
-            {
-                if (char.IsUpper(c)) caps.Append(c);
-                if (caps.Length == 2) break;
-            }
-
-            if (caps.Length == 2) return caps.ToString();
-
-            return text.Substring(0, Math.Min(2, text.Length)).ToUpperInvariant();
+            return IsExpanded(providerId) ? "vs-prow open" : "vs-prow";
         }
 
-        /// <summary>
-        /// Filenames already checked this request. Server.MapPath plus a disk hit
-        /// per provider per render is wasteful when the answer cannot change.
-        /// </summary>
-        private readonly Dictionary<string, string> _logoCache =
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        /// <summary>
-        /// The provider tile. Uses a logo from ~/assets/img/providers if one is
-        /// there, otherwise falls back to coloured initials, so dropping a file
-        /// in is all it takes and a missing file never leaves a hole.
-        ///
-        /// Expected name: the provider name lowercased with anything that is not
-        /// a letter or digit removed - AWS becomes aws.png, LanguageCERT becomes
-        /// languagecert.png. png, svg, jpg and webp are all looked for.
-        /// </summary>
         protected string ProviderTile(object providerId, object name)
         {
-            string logo = ProviderLogoUrl(name);
-
-            if (logo.Length > 0)
-            {
-                return "<span class=\"logo has-img\"><img src=\"" + Server.HtmlEncode(logo)
-                     + "\" alt=\"" + Server.HtmlEncode(Convert.ToString(name)) + "\" /></span>";
-            }
-
-            return "<span class=\"logo\" style=\"" + ProviderLogoStyle(providerId) + "\">"
-                 + Server.HtmlEncode(ProviderInitials(name)) + "</span>";
+            return ProviderBrand.Tile(providerId, name, "logo");
         }
 
-        private string ProviderLogoUrl(object name)
+        protected bool IsExpanded(object providerId)
         {
-            string slug = Slug(Convert.ToString(name));
-            if (slug.Length == 0) return string.Empty;
-
-            string cached;
-            if (_logoCache.TryGetValue(slug, out cached)) return cached;
-
-            string found = string.Empty;
-            foreach (string ext in new[] { ".png", ".svg", ".jpg", ".jpeg", ".webp" })
-            {
-                string rel = "~/assets/img/providers/" + slug + ext;
-                try
-                {
-                    if (System.IO.File.Exists(Server.MapPath(rel)))
-                    {
-                        found = ResolveUrl(rel);
-                        break;
-                    }
-                }
-                catch { }
-            }
-
-            _logoCache[slug] = found;
-            return found;
-        }
-
-        private static string Slug(string text)
-        {
-            var sb = new StringBuilder();
-            foreach (char c in text ?? string.Empty)
-                if (char.IsLetterOrDigit(c)) sb.Append(char.ToLowerInvariant(c));
-            return sb.ToString();
-        }
-
-        /// <summary>
-        /// Tile colour, taken straight off the provider id.
-        ///
-        /// Hashing the name looked cleverer but collided - ETS and LanguageCERT
-        /// both landed on green. Walking the palette by id cannot collide until
-        /// there are more providers than colours, and each provider keeps its
-        /// colour for good.
-        /// </summary>
-        protected string ProviderLogoStyle(object providerId)
-        {
-            string[] palette =
-            {
-                "#ff9900",  // orange
-                "#0f6cbd",  // blue
-                "#7a2ff2",  // violet
-                "#e0392b",  // red
-                "#0e9f6e",  // green
-                "#d946ef",  // magenta
-                "#0891b2",  // teal
-                "#b45309"   // amber
-            };
-
-            int id;
-            if (!int.TryParse(Convert.ToString(providerId), out id) || id < 1) id = 1;
-
-            return "background: " + palette[(id - 1) % palette.Length] + ";";
-        }
-
-        /// <summary>
-        /// The stacked bar plus its legend. Shows the whole status split of the
-        /// provider's stock - it is not narrowed by the status chip, because a bar
-        /// filtered to one status would just be one solid block.
-        /// </summary>
-        protected string DistributionCell(object dataItem)
-        {
-            var row = dataItem as DataRowView;
-            if (row == null) return string.Empty;
-
-            int total = ToInt(row["TotalCount"]);
-            if (total <= 0) return "<span class=\"muted\">&mdash;</span>";
-
-            var parts = new[]
-            {
-                new { Key = "Used",    Val = ToInt(row["UsedCount"]),    Colour = "var(--st-used)" },
-                new { Key = "Unused",  Val = ToInt(row["UnusedCount"]),  Colour = "var(--st-unused)" },
-                new { Key = "Expired", Val = ToInt(row["ExpiredCount"]), Colour = "var(--st-expired)" },
-                new { Key = "Not set", Val = ToInt(row["NotSetCount"]),  Colour = "var(--st-notset)" },
-                new { Key = "Invalid", Val = ToInt(row["InvalidCount"]), Colour = "var(--st-invalid)" }
-            };
-
-            var bar = new StringBuilder("<div class=\"vs-distrib\"><div class=\"vs-bar\">");
-            var legend = new StringBuilder("<div class=\"vs-legend\">");
-
-            foreach (var p in parts)
-            {
-                if (p.Val <= 0) continue;
-
-                double pct = p.Val * 100.0 / total;
-                bar.Append("<i style=\"width:").Append(pct.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))
-                   .Append("%; background:").Append(p.Colour).Append(";\" title=\"")
-                   .Append(p.Key).Append(' ').Append(p.Val).Append("\"></i>");
-
-                legend.Append("<span><span class=\"pip\" style=\"background:").Append(p.Colour).Append(";\"></span>")
-                      .Append(p.Key).Append(" <b>").Append(p.Val).Append("</b></span>");
-            }
-
-            bar.Append("</div>").Append(legend).Append("</div></div>");
-            return bar.ToString();
-        }
-
-        private static int ToInt(object value)
-        {
-            return (value == null || value == DBNull.Value) ? 0 : Convert.ToInt32(value);
+            return string.Equals(Convert.ToString(providerId), ExpandedProvider, StringComparison.Ordinal);
         }
 
         /// <summary>Used = red, Unused = green, Expired = yellow, Invalid = blue, Not Set = grey, All = plain.</summary>
@@ -717,31 +545,26 @@ namespace DSL_CMS
             }
         }
 
-        protected bool IsExpanded(object providerId)
-        {
-            return string.Equals(Convert.ToString(providerId), ExpandedProvider, StringComparison.Ordinal);
-        }
-
-        protected string ChevronClass(object providerId)
-        {
-            return IsExpanded(providerId) ? "chev-icon open" : "chev-icon";
-        }
-
         /// <summary>
-        /// Renders the pipe separated product names as a vertical list of links.
-        /// Names and ids arrive in the same order, so index N of one matches index
-        /// N of the other. Each link opens View Data already narrowed to that one
-        /// product, carrying the status and expiry window along with it.
+        /// The products of an opened provider, as rows of the same table rather
+        /// than a list tucked inside the provider cell - a product is a row of
+        /// stock like its parent, and reads as one when the columns line up.
+        ///
+        /// Names, ids and counts arrive pipe separated in one column each and
+        /// share an ORDER BY, so index N of one matches index N of the others.
         /// </summary>
-        protected string ProductLinks(object providerId, object productNames, object productIds,
+        protected string ProductRows(object providerId, object productNames, object productIds,
             object productCounts)
         {
+            if (!IsExpanded(providerId)) return string.Empty;
+
             string rawNames = Convert.ToString(productNames);
 
             // With a status picked, the proc has already dropped products holding
             // none of it - so an empty list here means exactly that.
             if (string.IsNullOrWhiteSpace(rawNames))
-                return "<span class=\"muted\">No data to show yet.</span>";
+                return "<tr class=\"vs-subrow\"><td></td><td colspan=\"3\" class=\"vs-subnone\">"
+                     + "No products to show under this filter.</td></tr>";
 
             string[] names = rawNames.Split('|');
             string[] ids = Convert.ToString(productIds).Split('|');
@@ -756,17 +579,20 @@ namespace DSL_CMS
                 string id = (i < ids.Length) ? ids[i].Trim() : string.Empty;
                 string count = (i < counts.Length) ? counts[i].Trim() : string.Empty;
 
-                sb.Append("<a class=\"vs-prodlink\" href=\"")
+                sb.Append("<tr class=\"vs-subrow\"><td></td><td><span class=\"vs-prodname\">")
+                  .Append("<span class=\"dot\"></span>").Append(Server.HtmlEncode(name))
+                  .Append("</span></td><td class=\"c\"><span class=\"vs-subcount vs-num\">")
+                  .Append(Server.HtmlEncode(count))
+                  .Append("</span></td><td><div class=\"vs-rowacts\"><a class=\"vs-mini solid\" href=\"")
                   .Append(Server.HtmlEncode(ViewDataUrl(providerId, id)))
-                  .Append("\"><span>")
-                  .Append(Server.HtmlEncode(name))
-                  .Append("</span>");
+                  .Append("\">View Data</a>");
 
-                // the figure explains why a product is or is not in this list
-                if (count.Length > 0)
-                    sb.Append("<span class=\"cnt\">").Append(Server.HtmlEncode(count)).Append("</span>");
+                if (CanManageProduct)
+                    sb.Append("<a class=\"vs-mini\" href=\"")
+                      .Append(Server.HtmlEncode(ManageProductUrl(providerId)))
+                      .Append("\">Manage</a>");
 
-                sb.Append("</a>");
+                sb.Append("</div></td></tr>");
             }
             return sb.ToString();
         }

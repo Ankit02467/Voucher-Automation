@@ -8,141 +8,111 @@
 <div class="vs-page">
 
     <div class="vs-head">
-        <div>
-            <h1>Voucher status</h1>
-            <p>Live inventory across
-               <asp:Literal ID="litProviderCount" runat="server" Text="0" /> providers and
-               <asp:Literal ID="litProductCount" runat="server" Text="0" /> products</p>
-        </div>
-        <div class="vs-acts">
-            <asp:HyperLink ID="lnkProductPerf" runat="server" CssClass="vs-btn" Visible="false">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
-                     stroke-linecap="round" width="16" height="16"><path d="M3 3v18h18M7 15l4-5 3 3 5-7" /></svg>
-                Product wise Performance
-            </asp:HyperLink>
-            <asp:HyperLink ID="lnkStudentPerf" runat="server" CssClass="vs-btn solid" Visible="false">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
-                     stroke-linecap="round" width="16" height="16"><path d="M16 11a4 4 0 10-8 0M4 20a8 8 0 0116 0" /></svg>
-                Student wise Performance
-            </asp:HyperLink>
-        </div>
+        <h1>Voucher status</h1>
     </div>
 
 <asp:Panel ID="pnlFilters" runat="server" CssClass="vs-stack">
 
-    <%-- ---------------- KPI cards ---------------- --%>
+    <%-- ---------------- KPI cards ----------------
+         Each one is a LinkButton, not a div: every card lands on the rows it
+         counted, so it has to be something you can click. --%>
     <div class="vs-kpis">
-        <div class="vs-kpi">
-            <div class="top">
+        <asp:LinkButton ID="kpiTotal" runat="server" CssClass="vs-kpi k-total"
+            OnCommand="kpi_Command" CommandArgument="All" CausesValidation="false">
+            <span class="top">
                 <span class="lab">Total vouchers</span>
-                <span class="ic" style="background: var(--brand-soft); color: var(--brand);">
-                    <svg viewBox="0 0 24 24"><path d="M4 6h16v4a2 2 0 000 4v4H4v-4a2 2 0 000-4zM10 6v12" /></svg>
-                </span>
-            </div>
-            <div class="val vs-num"><asp:Literal ID="litKpiTotal" runat="server" Text="0" /></div>
-            <div class="sub"><asp:Literal ID="litKpiTrend" runat="server" /></div>
-        </div>
+                <span class="ic"><svg viewBox="0 0 24 24"><path d="M4 6h16v4a2 2 0 000 4v4H4v-4a2 2 0 000-4zM10 6v12" /></svg></span>
+            </span>
+            <span class="val vs-num"><asp:Literal ID="litKpiTotal" runat="server" Text="0" /></span>
+            <span class="sub"><asp:Literal ID="litKpiTrend" runat="server" /></span>
+            <span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
+        </asp:LinkButton>
 
-        <div class="vs-kpi">
-            <div class="top">
+        <asp:LinkButton ID="kpiUsed" runat="server" CssClass="vs-kpi k-used"
+            OnCommand="kpi_Command" CommandArgument="Used" CausesValidation="false">
+            <span class="top">
                 <span class="lab">Used</span>
-                <span class="ic" style="background: var(--st-used-bg); color: var(--st-used);">
-                    <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" /></svg>
-                </span>
-            </div>
-            <div class="val vs-num" style="color: var(--st-used);"><asp:Literal ID="litKpiUsed" runat="server" Text="0" /></div>
-            <div class="sub"><b><asp:Literal ID="litKpiUsedPct" runat="server" Text="0%" /></b> of inventory redeemed</div>
-        </div>
+                <span class="ic"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" /></svg></span>
+            </span>
+            <span class="val vs-num"><asp:Literal ID="litKpiUsed" runat="server" Text="0" /></span>
+            <span class="sub"><b><asp:Literal ID="litKpiUsedPct" runat="server" Text="0%" /></b> redeemed</span>
+            <span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
+        </asp:LinkButton>
 
-        <div class="vs-kpi">
-            <div class="top">
+        <asp:LinkButton ID="kpiUnused" runat="server" CssClass="vs-kpi k-unused"
+            OnCommand="kpi_Command" CommandArgument="Unused" CausesValidation="false">
+            <span class="top">
                 <span class="lab">Unused</span>
-                <span class="ic" style="background: var(--st-unused-bg); color: var(--st-unused);">
-                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
-                </span>
-            </div>
-            <div class="val vs-num" style="color: var(--st-unused);"><asp:Literal ID="litKpiUnused" runat="server" Text="0" /></div>
-            <div class="sub"><b><asp:Literal ID="litKpiUnusedPct" runat="server" Text="0%" /></b> ready to allocate</div>
-        </div>
+                <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg></span>
+            </span>
+            <span class="val vs-num"><asp:Literal ID="litKpiUnused" runat="server" Text="0" /></span>
+            <span class="sub"><b><asp:Literal ID="litKpiUnusedPct" runat="server" Text="0%" /></b> ready to allocate</span>
+            <span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
+        </asp:LinkButton>
 
-        <div class="vs-kpi">
-            <div class="top">
+        <asp:LinkButton ID="kpiExpiring" runat="server" CssClass="vs-kpi k-expiring"
+            OnCommand="kpi_Command" CommandArgument="Expiring" CausesValidation="false">
+            <span class="top">
                 <span class="lab">Expiring soon</span>
-                <span class="ic" style="background: var(--st-expired-bg); color: var(--st-expired);">
-                    <svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9L2 18a2 2 0 002 3h16a2 2 0 002-3L13.7 3.9a2 2 0 00-3.4 0z" /></svg>
-                </span>
-            </div>
-            <div class="val vs-num" style="color: var(--st-expired);"><asp:Literal ID="litKpiExpiring" runat="server" Text="0" /></div>
-            <div class="sub"><span class="vs-down">within 30 days</span></div>
-        </div>
+                <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9L2 18a2 2 0 002 3h16a2 2 0 002-3L13.7 3.9a2 2 0 00-3.4 0z" /></svg></span>
+            </span>
+            <span class="val vs-num"><asp:Literal ID="litKpiExpiring" runat="server" Text="0" /></span>
+            <span class="sub">within 30 days</span>
+            <span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
+        </asp:LinkButton>
 
-        <div class="vs-kpi">
-            <div class="top">
+        <asp:LinkButton ID="kpiInvalid" runat="server" CssClass="vs-kpi k-invalid"
+            OnCommand="kpi_Command" CommandArgument="Invalid" CausesValidation="false">
+            <span class="top">
                 <span class="lab">Invalid</span>
-                <span class="ic" style="background: var(--st-invalid-bg); color: var(--st-invalid);">
-                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M15 9l-6 6M9 9l6 6" /></svg>
-                </span>
-            </div>
-            <div class="val vs-num" style="color: var(--st-invalid);"><asp:Literal ID="litKpiInvalid" runat="server" Text="0" /></div>
-            <div class="sub">flagged for review</div>
-        </div>
+                <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M15 9l-6 6M9 9l6 6" /></svg></span>
+            </span>
+            <span class="val vs-num"><asp:Literal ID="litKpiInvalid" runat="server" Text="0" /></span>
+            <span class="sub">flagged for review</span>
+            <span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
+        </asp:LinkButton>
     </div>
 
-    <%-- ---------------- Filters ---------------- --%>
+    <%-- ---------------- Filters ----------------
+         Category is not here any more - the sidebar owns it. What is left is
+         the one row the design asks for, with early expiry pushed to the end
+         because it replaces the status rather than narrowing it. --%>
     <div class="vs-panel vs-filters">
         <div class="vs-frow">
             <span class="vs-flab">Status</span>
-            <div class="vs-chips">
-                <asp:Repeater ID="rptStatus" runat="server" OnItemCommand="rptStatus_ItemCommand">
-                    <ItemTemplate>
-                        <asp:LinkButton runat="server" CommandName="PickStatus"
-                            CommandArgument='<%# Eval("Value") %>'
-                            CssClass='<%# StatusPillClass(Eval("Value")) %>'
-                            CausesValidation="false">
-                            <span class="pip" style='<%# StatusPipStyle(Eval("Value")) %>'></span><%# Eval("Text") %>
-                        </asp:LinkButton>
-                    </ItemTemplate>
-                </asp:Repeater>
+            <asp:Repeater ID="rptStatus" runat="server" OnItemCommand="rptStatus_ItemCommand">
+                <ItemTemplate>
+                    <asp:LinkButton runat="server" CommandName="PickStatus"
+                        CommandArgument='<%# Eval("Value") %>'
+                        CssClass='<%# StatusPillClass(Eval("Value")) %>'
+                        CausesValidation="false">
+                        <span class="pip" style='<%# StatusPipStyle(Eval("Value")) %>'></span><%# Eval("Text") %>
+                    </asp:LinkButton>
+                </ItemTemplate>
+            </asp:Repeater>
 
-                <span class="vs-divider"></span>
+            <asp:Literal ID="litCategoryNote" runat="server" />
 
-                <asp:LinkButton ID="lnkEarlyExpiry" runat="server" CssClass="vs-chip"
-                    OnClick="lnkEarlyExpiry_Click" CausesValidation="false"
-                    ToolTip="Show vouchers lapsing within a chosen window">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                         width="14" height="14"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
-                    View Early Expiry
-                </asp:LinkButton>
-            </div>
+            <asp:LinkButton ID="lnkEarlyExpiry" runat="server" CssClass="vs-chip ghost"
+                OnClick="lnkEarlyExpiry_Click" CausesValidation="false"
+                ToolTip="Show vouchers lapsing within a chosen window">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     width="14" height="14"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+                View Early Expiry
+            </asp:LinkButton>
         </div>
 
         <asp:Panel ID="pnlWindows" runat="server" Visible="false" CssClass="vs-frow">
             <span class="vs-flab">Window</span>
-            <div class="vs-chips">
-                <asp:Repeater ID="rptWindows" runat="server" OnItemCommand="rptWindows_ItemCommand">
-                    <ItemTemplate>
-                        <asp:LinkButton runat="server" CommandName="PickDays"
-                            CommandArgument='<%# Eval("Value") %>'
-                            CssClass='<%# WindowPillClass(Eval("Value")) %>'
-                            Text='<%# Eval("Text") %>' CausesValidation="false" />
-                    </ItemTemplate>
-                </asp:Repeater>
-            </div>
+            <asp:Repeater ID="rptWindows" runat="server" OnItemCommand="rptWindows_ItemCommand">
+                <ItemTemplate>
+                    <asp:LinkButton runat="server" CommandName="PickDays"
+                        CommandArgument='<%# Eval("Value") %>'
+                        CssClass='<%# WindowPillClass(Eval("Value")) %>'
+                        Text='<%# Eval("Text") %>' CausesValidation="false" />
+                </ItemTemplate>
+            </asp:Repeater>
         </asp:Panel>
-
-        <div class="vs-frow">
-            <span class="vs-flab">Category</span>
-            <div class="vs-chips">
-                <asp:Repeater ID="rptCategory" runat="server" OnItemCommand="rptCategory_ItemCommand">
-                    <ItemTemplate>
-                        <asp:LinkButton runat="server" CommandName="PickCategory"
-                            CommandArgument='<%# Eval("Category") %>'
-                            CssClass='<%# CategoryPillClass(Eval("Category")) %>'
-                            Text='<%# Eval("Category") %>' CausesValidation="false" />
-                    </ItemTemplate>
-                </asp:Repeater>
-            </div>
-        </div>
     </div>
 
 </asp:Panel>
@@ -155,41 +125,37 @@
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 60px;">S.No</th>
+                        <th style="width: 64px;">S.No</th>
                         <th>Provider</th>
-                        <th class="c" style="width: 90px;"><asp:Literal ID="litCountHead" runat="server" Text="All" /></th>
-                        <th style="width: 250px;">Status distribution</th>
-                        <th class="r" style="width: 240px;">Actions</th>
+                        <th class="c" style="width: 120px;"><asp:Literal ID="litCountHead" runat="server" Text="All" /></th>
+                        <th class="r" style="width: 250px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <asp:Repeater ID="rptSummary" runat="server" OnItemCommand="rptSummary_ItemCommand">
                         <ItemTemplate>
                             <%-- the anchor the Back link on the other screens returns to --%>
-                            <tr id='<%# "prov-" + Eval("Id") %>'>
-                                <td class="vs-sn"><%# string.Format("{0:00}", Container.ItemIndex + 1 + RowOffset) %></td>
+                            <tr id='<%# "prov-" + Eval("Id") %>' class='<%# RowClass(Eval("Id")) %>'>
+                                <td class="vs-sn vs-num"><%# string.Format("{0:00}", Container.ItemIndex + 1 + RowOffset) %></td>
                                 <td>
                                     <div class="vs-prov">
-                                        <%# ProviderTile(Eval("Id"), Eval("Name")) %>
-                                        <span class="nm">
-                                            <asp:LinkButton runat="server" CommandName="ToggleProducts"
-                                                CommandArgument='<%# Eval("Id") %>' CausesValidation="false"
-                                                ToolTip="Show products" style="text-decoration:none;">
+                                        <asp:LinkButton runat="server" CommandName="ToggleProducts"
+                                            CommandArgument='<%# Eval("Id") %>' CausesValidation="false"
+                                            CssClass="vs-provtoggle" ToolTip="Show products">
+                                            <span class='<%# CaretClass(Eval("Id")) %>'>
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                     stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"
+                                                     width="15" height="15"><path d="M9 6l6 6-6 6" /></svg>
+                                            </span>
+                                            <%# ProviderTile(Eval("Id"), Eval("Name")) %>
+                                            <span class="nm">
                                                 <b><%# Server.HtmlEncode(Convert.ToString(Eval("Name"))) %></b>
-                                                <span class="sub">
-                                                    <span class='<%# CaretClass(Eval("Id")) %>'>&#9656;</span>
-                                                    <%# Eval("ProductCount") %> products
-                                                </span>
-                                            </asp:LinkButton>
-                                        </span>
+                                                <small><%# Eval("ProductCount") %> products</small>
+                                            </span>
+                                        </asp:LinkButton>
                                     </div>
-
-                                    <asp:PlaceHolder runat="server" Visible='<%# IsExpanded(Eval("Id")) %>'>
-                                        <div class="vs-prodlist"><%# ProductLinks(Eval("Id"), Eval("ProductNames"), Eval("ProductIds"), Eval("ProductCounts")) %></div>
-                                    </asp:PlaceHolder>
                                 </td>
                                 <td class="c"><span class="vs-total vs-num"><%# Eval("StatusCount") %></span></td>
-                                <td><%# DistributionCell(Container.DataItem) %></td>
                                 <td>
                                     <div class="vs-rowacts">
                                         <a class="vs-mini solid" href='<%# ViewDataUrl(Eval("Id")) %>'>
@@ -201,10 +167,15 @@
                                     </div>
                                 </td>
                             </tr>
+                            <%-- Products of an opened provider, as rows of this same
+                                 table. Emitted whole rather than templated because a
+                                 nested Repeater cannot break out of its parent's
+                                 <td> to line up with these columns. --%>
+                            <%# ProductRows(Eval("Id"), Eval("ProductNames"), Eval("ProductIds"), Eval("ProductCounts")) %>
                         </ItemTemplate>
                     </asp:Repeater>
                     <asp:PlaceHolder ID="phEmpty" runat="server" Visible="false">
-                        <tr><td colspan="5" class="vs-empty">No data to show yet.</td></tr>
+                        <tr><td colspan="4" class="vs-empty">No data to show yet.</td></tr>
                     </asp:PlaceHolder>
                 </tbody>
             </table>
@@ -240,7 +211,7 @@
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 60px;">S.No</th>
+                            <th style="width: 64px;">S.No</th>
                             <th>Provider</th>
                             <th class="c" style="width: 130px;">Today</th>
                             <th class="c" style="width: 130px;">Weekly</th>
@@ -252,7 +223,7 @@
                         <asp:Repeater ID="rptPerformance" runat="server">
                             <ItemTemplate>
                                 <tr>
-                                    <td class="vs-sn"><%# string.Format("{0:00}", Container.ItemIndex + 1) %></td>
+                                    <td class="vs-sn vs-num"><%# string.Format("{0:00}", Container.ItemIndex + 1) %></td>
                                     <td><b><%# Server.HtmlEncode(Convert.ToString(Eval("ProviderName"))) %></b></td>
                                     <td class="c vs-num"><%# Eval("Today") %></td>
                                     <td class="c vs-num"><%# Eval("Weekly") %></td>

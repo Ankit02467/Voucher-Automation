@@ -35,6 +35,16 @@ namespace DSL_CMS.BAL
             return VoucherDAL.GetDashboardTotals(assignedTo, isMoved);
         }
 
+        public static DataTable GetProviderCategories()
+        {
+            return VoucherDAL.GetProviderCategories();
+        }
+
+        public static int InsertProvider(string name, string category, string status)
+        {
+            return VoucherDAL.InsertProvider(name, category, status);
+        }
+
         public static DataTable GetProvider(string Id)
         {
             return VoucherDAL.GetProvider(Id);
@@ -81,6 +91,11 @@ namespace DSL_CMS.BAL
         public static DataTable BulkInsert(string productId, string data, string addedBy)
         {
             return VoucherDAL.BulkInsert(productId, data, addedBy);
+        }
+
+        public static DataTable BulkInsert(string productId, string data, string dealerData, string addedBy)
+        {
+            return VoucherDAL.BulkInsert(productId, data, dealerData, addedBy);
         }
 
         public static void SaveDealers(string id, string data, string userId)
@@ -144,6 +159,11 @@ namespace DSL_CMS.BAL
         public static DataTable GetHistory(string providerId)
         {
             return VoucherDAL.GetHistory(providerId);
+        }
+
+        public static DataTable GetVoucherHistory(string voucherId)
+        {
+            return VoucherDAL.GetVoucherHistory(voucherId);
         }
 
         public static DataTable GetUserRole(string userId)

@@ -23,19 +23,103 @@
     <div class="layout">
 
         <aside class="sidebar">
-            <div class="brand">
-                <img src="<%= ResolveUrl("~/assets/img/logo/logo.png") %>" alt="Succeed Learners" />
+            <%-- The way back to the main screen. The Voucher Status entry below
+                 opens its provider tree instead of going anywhere, so the badge
+                 carries the link the way it does on most panels. --%>
+            <a class="brand" href="<%= ResolveUrl("~/voucher-status.aspx") %>">
+                <span class="mk"><img src="<%= ResolveUrl("~/assets/img/logo/logo.png") %>" alt="Succeed Learners" /></span>
+                <span class="wordmark">
+                    <b>UNIVERSITY&nbsp;PAYMENT</b>
+                    <span>Succeed Learners</span>
+                </span>
+            </a>
+
+            <%-- ---- Categories ----
+                 Sits above the menu rather than inside it, and is always open:
+                 it narrows everything underneath, providers and page alike, so
+                 it reads as the setting it is instead of a place to go. "All"
+                 is not a category, it is the same screen with nothing on it. --%>
+            <div class="navchips">
+                <a class='<%= CategoryChipClass(null) %>' href="<%= ResolveUrl("~/voucher-status.aspx") %>">All</a>
+                <asp:Repeater ID="rptNavCategories" runat="server">
+                    <ItemTemplate>
+                        <a class='<%# CategoryChipClass(Eval("Category")) %>' href='<%# CategoryUrl(Eval("Category")) %>'><%# Server.HtmlEncode(Convert.ToString(Eval("Category"))) %></a>
+                    </ItemTemplate>
+                </asp:Repeater>
             </div>
+
+            <div class="navlbl">Menu</div>
 
             <%-- Dashboard / Bookings / Training were removed on purpose - the
                  modules do not exist, so the links were dead. --%>
-      <%--      <div class="navlbl">Vouchers</div>--%>
             <nav class="nav">
-                <a href="<%= ResolveUrl("~/voucher-status.aspx") %>" class='<%= NavClass("voucher-status.aspx") %>'>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v4a2 2 0 000 4v4H4v-4a2 2 0 000-4zM10 6v12" /></svg>
-                    <span>Voucher Status</span>
-                </a>
+
+                <%-- ---- Voucher Status, with the provider tree under it ----
+                     The groups open and close in the browser. Doing it with
+                     postbacks would rebuild the page underneath every time
+                     someone went looking for a product, and lose whatever
+                     filter that page was holding. --%>
+                <div class='<%= NavGroupClass() %>' data-nav-key="voucher-status">
+                    <%-- The whole row opens the tree, the same as Categories. The
+                         chevron alone was too small a target for the one entry
+                         everything else hangs off. --%>
+                    <button type="button" class='navitem wide <%= NavClass("voucher-status.aspx") %>' data-nav-toggle>
+                        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v4a2 2 0 000 4v4H4v-4a2 2 0 000-4zM10 6v12" /></svg>
+                        <span>Voucher Status</span>
+                        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+                    </button>
+                    <%-- Adds a provider to the tree this entry opens. A link, not
+                         a toggle, so it sits outside the button rather than
+                         inside it - a control within a control cannot be
+                         clicked on its own. --%>
+                    <asp:PlaceHolder ID="phNavAddProvider" runat="server" Visible="false">
+                        <a class="navadd" href="<%= ResolveUrl("~/add-provider.aspx") %>"
+                           title="Add a provider">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                        </a>
+                    </asp:PlaceHolder>
+
+                    <div class="navbody">
+                        <asp:Repeater ID="rptNavProviders" runat="server">
+                            <ItemTemplate>
+                                <div class="navgroup" data-nav-key='<%# "prov-" + Eval("Id") %>'>
+                                    <a class="navprov" href='<%# ProviderDataUrl(Eval("Id")) %>'>
+                                        <%# ProviderTile(Eval("Id"), Eval("Name")) %>
+                                        <span class="nm"><%# Server.HtmlEncode(Convert.ToString(Eval("Name"))) %></span>
+                                        <span class="cnt"><%# Eval("StatusCount") %></span>
+                                    </a>
+                                    <button type="button" class="navtog" data-nav-toggle aria-label="Show or hide the products">
+                                        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                             stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+                                    </button>
+                                    <div class="navbody">
+                                        <%# NavProducts(Eval("Id"), Eval("ProductNames"), Eval("ProductIds"), Eval("ProductCounts")) %>
+                                    </div>
+                                </div>
+                            </ItemTemplate>
+                        </asp:Repeater>
+                    </div>
+                </div>
+
+                <asp:PlaceHolder ID="phNavProductPerf" runat="server" Visible="false">
+                    <a href="<%= ResolveUrl("~/product-performance.aspx") %>" class='navitem lone <%= NavClass("product-performance.aspx") %>'>
+                        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 16v-5M13 16V8M18 16v-3" /></svg>
+                        <span>Product wise Performance</span>
+                    </a>
+                </asp:PlaceHolder>
+
+                <asp:PlaceHolder ID="phNavStudentPerf" runat="server" Visible="false">
+                    <a href="<%= ResolveUrl("~/student-performance.aspx") %>" class='navitem lone <%= NavClass("student-performance.aspx") %>'>
+                        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 11a4 4 0 10-8 0M4 20a8 8 0 0116 0" /></svg>
+                        <span>Student wise Performance</span>
+                    </a>
+                </asp:PlaceHolder>
+
             </nav>
         </aside>
 
@@ -52,7 +136,11 @@
                     </svg>
                 </button>
 
+                <div class="crumb">Voucher Portal <span>&rsaquo;</span> <b><%= Server.HtmlEncode(PageLabel) %></b></div>
+
                 <span class="tb-spacer"></span>
+
+                <div class="tbdate"><%= TodayLong %></div>
 
                 <div class="user">
                     <span class="av"><%= UserInitials %></span>
@@ -61,7 +149,11 @@
                         <span><asp:Literal ID="litUserRole" runat="server" Text="Signed in" /></span>
                     </span>
                     <asp:LinkButton ID="lnkLogout" runat="server" CssClass="logout"
-                        OnClick="lnkLogout_Click" CausesValidation="false">Logout</asp:LinkButton>
+                        OnClick="lnkLogout_Click" CausesValidation="false">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" /></svg>
+                        Sign Out
+                    </asp:LinkButton>
                 </div>
             </div>
 
@@ -73,10 +165,6 @@
     </div>
     </form>
 
-    <%-- Freezes the page behind an open dialog. The dialogs are server-rendered
-         panels that only exist in the markup while they are open, so their mere
-         presence is the signal. Runs again after every postback, which is how
-         these dialogs open and close. --%>
     <%-- Sidebar show/hide. Kept in localStorage rather than session state so it
          survives every postback and page without a server round trip. --%>
     <script>
@@ -99,6 +187,64 @@
         })();
     </script>
 
+    <%-- The provider / category tree in the sidebar. Opening a group is a
+         browser-side thing on purpose: every one of these panels is a
+         postback away from losing the filter the page is holding, and the
+         menu is the one control that must not disturb the screen it sits
+         beside. Which groups were open is kept per group key in
+         localStorage, so the menu comes back the way it was left. --%>
+    <script>
+        (function () {
+            var STORE = 'navOpenGroups';
+
+            function readOpen() {
+                try { return JSON.parse(localStorage.getItem(STORE)) || {}; }
+                catch (e) { return {}; }
+            }
+
+            function writeOpen(map) {
+                try { localStorage.setItem(STORE, JSON.stringify(map)); } catch (e) { }
+            }
+
+            var open = readOpen();
+
+            // Restore before anything is shown. A group the server already
+            // marked open (the page you are on) stays open whatever is stored.
+            var groups = document.querySelectorAll('.sidebar .navgroup[data-nav-key]');
+            for (var i = 0; i < groups.length; i++) {
+                var key = groups[i].getAttribute('data-nav-key');
+                if (open[key]) groups[i].className += ' open';
+            }
+
+            document.addEventListener('click', function (ev) {
+                var btn = ev.target.closest ? ev.target.closest('[data-nav-toggle]') : null;
+                if (!btn) return;
+
+                ev.preventDefault();
+
+                var group = btn.parentNode;
+                var isOpen = /\bopen\b/.test(group.className);
+
+                if (isOpen) {
+                    group.className = group.className.replace(/\bopen\b/g, '').trim();
+                } else {
+                    group.className += (group.className ? ' ' : '') + 'open';
+                }
+
+                var key = group.getAttribute('data-nav-key');
+                if (key) {
+                    open = readOpen();
+                    if (isOpen) { delete open[key]; } else { open[key] = 1; }
+                    writeOpen(open);
+                }
+            });
+        })();
+    </script>
+
+    <%-- Freezes the page behind an open dialog. The dialogs are server-rendered
+         panels that only exist in the markup while they are open, so their mere
+         presence is the signal. Runs again after every postback, which is how
+         these dialogs open and close. --%>
     <script>
         (function () {
             function applyModalLock() {
