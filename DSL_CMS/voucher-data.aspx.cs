@@ -18,7 +18,8 @@ namespace DSL_CMS
                           litAssignTitle, litAssignBox, litAssignEmpty,
                           litGridTitle, litReassignMsg, litReassignCode,
                           litHistCode, litHistSummary;
-        protected Panel pnlMsg, pnlRoleNote, pnlRoleSwitch, pnlEdit, pnlEditDealer, pnlEditStatus, pnlEditAdmin,
+        protected Panel pnlBody, pnlDenied,
+                        pnlMsg, pnlRoleNote, pnlRoleSwitch, pnlEdit, pnlEditDealer, pnlEditStatus, pnlEditAdmin,
                         pnlUsedDate, pnlUpload, pnlUploadMsg, pnlHistory, pnlAssign, pnlAssignMsg,
                         pnlFilterDealer, pnlReassign, pnlReassignMsg,
                         pnlStatusButtons, pnlStatusDropdown, pnlStatusExtras;
@@ -251,6 +252,17 @@ namespace DSL_CMS
 
         protected void Page_Load(object sender, EventArgs e)
         {
+            // Before anything else, including the sweep below: a caller with no
+            // voucher role has no business running either. Checked on postback
+            // as well as on GET, because the role is what every branch below
+            // keys off and a postback must not be able to skip the test.
+            if (VoucherAccess.IsDenied(Session["UserId"]))
+            {
+                pnlDenied.Visible = true;
+                pnlBody.Visible = false;
+                return;
+            }
+
             // Vouchers checked on an earlier day belong to the sub-admin from
             // midnight. There is no SQL Agent on LocalDB to do it on the stroke of
             // twelve, so the sweep runs here: idempotent, normally a no-op, and it
@@ -284,14 +296,14 @@ namespace DSL_CMS
 
         private void ResolveRole()
         {
-            DataTable dt = VoucherBAL.GetUserRole(Convert.ToString(Session["UserId"]));
+            bool unmapped;
+            string role = VoucherAccess.Effective(Session["UserId"], out unmapped);
 
-            string role = (dt != null && dt.Rows.Count > 0)
-                ? Convert.ToString(dt.Rows[0]["RoleName"]).Trim()
-                : string.Empty;
-
-            RoleUnmapped = (role.Length == 0);
-            Role = RoleUnmapped ? RoleAdmin : role;
+            // Unmapped only matters here when the fallback is switched on - it
+            // is what shows the role-preview dropdown. With the fallback off,
+            // role comes back blank and the page refuses instead.
+            RoleUnmapped = unmapped && role.Length > 0;
+            Role = role;
         }
 
         private void InitDealerColumns()

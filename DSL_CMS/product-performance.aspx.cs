@@ -1,4 +1,5 @@
-using DSL_CMS.BAL;
+﻿using DSL_CMS.BAL;
+using DSL_CMS.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -36,14 +37,9 @@ namespace DSL_CMS
         {
             get
             {
-                DataTable dt = VoucherBAL.GetUserRole(Convert.ToString(Session["UserId"]));
-
-                string role = (dt != null && dt.Rows.Count > 0)
-                    ? Convert.ToString(dt.Rows[0]["RoleName"]).Trim()
-                    : string.Empty;
-
-                // Unmapped users fall back to admin, as on every other screen.
-                return role.Length == 0 || role == RoleAdmin;
+                // VoucherAccess decides what an unmapped user gets; by default
+                // that is nothing. See Helpers/VoucherAccess.cs.
+                return VoucherAccess.IsAdmin(Session["UserId"]);
             }
         }
 

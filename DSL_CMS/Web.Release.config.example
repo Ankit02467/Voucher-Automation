@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!-- ============================================================
+     Template for Web.Release.config.
+
+     Copy this to Web.Release.config, put the real password in, and
+     leave the copy where it is. .gitignore excludes Web.*.config,
+     so the copy stays out of the repository while this template -
+     which has no password in it - is tracked, and the arrangement
+     stays discoverable to whoever deploys next.
+
+         copy Web.Release.config.example Web.Release.config
+
+     *** The transform only runs on Publish, not on Build. ***
+
+     MSBuild applies it from the TransformWebConfig target during a
+     Release publish or package. Copying bin\ and the .aspx files
+     to the server by hand transforms nothing - the site goes up
+     still pointing at LocalDB and fails on the first query. Either
+     publish properly, or edit Web.config on the server directly
+     and ignore this file.
+     ============================================================ -->
+<configuration xmlns:xdt="http://schemas.microsoft.com/XML-Document-Transform">
+
+  <connectionStrings>
+    <!-- The key must stay "con" - SqlHelper.cs reads ConnectionStrings["con"].
+         SetAttributes changes the value and leaves the name alone, so a
+         rename cannot happen by accident.
+
+         Integrated Security will not work as-is under IIS: the application
+         runs as the app pool identity, not as you. Either use a SQL login as
+         below, or create a login for IIS APPPOOL\<pool name> and grant it
+         db_datareader, db_datawriter and EXECUTE on the module's procedures.
+         DEPLOYMENT.md section 4.
+
+         Whichever it is, it needs to be able to open VoucherDataKey. db_owner
+         gets that implicitly; a narrower login needs the two grants in
+         section 6 of 08_Encryption/01_Encrypt_Voucher_Columns.sql, or
+         Sp_VoucherStock_Table refuses to run at all - deliberately, because
+         the alternative is a grid full of blank voucher codes. -->
+    <add name="con"
+         connectionString="server=SERVER\INSTANCE; initial catalog=DATABASE;uid=USER;password=PASSWORD; Max Pool Size=200; MultipleActiveResultSets=True"
+         providerName="System.Data.SqlClient"
+         xdt:Transform="SetAttributes(connectionString,providerName)"
+         xdt:Locator="Match(name)" />
+  </connectionStrings>
+
+  <appSettings>
+    <!-- Web.config sets VoucherUnmappedIsAdmin=true for development. A
+         transform only changes what it names, so omitting this block does NOT
+         drop the key - the development value is carried into the published
+         output and the deployed site hands the voucher module to every account
+         that can sign in. Remove it explicitly and
+         Helpers/VoucherAccess.cs falls back to refusing. -->
+    <add key="VoucherUnmappedIsAdmin"
+         xdt:Transform="Remove" xdt:Locator="Match(key)" />
+  </appSettings>
+
+  <system.web>
+    <!-- debug="true" disables request timeouts, stops batch compilation and
+         puts source paths in the output. -->
+    <compilation xdt:Transform="SetAttributes(debug)" debug="false" />
+
+    <!-- Off shows the stack trace, and therefore the connection string, to
+         anyone who can provoke an exception.
+
+         No defaultRedirect: there is no error.aspx in this application, and
+         naming a page that does not exist turns every handled error into a
+         404. Add the page and the attribute together, or neither. -->
+    <customErrors mode="RemoteOnly" xdt:Transform="SetAttributes(mode)" />
+
+    <!-- validateRequest stays false on purpose: voucher codes and pasted
+         uploads carry characters ASP.NET's request validation rejects, and
+         turning it on breaks the Upload Entry screen. Nothing filters markup
+         on the way in, so every screen encodes on the way out. -->
+  </system.web>
+
+</configuration>

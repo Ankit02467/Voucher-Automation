@@ -12,7 +12,7 @@ namespace DSL_CMS
     {
         protected Repeater rptStatus, rptWindows, rptSummary, rptPager, rptPerformance;
         protected PlaceHolder phEmpty, phPager, phPerfEmpty;
-        protected Panel pnlWindows, pnlFilters, pnlProviderGrid, pnlPerformance;
+        protected Panel pnlWindows, pnlFilters, pnlProviderGrid, pnlPerformance, pnlDenied;
         protected LinkButton lnkPrev, lnkNext, lnkEarlyExpiry;
         protected LinkButton kpiTotal, kpiUsed, kpiUnused, kpiExpiring, kpiInvalid;
         protected Literal litCountHead, litPageInfo, litCategoryNote,
@@ -147,13 +147,10 @@ namespace DSL_CMS
                 string cached = ViewState["Role"] as string;
                 if (cached != null) return cached;
 
-                DataTable dt = VoucherBAL.GetUserRole(Convert.ToString(Session["UserId"]));
-                string role = (dt != null && dt.Rows.Count > 0)
-                    ? Convert.ToString(dt.Rows[0]["RoleName"]).Trim()
-                    : string.Empty;
-
-                // Users with no voucher role mapped fall back to admin, as on View Data.
-                if (role.Length == 0) role = "Voucher Admin";
+                // Blank when nothing is mapped and the fallback is off, which
+                // Page_Load turns into a refusal. Helpers/VoucherAccess.cs.
+                bool unmapped;
+                string role = VoucherAccess.Effective(Session["UserId"], out unmapped);
 
                 ViewState["Role"] = role;
                 return role;
@@ -165,6 +162,17 @@ namespace DSL_CMS
         protected void Page_Load(object sender, EventArgs e)
         {
             if (IsPostBack) return;
+
+            // No voucher role and no fallback: nothing on this screen is theirs
+            // to see. Checked before anything binds, so no query runs either.
+            if (VoucherRole.Length == 0)
+            {
+                pnlDenied.Visible = true;
+                pnlFilters.Visible = false;
+                pnlProviderGrid.Visible = false;
+                pnlPerformance.Visible = false;
+                return;
+            }
 
             // A student gets their own figures here; everyone else gets the
             // provider summary with its filters.
@@ -206,21 +214,38 @@ namespace DSL_CMS
 
             DataRow r = dt.Rows[0];
 
-            int total = Convert.ToInt32(r["TotalVoucher"]);
-            int used = Convert.ToInt32(r["Used"]);
-            int unused = Convert.ToInt32(r["Unused"]);
-            int before = Convert.ToInt32(r["BeforeThisMonth"]);
+            int total = Num(r, "TotalVoucher");
+            int used = Num(r, "Used");
+            int unused = Num(r, "Unused");
+            int before = Num(r, "BeforeThisMonth");
 
             litKpiTotal.Text = total.ToString();
             litKpiUsed.Text = used.ToString();
             litKpiUnused.Text = unused.ToString();
-            litKpiExpiring.Text = Convert.ToString(r["ExpiringSoon"]);
-            litKpiInvalid.Text = Convert.ToString(r["Invalid"]);
+            litKpiExpiring.Text = Num(r, "ExpiringSoon").ToString();
+            litKpiInvalid.Text = Num(r, "Invalid").ToString();
 
             litKpiUsedPct.Text = Percent(used, total);
             litKpiUnusedPct.Text = Percent(unused, total);
 
             litKpiTrend.Text = TrendText(total, before);
+        }
+
+        /// <summary>
+        /// A count off the totals row. SUM(CASE ...) over an empty stock table
+        /// returns NULL, not 0 - so on a database with no vouchers in it yet
+        /// every card here is DBNull while COUNT(*) still reads 0. Convert.ToInt32
+        /// throws on that, which is a yellow screen on the first page after login.
+        /// </summary>
+        private static int Num(DataRow r, string column)
+        {
+            if (!r.Table.Columns.Contains(column)) return 0;
+
+            object v = r[column];
+            if (v == null || v == DBNull.Value) return 0;
+
+            int n;
+            return int.TryParse(Convert.ToString(v), out n) ? n : 0;
         }
 
         private static string Percent(int part, int whole)

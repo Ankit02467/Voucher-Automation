@@ -1,9 +1,19 @@
-<%@ Page Language="C#" AutoEventWireup="true" MasterPageFile="~/MasterPage.master"
+﻿<%@ Page Language="C#" AutoEventWireup="true" MasterPageFile="~/MasterPage.master"
     CodeBehind="voucher-data.aspx.cs" Inherits="DSL_CMS.voucher_data" %>
 
 <asp:Content ContentPlaceHolderID="TitleContent" runat="server">Voucher Data - DSL CMS/OSS</asp:Content>
 
 <asp:Content ContentPlaceHolderID="MainContent" runat="server">
+
+<asp:Panel ID="pnlDenied" runat="server" Visible="false" CssClass="msg msg-bad">
+    No Voucher role is mapped to your user, so the voucher module is not
+    available. Ask an administrator to map your account to one of the four
+    Voucher roles.
+</asp:Panel>
+
+<%-- Everything below is the screen proper. Wrapped so one flag can take it
+     away for a caller with no voucher role - see Page_Load. --%>
+<asp:Panel ID="pnlBody" runat="server">
 
     <%-- ---------------- Toolbar ---------------- --%>
     <div class="toolbar">
@@ -593,4 +603,6 @@
         </div>
     </asp:Panel>
 
+
+</asp:Panel>
 </asp:Content>

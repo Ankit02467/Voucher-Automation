@@ -1,4 +1,4 @@
-<%@ Page Language="C#" AutoEventWireup="true" MasterPageFile="~/MasterPage.master"
+﻿<%@ Page Language="C#" AutoEventWireup="true" MasterPageFile="~/MasterPage.master"
     CodeBehind="voucher-status.aspx.cs" Inherits="DSL_CMS.voucher_status" %>
 
 <asp:Content ContentPlaceHolderID="TitleContent" runat="server">Voucher Status - DSL CMS/OSS</asp:Content>
@@ -10,6 +10,12 @@
     <div class="vs-head">
         <h1>Voucher status</h1>
     </div>
+
+    <asp:Panel ID="pnlDenied" runat="server" Visible="false" CssClass="msg msg-bad">
+        No Voucher role is mapped to your user, so the voucher module is not
+        available. Ask an administrator to map your account to one of the four
+        Voucher roles.
+    </asp:Panel>
 
 <asp:Panel ID="pnlFilters" runat="server" CssClass="vs-stack">
 

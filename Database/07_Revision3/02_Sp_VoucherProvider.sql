@@ -171,18 +171,21 @@ BEGIN
 
         SELECT
             TotalVoucher = COUNT(*),
-            Used     = SUM(CASE WHEN Status = 'Used'    THEN 1 ELSE 0 END),
-            Unused   = SUM(CASE WHEN Status = 'Unused'  THEN 1 ELSE 0 END),
-            Expired  = SUM(CASE WHEN Status = 'Expired' THEN 1 ELSE 0 END),
-            Invalid  = SUM(CASE WHEN Status = 'Invalid' THEN 1 ELSE 0 END),
-            NotSet   = SUM(CASE WHEN Status IS NULL     THEN 1 ELSE 0 END),
+            /* ISNULL on every SUM: with no rows at all a SUM returns NULL while
+               COUNT(*) returns 0, so a database whose stock table is still empty
+               hands the page DBNull cards and Convert.ToInt32 throws on them. */
+            Used     = ISNULL(SUM(CASE WHEN Status = 'Used'    THEN 1 ELSE 0 END), 0),
+            Unused   = ISNULL(SUM(CASE WHEN Status = 'Unused'  THEN 1 ELSE 0 END), 0),
+            Expired  = ISNULL(SUM(CASE WHEN Status = 'Expired' THEN 1 ELSE 0 END), 0),
+            Invalid  = ISNULL(SUM(CASE WHEN Status = 'Invalid' THEN 1 ELSE 0 END), 0),
+            NotSet   = ISNULL(SUM(CASE WHEN Status IS NULL     THEN 1 ELSE 0 END), 0),
             /* the "expiring soon" card - a 30 day window from today */
-            ExpiringSoon = SUM(CASE WHEN ExpiryDate BETWEEN @Today AND DATEADD(DAY, 30, @Today)
-                                    THEN 1 ELSE 0 END),
+            ExpiringSoon = ISNULL(SUM(CASE WHEN ExpiryDate BETWEEN @Today AND DATEADD(DAY, 30, @Today)
+                                    THEN 1 ELSE 0 END), 0),
             /* stock as it stood at the start of this month, so the page can say
                how far it has moved since. Read off AddedDate - there is no daily
                snapshot anywhere, so this measures stock added, not stock held. */
-            BeforeThisMonth = SUM(CASE WHEN AddedDate < @MonthStart THEN 1 ELSE 0 END),
+            BeforeThisMonth = ISNULL(SUM(CASE WHEN AddedDate < @MonthStart THEN 1 ELSE 0 END), 0),
             Providers = (SELECT COUNT(*) FROM dbo.VoucherProvider_Table),
             Products  = (SELECT COUNT(*) FROM dbo.VoucherProduct_Table WHERE Status = 'A')
         FROM dbo.VoucherStock_Table

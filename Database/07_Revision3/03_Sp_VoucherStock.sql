@@ -274,13 +274,15 @@ BEGIN
         WHERE (@ProviderInt IS NULL OR v.ProviderId = @ProviderInt);
 
     ELSE IF @Action = 'SelectCount'
+        /* ISNULL on every SUM - over an empty table a SUM is NULL where COUNT(*)
+           is 0, and the dashboard would print blank cards instead of zeros. */
         SELECT TotalVoucher   = COUNT(*),
-               UsedVoucher    = SUM(CASE WHEN Status = 'Used'    THEN 1 ELSE 0 END),
-               UnusedVoucher  = SUM(CASE WHEN Status = 'Unused'  THEN 1 ELSE 0 END),
-               ExpiredVoucher = SUM(CASE WHEN Status = 'Expired' THEN 1 ELSE 0 END),
-               InvalidVoucher = SUM(CASE WHEN Status = 'Invalid' THEN 1 ELSE 0 END),
-               NotSetVoucher  = SUM(CASE WHEN Status IS NULL     THEN 1 ELSE 0 END),
-               CheckedVoucher = SUM(CASE WHEN VoucherCheckDate IS NOT NULL THEN 1 ELSE 0 END)
+               UsedVoucher    = ISNULL(SUM(CASE WHEN Status = 'Used'    THEN 1 ELSE 0 END), 0),
+               UnusedVoucher  = ISNULL(SUM(CASE WHEN Status = 'Unused'  THEN 1 ELSE 0 END), 0),
+               ExpiredVoucher = ISNULL(SUM(CASE WHEN Status = 'Expired' THEN 1 ELSE 0 END), 0),
+               InvalidVoucher = ISNULL(SUM(CASE WHEN Status = 'Invalid' THEN 1 ELSE 0 END), 0),
+               NotSetVoucher  = ISNULL(SUM(CASE WHEN Status IS NULL     THEN 1 ELSE 0 END), 0),
+               CheckedVoucher = ISNULL(SUM(CASE WHEN VoucherCheckDate IS NOT NULL THEN 1 ELSE 0 END), 0)
         FROM dbo.VoucherStock_Table
         WHERE (@ProviderInt IS NULL OR ProviderId = @ProviderInt);
 

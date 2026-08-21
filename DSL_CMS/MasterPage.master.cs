@@ -285,16 +285,11 @@ namespace DSL_CMS
             var cached = Session["VoucherRole"] as string;
             if (cached != null) return cached;
 
-            string role = string.Empty;
-            try
-            {
-                DataTable dt = VoucherBAL.GetUserRole(Convert.ToString(Session["UserId"]));
-                if (dt != null && dt.Rows.Count > 0)
-                    role = Convert.ToString(dt.Rows[0]["RoleName"]).Trim();
-            }
-            catch { }
-
-            if (role.Length == 0) role = "Voucher Admin";
+            // Blank when nothing is mapped and the fallback is off. The sidebar
+            // letters its subtitle from this and the pages enforce it
+            // themselves, so blank simply reads as no role rather than admin.
+            bool unmapped;
+            string role = VoucherAccess.Effective(Session["UserId"], out unmapped);
 
             Session["VoucherRole"] = role;
             return role;

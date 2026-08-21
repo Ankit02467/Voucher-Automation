@@ -1,4 +1,5 @@
 using DSL_CMS.BAL;
+using DSL_CMS.Helpers;
 using System;
 using System.Data;
 using System.Web.UI;
@@ -52,18 +53,13 @@ namespace DSL_CMS
         }
 
         /// <summary>
-        /// Same fallback the other screens use: a user with no voucher role
-        /// mapped is treated as admin.
+        /// The caller's role, blank when they have none - which the caller
+        /// treats as denied. Helpers/VoucherAccess.cs holds the rule.
         /// </summary>
         private void ResolveRole()
         {
-            DataTable dt = VoucherBAL.GetUserRole(Convert.ToString(Session["UserId"]));
-
-            string role = (dt != null && dt.Rows.Count > 0)
-                ? Convert.ToString(dt.Rows[0]["RoleName"]).Trim()
-                : string.Empty;
-
-            Role = (role.Length == 0) ? RoleAdmin : role;
+            bool unmapped;
+            Role = VoucherAccess.Effective(Session["UserId"], out unmapped);
         }
 
         private void BindProviders()
