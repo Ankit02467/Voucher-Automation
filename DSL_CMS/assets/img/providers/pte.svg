@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="PTE - Pearson">
+  <!-- Pearson's twin-crescent mark in its deep indigo, taken from the supplied
+       artwork. The "Pearson" wordmark beside it is unreadable at 40px, so only
+       the mark is used. Approximate curves - drop the official SVG over this
+       file to replace it. -->
+  <rect width="48" height="48" rx="10" fill="#ffffff"/>
+  <g fill="#141046">
+    <path d="M15,9 Q31,24 15,39 Q24,24 15,9 Z"/>
+    <path d="M27,13 Q38,24 27,35 Q33,24 27,13 Z"/>
+  </g>
+</svg>

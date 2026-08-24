@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="AWS">
+  <!-- Placeholder tile in AWS's colours, not the AWS logo. Replace with the
+       official SVG from the AWS brand pages when you have it. -->
+  <rect width="48" height="48" rx="10" fill="#232F3E"/>
+  <text x="24" y="30" text-anchor="middle"
+        font-family="'Segoe UI', Arial, Helvetica, sans-serif"
+        font-size="15" font-weight="700" fill="#FF9900" letter-spacing="0.5">aws</text>
+</svg>

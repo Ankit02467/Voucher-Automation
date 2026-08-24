@@ -1,0 +1,989 @@
+/* ============================================================
+   DSL CMS/OSS - admin shell + voucher module
+   ============================================================ */
+:root {
+    /* original palette - every existing page still reads these */
+    --navy: #0d2b52;
+    --navy-ink: #12305e;
+    --blue: #3b82f6;
+    --blue-dark: #2563eb;
+    --blue-head: #5b8def;
+    --blue-soft: #dbe7f9;
+    --blue-line: #cfe0fb;
+    --ink: #1f2937;
+    --muted: #64748b;
+    --line: #e5e7eb;
+    --row-alt: #f8fafc;
+    --ok: #059669;
+    --ok-bg: #d1fae5;
+    --warn: #b45309;
+    --warn-bg: #fef3c7;
+    --bad: #b91c1c;
+    --bad-bg: #fee2e2;
+
+    /* dashboard redesign tokens - added alongside, nothing above was removed */
+    --brand: #2e6be6;
+    --brand-2: #4f86f0;
+    --brand-soft: #e7effc;
+    --page: #eef2f8;
+    --panel: #ffffff;
+    --panel-2: #f7f9fd;
+    --line-2: #d6dcea;
+    --tx: #101828;
+    --tx-2: #5a6b86;
+    --tx-3: #8794ab;
+
+    --st-used: #e11d48;    --st-used-bg: #fdecef;
+    --st-unused: #0e9f6e;  --st-unused-bg: #e5f6ee;
+    --st-expired: #e08a2b; --st-expired-bg: #fbf0df;
+    --st-notset: #64748b;  --st-notset-bg: #eef1f6;
+    --st-invalid: #7c5cff; --st-invalid-bg: #efeafe;
+
+    /* Command Centre - the navy sidebar and the gold the hero picks out with */
+    --sb-1: #0f1f3d;
+    --sb-2: #16294d;
+    --sb-tx: #aebbd6;
+    --sb-mut: #728099;
+    --gold: #f5c451;
+    --gold-2: #e0a63a;
+
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(16,30,54,.04), 0 8px 24px rgba(16,30,54,.06);
+    --shadow-lg: 0 2px 6px rgba(16,30,54,.06), 0 18px 44px rgba(16,30,54,.12);
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 14px;
+    color: var(--ink);
+    background: #fff;
+}
+
+a { color: var(--blue-dark); text-decoration: none; }
+
+/* ---------------- Shell ----------------
+   Class names are unchanged from the old shell on purpose: every page's
+   markup keeps working, only the look moves. */
+.layout { display: flex; min-height: 100vh; background: var(--page); }
+
+.sidebar {
+    width: 272px;
+    flex: 0 0 272px;
+    background: linear-gradient(185deg, var(--sb-2) 0%, var(--sb-1) 65%, #0b1730 100%);
+    color: var(--sb-tx);
+    display: flex;
+    flex-direction: column;
+    padding: 0 0 24px;
+    /* Pinned: the menu stays put and only the screen beside it scrolls. Sticky
+       rather than fixed so it keeps its place in the flex row and the content
+       does not have to be pushed over by hand. align-self stops the flex row
+       stretching it to full height, which would leave nothing to stick to. */
+    position: sticky; top: 0; align-self: flex-start;
+    height: 100vh; overflow: hidden;
+    /* Painted on the panel's own box rather than as an absolute child, so the
+       edge stays put instead of scrolling away with the tree inside. */
+    box-shadow: inset -1px 0 0 rgba(120,150,210,.22);
+}
+
+/* ---- brand lockup ----
+   The supplied logo is a wide wordmark, so it sits inside a white plate and is
+   contained rather than stretched to fill it; the words beside it carry the
+   name at the weight the design asks for. */
+.sidebar .brand {
+    display: flex; align-items: center; gap: 11px;
+    padding: 22px 18px 14px; flex: 0 0 auto;
+}
+.sidebar .brand:hover { text-decoration: none; }
+.sidebar .brand:hover .wordmark b { color: #fff; }
+.sidebar .brand .mk {
+    width: 40px; height: 40px; border-radius: 11px; flex: 0 0 auto;
+    background: #fff; display: grid; place-items: center; overflow: hidden; padding: 4px;
+}
+.sidebar .brand .mk img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.sidebar .brand .wordmark { min-width: 0; }
+.sidebar .brand .wordmark b {
+    font-size: 15px; font-weight: 800; line-height: 1.1; letter-spacing: .01em;
+    color: #dce7fa; display: block; white-space: nowrap;
+}
+.sidebar .brand .wordmark span {
+    font-size: 9px; letter-spacing: .14em; text-transform: uppercase;
+    color: #6d80a3; font-weight: 700;
+}
+
+/* ---- show / hide the sidebar ----
+   The panel slides out to the left and the content takes the space. The class
+   sits on <html> so the head script can set it before the first paint, which
+   keeps the panel from flashing into view on every postback. */
+.sidebar { transition: margin-left .22s ease; }
+html.nav-collapsed .sidebar { margin-left: -272px; }
+
+.navtoggle {
+    width: 38px; height: 38px; flex: 0 0 auto;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: var(--panel); color: var(--tx-2);
+    display: grid; place-items: center; cursor: pointer; padding: 0;
+    transition: .15s;
+}
+.navtoggle:hover { border-color: var(--brand); color: var(--brand); }
+.navtoggle svg { transition: transform .22s ease; }
+/* the arrow turns round to say it will bring the panel back */
+html.nav-collapsed .navtoggle svg { transform: scaleX(-1); }
+
+.navlbl {
+    font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--sb-mut); padding: 12px 22px 8px; font-weight: 800; flex: 0 0 auto;
+}
+/* Only the list scrolls. The badge and the Menu heading above it stay where
+   they are however far the tree is opened out. */
+.nav {
+    display: flex; flex-direction: column; gap: 3px;
+    padding: 0 12px 20px; flex: 1 1 auto; overflow-y: auto;
+}
+.nav::-webkit-scrollbar { width: 8px; }
+.nav::-webkit-scrollbar-thumb { background: rgba(150,180,230,.22); border-radius: 8px; }
+.nav::-webkit-scrollbar-thumb:hover { background: rgba(150,180,230,.38); }
+
+/* ---- a top-level entry ----
+   The label and the chevron are two controls in one row: the label goes to the
+   page, the chevron opens what sits under it. A single control cannot do both,
+   and a menu that navigates away every time you look inside it is unusable. */
+.navgroup { position: relative; }
+.navitem {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 40px 11px 14px; border-radius: 12px;
+    color: var(--sb-tx); font: inherit; font-size: 14px; font-weight: 600;
+    text-align: left; transition: .15s; border: 1px solid transparent;
+}
+.navitem.lone { margin-top: 3px; }
+button.navitem { width: 100%; background: none; cursor: pointer; }
+/* room on the right for the chevron and, for an admin, the add button beside it */
+button.navitem.wide { padding-right: 66px; }
+
+/* Sits over the end of the row, left of the chevron. Absolute so it is a
+   control of its own rather than one nested inside the toggle button, which
+   would be unclickable. */
+.navadd {
+    position: absolute; top: 8px; right: 36px;
+    width: 26px; height: 26px; border-radius: 8px;
+    display: grid; place-items: center;
+    color: #93a6c9; background: rgba(255,255,255,.06);
+    border: 1px solid rgba(150,180,230,.2); transition: .15s;
+}
+.navadd svg { width: 14px; height: 14px; }
+.navadd:hover {
+    background: var(--brand); border-color: var(--brand);
+    color: #fff; text-decoration: none;
+}
+.navitem .i { width: 19px; height: 19px; flex: 0 0 auto; }
+.navitem .chev { width: 15px; height: 15px; margin-left: auto; opacity: .7; transition: transform .15s ease; }
+.navitem:hover { background: rgba(255,255,255,.05); color: #fff; text-decoration: none; }
+.navitem.active {
+    background: linear-gradient(90deg, rgba(59,138,230,.28), rgba(59,138,230,.06));
+    color: #fff; border-color: rgba(120,170,240,.28);
+    box-shadow: 0 8px 20px rgba(30,80,180,.28);
+}
+
+/* The chevron sits over the end of the label rather than beside it, so the
+   label keeps the full width of the panel to wrap in. */
+.navtog {
+    position: absolute; top: 6px; right: 6px; width: 30px; height: 30px;
+    border: 0; background: none; padding: 0; cursor: pointer;
+    color: var(--sb-tx); display: grid; place-items: center; border-radius: 8px;
+}
+.navtog:hover { background: rgba(255,255,255,.08); color: #fff; }
+/* A 15px hairline over a blue pill all but disappears, so the chevron is given
+   a colour of its own rather than inheriting the panel's body text. */
+.navtog { color: #93a6c9; }
+.navgroup.open > .navtog { color: #cfe0fb; }
+.navtog .chev { width: 16px; height: 16px; transition: transform .15s ease; }
+.navgroup.open > .navtog .chev,
+.navgroup.open > .navitem .chev { transform: rotate(90deg); }
+
+/* Closed is the default so a menu of forty products does not unroll on a first
+   visit; the group the current page belongs to is opened by the server. */
+.navbody { display: none; padding-top: 3px; }
+.navgroup.open > .navbody { display: block; }
+
+/* ---- a provider inside the tree ---- */
+.navprov {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 40px 9px 30px; border-radius: 10px;
+    color: var(--sb-tx); font-size: 13px; font-weight: 600; transition: .15s;
+}
+.navprov:hover { background: rgba(255,255,255,.06); color: #fff; text-decoration: none; }
+.navprov .lg {
+    width: 23px; height: 23px; border-radius: 7px; flex: 0 0 auto;
+    display: grid; place-items: center; color: #fff; font-size: 8.5px; font-weight: 800;
+}
+.navprov .lg.has-img { background: #fff; overflow: hidden; padding: 2px; }
+.navprov .lg.has-img img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.navprov .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.navprov .cnt { margin-left: auto; font-size: 11px; color: var(--sb-mut); font-weight: 700; }
+.navgroup.open > .navprov { background: rgba(59,138,230,.14); color: #fff; }
+.navgroup.open > .navprov .cnt { color: var(--brand-2); }
+
+/* ---- a product, or a category, at the last level ---- */
+.navprod {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 12px 7px 48px; border-radius: 8px;
+    color: var(--sb-mut); font-size: 12px; font-weight: 500; transition: .15s;
+}
+.navprod:hover { background: rgba(255,255,255,.05); color: #fff; text-decoration: none; }
+.navprod.on { color: #fff; background: rgba(59,138,230,.16); font-weight: 600; }
+.navprod .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--brand-2); flex: 0 0 auto; }
+.navprod .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.navprod .cnt { margin-left: auto; font-size: 10px; font-weight: 800; color: var(--sb-mut); }
+.navnone { display: block; padding: 7px 12px 7px 48px; font-size: 12px; color: #5d729a; font-style: italic; }
+
+/* ---- category chips ----
+   Above the menu and outside the scrolling list, so the setting that narrows
+   everything below it is always in view. One row, not a stacked list: there
+   are only ever a handful and they behave as one choice. */
+.navchips {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 2px 16px 12px; flex: 0 0 auto;
+    border-bottom: 1px solid rgba(150,180,230,.14);
+    margin: 0 12px 2px;
+}
+.navchip {
+    padding: 5px 11px; border-radius: 18px;
+    border: 1px solid rgba(150,180,230,.24); background: rgba(255,255,255,.03);
+    color: var(--sb-tx); font-size: 11.5px; font-weight: 700; line-height: 1.2;
+    white-space: nowrap; transition: .15s;
+}
+.navchip:hover { background: rgba(255,255,255,.09); color: #fff; text-decoration: none; }
+.navchip.on {
+    background: var(--brand); border-color: var(--brand); color: #fff;
+    box-shadow: 0 5px 12px rgba(46,107,230,.35);
+}
+
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--page); }
+
+.topbar {
+    height: 64px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 28px;
+    position: sticky; top: 0; z-index: 5;
+}
+.topbar .tb-spacer { flex: 1; }
+/* Nothing in the bar may wrap: a second line pushes it past its fixed height
+   and drags the avatar out of line with everything else. */
+.topbar .crumb { font-size: 13px; color: var(--tx-3); font-weight: 600; white-space: nowrap; }
+.topbar .crumb span { padding: 0 2px; }
+.topbar .crumb b { color: var(--tx); font-weight: 700; }
+.topbar .tbdate { font-size: 12.5px; color: var(--tx-2); font-weight: 600; white-space: nowrap; }
+.topbar .user {
+    display: flex; align-items: center; gap: 10px;
+    padding-left: 12px; border-left: 1px solid var(--line);
+}
+.topbar .user .av {
+    width: 36px; height: 36px; border-radius: 11px;
+    background: linear-gradient(145deg, #3b7bf0, #2456c8);
+    color: #fff; display: grid; place-items: center; font-weight: 600; font-size: 13px;
+}
+.topbar .user .who { min-width: 0; }
+.topbar .user .who b {
+    font-size: 13.5px; font-weight: 700; display: block; line-height: 1.2; color: var(--tx);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px;
+}
+.topbar .user .who span { font-size: 11.5px; color: var(--tx-3); white-space: nowrap; }
+.topbar .logout {
+    background: var(--panel); border: 1px solid var(--line-2);
+    color: var(--tx-2); padding: 8px 14px; border-radius: 10px;
+    font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.topbar .logout svg { flex: 0 0 auto; }
+.topbar .logout:hover { border-color: var(--brand); color: var(--brand); text-decoration: none; }
+
+/* topbar search - narrows the provider list on the dashboard */
+.topbar .search {
+    flex: 1; max-width: 420px; display: flex; align-items: center; gap: 9px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 11px; padding: 7px 13px; color: var(--tx-3);
+}
+.topbar .search svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.topbar .search input {
+    border: 0; background: transparent; outline: none; font: inherit;
+    font-size: 13.5px; color: var(--tx); width: 100%;
+}
+
+.content { padding: 26px 28px 40px; }
+
+/* ============================================================
+   Voucher Status dashboard
+   Everything here is prefixed vs- and scoped to .vs-page, because the
+   source design styles bare `table`, `.btn`, `.chip` and `.pg`, all of
+   which already mean something on the other screens.
+   ============================================================ */
+.vs-page { display: flex; flex-direction: column; gap: 20px; letter-spacing: -.01em; }
+.vs-num { font-variant-numeric: tabular-nums; }
+
+/* The server-rendered Panels wrap several blocks in one div, so .vs-page's own
+   gap cannot reach between them - the cards and the filter bar ended up touching.
+   Any such wrapper stacks its children with the same spacing. */
+.vs-stack { display: flex; flex-direction: column; gap: 20px; }
+
+/* ---- Page head ---- */
+.vs-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.vs-head h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -.02em; color: var(--tx); }
+
+/* ---- KPI cards ----
+   Anchors, not divs: every card posts back to the rows it counted. The spans
+   inside carry the layout because an <a> may not contain block elements. */
+.vs-kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+/* One pair per card - the border, the value and the arrow all take the same
+   colour, so it is set once here rather than three times in the markup. */
+.k-total    { --cc: var(--brand);       --cbg: var(--brand-soft); }
+.k-used     { --cc: var(--st-used);     --cbg: var(--st-used-bg); }
+.k-unused   { --cc: var(--st-unused);   --cbg: var(--st-unused-bg); }
+.k-expiring { --cc: var(--st-expired);  --cbg: var(--st-expired-bg); }
+.k-invalid  { --cc: var(--st-invalid);  --cbg: var(--st-invalid-bg); }
+.vs-kpi {
+    display: block; background: var(--panel);
+    border: 1px solid var(--line); border-left: 4px solid var(--cc, var(--brand));
+    border-radius: var(--radius); padding: 16px 17px;
+    box-shadow: var(--shadow); position: relative; overflow: hidden;
+    color: var(--tx); transition: .15s;
+}
+.vs-kpi:hover {
+    box-shadow: var(--shadow-lg); text-decoration: none;
+    transform: translateY(-2px); border-color: var(--line-2);
+    border-left-color: var(--cc, var(--brand));
+}
+.vs-kpi .top { display: flex; align-items: center; justify-content: space-between; }
+.vs-kpi .lab { font-size: 12px; color: var(--tx-2); font-weight: 700; }
+.vs-kpi .ic {
+    width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center;
+    background: var(--cbg, var(--brand-soft)); color: var(--cc, var(--brand));
+}
+.vs-kpi .ic svg { width: 17px; height: 17px; stroke-width: 1.9; fill: none; stroke: currentColor; }
+.vs-kpi .val {
+    display: block; font-size: 29px; font-weight: 800; margin-top: 10px;
+    letter-spacing: -.03em; color: var(--cc, var(--tx));
+}
+/* Room kept on the right so a long subtitle never runs under the arrow. */
+.vs-kpi .sub { display: block; font-size: 11.5px; margin-top: 3px; color: var(--tx-3); padding-right: 22px; }
+.vs-kpi .sub b { font-weight: 700; }
+.vs-kpi .go { position: absolute; right: 14px; bottom: 13px; color: var(--cc, var(--brand)); opacity: .55; transition: .15s; }
+.vs-kpi .go svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.4; display: block; }
+.vs-kpi:hover .go { opacity: 1; transform: translateX(2px); }
+.vs-up { color: var(--st-unused); } .vs-down { color: var(--st-used); }
+
+/* ---- Filters ---- */
+.vs-panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.vs-filters { padding: 15px 18px; display: flex; flex-direction: column; gap: 12px; }
+.vs-frow { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.vs-flab {
+    font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--tx-3); font-weight: 800; width: 62px; flex: 0 0 auto;
+}
+.vs-chip {
+    border: 1px solid var(--line-2); background: var(--panel-2); color: var(--tx-2);
+    font: inherit; font-size: 13px; font-weight: 600;
+    padding: 7px 15px; border-radius: 20px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px; transition: .15s;
+    text-decoration: none;
+}
+.vs-chip:hover { color: var(--tx); text-decoration: none; }
+.vs-chip .pip { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.vs-chip.on { background: var(--brand); border-color: var(--brand); color: #fff;
+              box-shadow: 0 6px 14px rgba(46,107,230,.28); }
+.vs-chip.s-used.on    { background: var(--st-used);    border-color: var(--st-used);    box-shadow: 0 6px 14px rgba(225,29,72,.28); }
+.vs-chip.s-unused.on  { background: var(--st-unused);  border-color: var(--st-unused);  box-shadow: 0 6px 14px rgba(14,159,110,.28); }
+.vs-chip.s-expired.on { background: var(--st-expired); border-color: var(--st-expired); box-shadow: 0 6px 14px rgba(224,138,43,.28); }
+.vs-chip.s-invalid.on { background: var(--st-invalid); border-color: var(--st-invalid); box-shadow: 0 6px 14px rgba(124,92,255,.28); }
+.vs-chip.s-notset.on  { background: var(--st-notset);  border-color: var(--st-notset);  box-shadow: 0 6px 14px rgba(100,116,139,.28); }
+
+/* Early expiry replaces the status rather than narrowing it, so it is held
+   away from the pills and drawn as something else entirely. */
+.vs-chip.ghost {
+    margin-left: auto; background: var(--panel);
+    border-style: dashed; border-color: var(--gold-2); color: var(--gold-2);
+}
+.vs-chip.ghost:hover { background: #fffbf0; color: var(--gold-2); }
+.vs-chip.ghost.on {
+    background: var(--gold); border-style: solid; border-color: var(--gold);
+    color: #4a3407; box-shadow: 0 6px 14px rgba(224,166,58,.3);
+}
+
+/* Set from the sidebar, so the filter bar has to say it is on and offer a
+   way out - there is no chip here to click a second time. */
+.vs-catnote {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--brand-soft); color: var(--brand);
+    border-radius: 20px; padding: 7px 8px 7px 15px; font-size: 12.5px; font-weight: 600;
+}
+.vs-catnote b { font-weight: 800; }
+.vs-catnote a {
+    width: 19px; height: 19px; border-radius: 50%; display: inline-grid; place-items: center;
+    background: rgba(46,107,230,.16); color: var(--brand); font-size: 13px; line-height: 1;
+}
+.vs-catnote a:hover { background: var(--brand); color: #fff; text-decoration: none; }
+
+/* ---- Table ---- */
+.vs-tablewrap { overflow-x: auto; }
+.vs-page table { width: 100%; border-collapse: collapse; min-width: 860px; }
+.vs-page thead th {
+    text-align: left; font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--tx-3); font-weight: 700; padding: 14px 18px;
+    background: var(--panel-2); border-bottom: 1px solid var(--line);
+}
+.vs-page thead th.c { text-align: center; }
+.vs-page thead th.r { text-align: right; }
+.vs-page tbody td { padding: 15px 18px; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: middle; }
+.vs-page tbody tr:last-child td { border-bottom: 0; }
+.vs-page tbody tr { transition: .12s; }
+.vs-page tbody tr:hover { background: var(--panel-2); }
+
+.vs-sn { color: var(--tx-3); font-weight: 800; font-size: 13px; }
+.vs-prow.open td { background: var(--panel-2); }
+
+/* The whole name block opens the products, so it is one control rather than a
+   caret you have to hit. */
+.vs-prov { display: flex; align-items: center; }
+.vs-provtoggle { display: flex; align-items: center; gap: 13px; color: inherit; }
+.vs-provtoggle:hover { text-decoration: none; }
+.vs-provtoggle:hover b { color: var(--brand); }
+.vs-prov .logo {
+    width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
+    font-weight: 800; font-size: 13px; color: #fff; flex: 0 0 auto;
+    box-shadow: 0 6px 14px rgba(20,40,80,.18);
+}
+/* White plate behind the image, clipped to the tile. A full-bleed logo covers
+   the plate completely; a transparent wordmark gets something to sit on instead
+   of the page. Contained either way, so nothing is cropped or stretched. */
+.vs-prov .logo.has-img { background: #fff; overflow: hidden; padding: 3px; }
+.vs-prov .logo.has-img img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.vs-prov .nm { display: block; }
+.vs-prov b { font-size: 14.5px; font-weight: 700; display: block; color: var(--tx); transition: .15s; }
+.vs-prov small { font-size: 12px; color: var(--tx-3); font-weight: 600; }
+.vs-caret {
+    display: grid; place-items: center; color: var(--tx-3); flex: 0 0 auto;
+    transition: transform .15s ease;
+}
+.vs-caret.open { transform: rotate(90deg); color: var(--brand); }
+.vs-total {
+    display: inline-block; min-width: 48px; padding: 6px 10px;
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+    font-weight: 800; font-size: 16px; color: var(--tx);
+}
+
+/* ---- a product, as a row of the same table ---- */
+.vs-page tbody tr.vs-subrow td { background: var(--panel-2); padding: 10px 18px; }
+.vs-page tbody tr.vs-subrow:hover td { background: #eef3fb; }
+.vs-prodname {
+    display: inline-flex; align-items: center; gap: 10px; padding-left: 55px;
+    font-size: 13px; font-weight: 600; color: var(--tx);
+}
+.vs-prodname .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--brand); flex: 0 0 auto; }
+.vs-subcount { font-weight: 800; font-size: 14px; color: var(--tx-2); }
+.vs-subnone { padding-left: 55px; color: var(--tx-3); font-size: 13px; font-style: italic; }
+.vs-subrow .vs-mini { padding: 6px 12px; font-size: 12px; }
+
+.vs-rowacts { display: flex; gap: 8px; justify-content: flex-end; }
+.vs-mini {
+    border: 1px solid var(--line-2); background: var(--panel); color: var(--tx);
+    font: inherit; font-size: 12.5px; font-weight: 600;
+    padding: 7px 13px; border-radius: 9px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; transition: .15s;
+    white-space: nowrap; text-decoration: none;
+}
+.vs-mini:hover { border-color: var(--brand); color: var(--brand); text-decoration: none; }
+/* Navy, not the brand blue: View Data is the action on every row of the table,
+   and a row of bright blue buttons pulled the eye away from the figures they
+   sit beside. */
+.vs-mini.solid {
+    background: linear-gradient(180deg, #2f4c7d, #12315f);
+    border-color: transparent; color: #fff;
+}
+.vs-mini.solid:hover {
+    background: linear-gradient(180deg, #3a5c93, #1a3f75);
+    border-color: transparent; color: #fff;
+}
+
+.vs-tfoot {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; font-size: 13px; color: var(--tx-2); flex-wrap: wrap; gap: 10px;
+}
+.vs-pager { display: flex; gap: 6px; }
+.vs-pg {
+    min-width: 32px; height: 32px; padding: 0 8px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--panel);
+    display: inline-grid; place-items: center; font-size: 13px; font-weight: 600;
+    color: var(--tx-2); cursor: pointer; text-decoration: none;
+}
+.vs-pg:hover { border-color: var(--brand); color: var(--brand); text-decoration: none; }
+    .vs-pg.on {
+        background: #12315f;    
+        border-color: var(--brand);
+        color: #fff;
+    }
+.vs-pg.off { opacity: .45; pointer-events: none; }
+
+.vs-empty { padding: 34px 18px; text-align: center; color: var(--tx-3); font-size: 14px; }
+.vs-tfoot b { color: var(--tx); font-weight: 700; }
+
+@media (max-width: 1420px) { .vs-kpis { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 1180px) { .vs-kpis { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 760px) {
+    .vs-kpis { grid-template-columns: 1fr; }
+    .topbar .crumb, .topbar .tbdate { display: none; }
+}
+
+/* ---------------- Filter bar ---------------- */
+.filter-block { margin-bottom: 20px; }
+
+.filter-label {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy-ink);
+    margin-bottom: 10px;
+}
+
+.pill-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+.pill-row .spacer { margin-left: auto; }
+
+.pill-btn {
+    min-width: 122px;
+    height: 46px;
+    padding: 0 20px;
+    border: 1.5px solid var(--blue);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--blue-dark);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.pill-btn:hover { background: #eff5ff; text-decoration: none; }
+.pill-btn.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+/* ---- status colour coding: Used red, Unused green, Expired yellow, Invalid blue ---- */
+.pill-btn.s-used            { border-color: #dc2626; color: #dc2626; }
+.pill-btn.s-used:hover      { background: #fef2f2; }
+.pill-btn.s-used.on         { background: #dc2626; border-color: #dc2626; color: #fff; }
+
+.pill-btn.s-unused          { border-color: #16a34a; color: #15803d; }
+.pill-btn.s-unused:hover    { background: #f0fdf4; }
+.pill-btn.s-unused.on       { background: #16a34a; border-color: #16a34a; color: #fff; }
+
+.pill-btn.s-expired         { border-color: #f59e0b; color: #b45309; }
+.pill-btn.s-expired:hover   { background: #fffbeb; }
+.pill-btn.s-expired.on      { background: #f59e0b; border-color: #f59e0b; color: #452c03; }
+
+/* Violet, not blue: the active "View Early Expiry" button is solid blue, and a
+   blue Invalid pill sitting next to it read as the same control. */
+.pill-btn.s-invalid         { border-color: #7c3aed; color: #6d28d9; }
+.pill-btn.s-invalid:hover   { background: #f5f3ff; }
+.pill-btn.s-invalid.on      { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+
+.pill-btn.s-notset          { border-color: #94a3b8; color: #475569; }
+.pill-btn.s-notset:hover    { background: #f8fafc; }
+.pill-btn.s-notset.on       { background: #64748b; border-color: #64748b; color: #fff; }
+
+/* ---- status badge inside grids ---- */
+.st { display: inline-block; padding: 3px 13px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.st-used    { background: #fee2e2; color: #b91c1c; }
+.st-unused  { background: #dcfce7; color: #15803d; }
+.st-expired { background: #fef3c7; color: #b45309; }
+.st-invalid { background: #ede9fe; color: #6d28d9; }
+.st-none    { background: #f1f5f9; color: #64748b; }
+
+.btn-sm[disabled], .act .btn-fill[disabled] { opacity: .45; pointer-events: none; }
+
+/* ---- provider chevron / product drop-down ---- */
+.chev {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-weight: 600;
+}
+.chev:hover { text-decoration: none; color: var(--blue-dark); }
+.chev-icon {
+    display: inline-block; color: var(--blue-dark); font-size: 12px;
+    transition: transform .15s ease;
+}
+.chev-icon.open { transform: rotate(90deg); }
+.chev-count { color: var(--muted); font-weight: 500; font-size: 12px; }
+
+/* products stack one below the other, each one a link into View Data */
+.prod-list {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px dashed var(--blue-line);
+}
+.prod-link {
+    display: block; width: 100%;
+    padding: 6px 10px; border-radius: 6px;
+    color: var(--blue-dark); font-size: 13px; font-weight: 600;
+    text-decoration: none;
+}
+.prod-link:hover { background: #eff5ff; color: var(--blue-dark); text-decoration: underline; }
+.prod-link .prod-count {
+    float: right; min-width: 22px; text-align: center;
+    padding: 0 6px; border-radius: 999px;
+    background: #eef2f7; color: var(--muted); font-size: 11px; font-weight: 700;
+}
+
+/* product rows inside the performance table, indented under their provider */
+.data tr.sub-row td { background: #f8fafc; }
+.data tr.sub-row .sub-name { padding-left: 34px; color: var(--muted); font-weight: 600; }
+
+.prod-chip {
+    display: inline-block; padding: 4px 12px; border-radius: 999px;
+    background: #fff; border: 1px solid var(--blue-line);
+    color: var(--navy-ink); font-size: 12px; font-weight: 600;
+}
+
+/* ---- screen toolbar ---- */
+.toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.toolbar h1 { margin: 0; font-size: 19px; font-weight: 700; color: var(--navy-ink); }
+
+.btn-back {
+    display: inline-flex; align-items: center; height: 36px; padding: 0 14px;
+    border: 1.5px solid var(--blue-line); border-radius: 8px;
+    background: #fff; color: var(--blue-dark);
+    font-size: 14px; font-weight: 600; text-decoration: none;
+}
+.btn-back:hover { background: #eff5ff; text-decoration: none; }
+
+/* when a checked voucher leaves the student's list for the sub-admin */
+.move-note {
+    display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+    background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 600;
+    white-space: nowrap;
+}
+
+/* keeps the candidate / exam fields flowing with the rest of the form grid */
+.field-group { display: contents; }
+
+/* fields shown for reference but not editable */
+.locked, input.locked[disabled] {
+    background: #f1f5f9; color: #64748b; cursor: not-allowed;
+}
+.locked-tag {
+    margin-left: 6px; padding: 1px 6px; border-radius: 999px;
+    background: #f1f5f9; color: #94a3b8;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px;
+}
+.toolbar .spacer { margin-left: auto; }
+
+.role-chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--blue-soft); color: var(--navy-ink);
+    border-radius: 999px; padding: 5px 14px; font-size: 12px; font-weight: 700;
+}
+
+.note {
+    background: #fffbeb; border: 1px solid #fcd34d; color: #92400e;
+    border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px;
+}
+
+/* ---- modal ---- */
+.modal-back {
+    position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 50;
+    /* Blur pushes the grid behind out of focus so the dialog reads as the only
+       live thing on screen. The dialog is a child of this element, so it is
+       drawn on top and stays sharp. */
+    background: rgba(15, 23, 42, .45);
+    -webkit-backdrop-filter: blur(5px);
+    backdrop-filter: blur(5px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px 20px; overflow: auto;
+}
+/* Capped to the viewport so the page never scrolls behind the dialog. A tall
+   dialog scrolls inside its own body instead, keeping the title and the Save
+   row on screen. */
+.modal {
+    background: #fff; border-radius: 12px; width: 100%;
+    box-shadow: 0 24px 60px rgba(0,0,0,.3);
+    max-height: calc(100vh - 48px);
+    display: flex; flex-direction: column;
+}
+.modal-head, .modal-foot { flex: 0 0 auto; }
+.modal-body { flex: 1 1 auto; overflow-y: auto; }
+
+/* While a dialog is open the page behind it must stay put. Scrolling belongs to
+   the dialog's own body, which is the only thing that can overflow now.
+   The class is put on <body> by the script at the end of MasterPage - the
+   dialogs are server-rendered panels, so there is nothing to hook on the way in. */
+body.modal-open { overflow: hidden; }
+/* Sized to what is inside, not to the screen. The edit dialog picks one of
+   these per role in OpenEditor. */
+.modal.xs { max-width: 460px; }
+.modal.md { max-width: 720px; }
+.modal.sm { max-width: 760px; }
+.modal.lg { max-width: 1100px; }
+.modal.xl { max-width: 1400px; }
+
+/* The student's three status buttons share the row evenly instead of each
+   holding the 122px minimum meant for the filter bar. */
+.status-picker .pill-row { gap: 10px; }
+.status-picker .pill-btn { flex: 1 1 0; min-width: 0; padding: 0 12px; }
+.status-picker .filter-label { margin-bottom: 8px; }
+
+.modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 22px; border-bottom: 1px solid var(--line);
+}
+.modal-head h2 { margin: 0; font-size: 17px; font-weight: 700; color: var(--navy-ink); }
+.modal-body { padding: 20px 22px; }
+.modal-foot {
+    padding: 14px 22px; border-top: 1px solid var(--line);
+    display: flex; gap: 10px; justify-content: flex-end; align-items: center;
+}
+.modal-foot .spacer { margin-right: auto; }
+
+.paste-area {
+    width: 100%; min-height: 240px; font-family: Consolas, "Courier New", monospace;
+    font-size: 13px; line-height: 1.6; padding: 12px; border: 1px solid #cbd5e1;
+    border-radius: 8px; resize: vertical;
+}
+.paste-help {
+    background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px;
+    padding: 10px 14px; margin-bottom: 12px; font-size: 13px; color: var(--muted);
+}
+.paste-help code { color: var(--navy-ink); font-weight: 600; }
+
+/* ---- grid extras ---- */
+table.data td.left { text-align: left; }
+table.data .muted { color: var(--muted); }
+/* ---- voucher history timeline ----
+   A list, not a grid: one voucher's history is a sequence, and a table of it
+   made the reader rebuild the order in their head. */
+.hist-sum {
+    display: flex; gap: 18px; flex-wrap: wrap;
+    padding: 12px 16px; margin-bottom: 6px;
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+    font-size: 13px; color: var(--tx-2);
+}
+.hist-sum b { color: var(--tx); font-size: 15px; font-weight: 700; margin-right: 4px; }
+
+.hist-round {
+    display: flex; align-items: center; gap: 10px;
+    margin: 18px 0 4px; font-size: 11px; font-weight: 800;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--tx-3);
+}
+.hist-round::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+/* The rail is drawn by each step rather than by a container, so a step can sit
+   directly under a round heading without the line jumping over it. */
+.hist-step {
+    position: relative; display: flex; align-items: baseline; gap: 12px;
+    padding: 10px 0 10px 26px;
+}
+.hist-step::before {
+    content: ""; position: absolute; left: 5px; top: 0; bottom: 0; width: 2px;
+    background: var(--line);
+}
+.hist-step:last-child::before { bottom: 50%; }
+.hist-step .dot {
+    position: absolute; left: 0; top: 14px; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--tx-3);
+    box-shadow: 0 0 0 3px var(--panel);
+}
+.hist-step.k-assign   .dot { background: var(--brand); }
+.hist-step.k-reassign .dot { background: var(--st-invalid); }
+.hist-step.k-check    .dot { background: var(--st-unused); }
+.hist-step.k-move     .dot { background: var(--st-expired); }
+.hist-step.k-edit     .dot { background: var(--tx-3); }
+.hist-step .what { flex: 1; min-width: 0; }
+.hist-step .what b { display: block; font-size: 14px; font-weight: 700; color: var(--tx); }
+.hist-step .who { font-size: 12.5px; color: var(--tx-2); }
+.hist-step .who b { display: inline; font-size: inherit; color: var(--tx); }
+.hist-step .when {
+    font-size: 12.5px; color: var(--tx-3); white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.hist-empty { padding: 34px 18px; text-align: center; color: var(--tx-3); font-size: 14px; }
+
+/* ---- sortable column headings ----
+   The whole heading is the control, so there is no small target to find. The
+   arrow is always there on a column that sorts and lights up on the one the
+   grid is ordered by, which is what tells the two apart at a glance. */
+.sortcol {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: inherit; font: inherit; font-weight: 700;
+    white-space: nowrap; cursor: pointer;
+}
+.sortcol:hover { color: #fff; text-decoration: none; }
+.sortcol:hover .sortarrow { opacity: .95; }
+.sortarrow { font-size: 11px; line-height: 1; opacity: .5; }
+.sortarrow.on { opacity: 1; font-size: 10px; }
+
+.col-add {
+    border: 1px solid rgba(255,255,255,.6); background: rgba(255,255,255,.16);
+    color: #fff; width: 22px; height: 22px; line-height: 1; border-radius: 5px;
+    font-size: 14px; font-weight: 700; cursor: pointer; margin-left: 8px;
+}
+.col-add:hover { background: rgba(255,255,255,.3); text-decoration: none; color: #fff; }
+
+.assign-split { display: grid; grid-template-columns: 1.6fr 1fr; gap: 18px; }
+.assign-split .box { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.assign-split .box h3 {
+    margin: 0; padding: 10px 14px; background: #f8fafc;
+    border-bottom: 1px solid var(--line); font-size: 14px; color: var(--navy-ink);
+}
+.assign-split .scroll { max-height: 380px; overflow: auto; }
+@media (max-width: 900px) { .assign-split { grid-template-columns: 1fr; } }
+
+/* ---- pagination ---- */
+.pager {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 16px; flex-wrap: wrap;
+}
+.pager .info { color: var(--muted); font-size: 13px; margin-right: auto; }
+.pager .pg {
+    min-width: 38px; height: 38px; padding: 0 12px;
+    border: 1px solid #cbd5e1; border-radius: 6px;
+    background: #fff; color: #334155;
+    font: inherit; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer;
+}
+.pager .pg:hover { background: #eff5ff; border-color: var(--blue); color: var(--blue-dark); text-decoration: none; }
+.pager .pg.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+.pager .pg.dots { border: 0; background: none; pointer-events: none; color: var(--muted); }
+.pager .pg.off { opacity: .45; pointer-events: none; }
+
+.icon-btn {
+    width: 46px; height: 46px;
+    border: 1.5px solid var(--blue);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--blue-dark);
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.icon-btn:hover { background: #eff5ff; }
+.icon-btn svg { width: 22px; height: 22px; }
+
+.date-range {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 14px; flex-wrap: wrap;
+}
+.date-range label { font-size: 13px; font-weight: 600; color: var(--muted); }
+
+/* ---------------- Data table ---------------- */
+.table-wrap { overflow-x: auto; margin-top: 6px; }
+
+table.data {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1.5px solid var(--blue-head);
+    font-size: 15px;
+}
+table.data th {
+    background: var(--blue-head);
+    color: #fff;
+    font-weight: 700;
+    padding: 15px 14px;
+    text-align: center;
+    border-right: 1px solid rgba(255,255,255,.35);
+    white-space: nowrap;
+}
+table.data th:last-child { border-right: 0; }
+table.data td {
+    padding: 13px 14px;
+    text-align: center;
+    border: 1px solid var(--blue-line);
+}
+table.data tbody tr:nth-child(even) td { background: var(--row-alt); }
+table.data td.empty { padding: 34px; color: var(--muted); }
+
+.act { display: inline-flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.act .btn-fill, .act .btn-out {
+    padding: 9px 18px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1.5px solid var(--blue);
+    display: inline-flex; align-items: center;
+}
+.act .btn-fill { background: var(--blue); color: #fff; }
+.act .btn-fill:hover { background: var(--blue-dark); color: #fff; text-decoration: none; }
+.act .btn-out { background: #fff; color: var(--blue-dark); }
+.act .btn-out:hover { background: #eff5ff; text-decoration: none; }
+
+/* ---------------- Generic bits (voucher-data / manage-product) ---------------- */
+.card {
+    background: #fff; border: 1px solid var(--line);
+    border-radius: 10px; margin-bottom: 18px;
+}
+.card-head {
+    padding: 13px 18px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+}
+.card-head h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--navy-ink); }
+.card-body { padding: 18px; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 14px; margin-bottom: 18px; }
+.tile { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--blue); border-radius: 10px; padding: 14px 16px; }
+.tile .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+.tile .v { font-size: 26px; font-weight: 700; margin-top: 4px; }
+.tile.ok { border-left-color: var(--ok); }
+.tile.warn { border-left-color: var(--warn); }
+.tile.bad { border-left-color: var(--bad); }
+
+.filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 12px; color: var(--muted); font-weight: 600; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 14px; }
+
+input[type=text], input[type=password], input[type=date], input[type=number], select, textarea {
+    padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px;
+    font: inherit; color: var(--ink); background: #fff; min-width: 150px;
+}
+input:focus, select:focus, textarea:focus {
+    outline: 0; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+}
+
+.btn {
+    padding: 8px 16px; border: 1px solid transparent; border-radius: 6px;
+    background: var(--blue); color: #fff; font: inherit; font-weight: 600; cursor: pointer;
+}
+.btn:hover { background: var(--blue-dark); color: #fff; text-decoration: none; }
+.btn-light { background: #fff; color: var(--ink); border-color: #cbd5e1; }
+.btn-light:hover { background: #f8fafc; color: var(--ink); }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+
+.grid-wrap { overflow-x: auto; }
+table.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.grid th {
+    background: #f8fafc; text-align: left; padding: 10px 12px;
+    border-bottom: 2px solid var(--line); font-weight: 600; color: #334155; white-space: nowrap;
+}
+table.grid td { padding: 9px 12px; border-bottom: 1px solid var(--line); }
+table.grid tr:hover td { background: #eff5ff; }
+
+.pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.pill-ok { background: var(--ok-bg); color: var(--ok); }
+.pill-warn { background: var(--warn-bg); color: var(--warn); }
+.pill-bad { background: var(--bad-bg); color: var(--bad); }
+
+.msg { padding: 10px 14px; border-radius: 6px; margin-bottom: 14px; font-weight: 600; }
+.msg-ok { background: var(--ok-bg); color: var(--ok); }
+.msg-bad { background: var(--bad-bg); color: var(--bad); }
+
+@media (max-width: 900px) {
+    .layout { flex-direction: column; }
+    /* The panel is a strip above the page here, not a column beside it, so it
+       must not stay pinned or keep its own scrollbar. */
+    .sidebar { width: 100%; flex: none; position: static; height: auto; overflow: visible; }
+    .nav { overflow: visible; }
+    html.nav-collapsed .sidebar { margin-left: 0; display: none; }
+    .content { padding: 18px; }
+}
