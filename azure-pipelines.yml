@@ -1,0 +1,314 @@
+# Build and deploy the Voucher module (DSL_CMS) to vcheck.dsucceedlearners.com
+#
+# TWO POOLS ON PURPOSE.
+#
+#   Build  -> Microsoft-hosted windows-latest. This is an ASP.NET WEB FORMS app
+#             (net48, packages.config, .aspx). It needs MSBuild with the web
+#             workload, the 4.8 targeting pack and nuget.exe. The self-hosted
+#             agent has NONE of those - only a Roslyn-less MSBuild that ships
+#             with SSMS - and that box hosts ~40 live sites, so installing
+#             Visual Studio Build Tools on it is not worth the blast radius.
+#   Deploy -> the self-hosted agent, which runs ON the web server, so the deploy
+#             is a local file copy with no credentials and no open ports.
+#
+# THE ONE RULE: Web.config is owned by the SERVER and is never deployed.
+# The copy in this repo points at (localdb)\MSSQLLocalDB. The server's copy holds
+# the real connection string (SQL auth against webserver-vm-00\SQLEXPRESS). If a
+# deploy ever overwrites it the site fails on its first query. See CICD.md.
+
+name: vcheck-$(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  branches:
+    include:
+      - uat
+  paths:
+    exclude:
+      - README.md
+      - CLAUDE.md
+      - DEPLOYMENT.md
+      - CICD.md
+      - Database/**
+      - Tools/**
+
+variables:
+  solution:     'DSL_CMS.sln'
+  webProject:   'DSL_CMS/DSL_CMS.csproj'
+  buildConfig:  'Release'
+  siteName:     'vcheck.dsucceedlearners.com'
+  appPool:      'vcheck.dsucceedlearners.com'
+  backupRoot:   'C:\deploy-backups\vcheck.dsucceedlearners.com'
+  keepBackups:  5
+
+stages:
+# ---------------------------------------------------------------------------
+- stage: Build
+  displayName: 'Build (hosted)'
+  pool:
+    vmImage: 'windows-latest'
+  jobs:
+  - job: build
+    displayName: 'Compile and publish'
+    steps:
+      - checkout: self
+        clean: true
+
+      - task: NuGetToolInstaller@1
+        displayName: 'Install nuget.exe'
+
+      # packages.config style, so this is nuget restore - NOT dotnet restore.
+      - task: NuGetCommand@2
+        displayName: 'nuget restore'
+        inputs:
+          command: 'restore'
+          restoreSolution: '$(solution)'
+
+      # /t:WebPublish, NOT /t:Build /p:DeployOnBuild=true - the second exits 0
+      # and writes nothing, which is easy to mistake for a successful build.
+      # DebugSymbols/DebugType off keeps .pdb files (and the build machine's
+      # source paths) out of the output.
+      - task: VSBuild@1
+        displayName: 'MSBuild WebPublish'
+        inputs:
+          solution: '$(webProject)'
+          configuration: '$(buildConfig)'
+          msbuildArgs: >
+            /t:WebPublish
+            /p:WebPublishMethod=FileSystem
+            /p:publishUrl="$(Build.ArtifactStagingDirectory)\site"
+            /p:DeleteExistingFiles=true
+            /p:DebugSymbols=false
+            /p:DebugType=none
+
+      - powershell: |
+          $ErrorActionPreference = 'Stop'
+          $site = '$(Build.ArtifactStagingDirectory)\site'
+
+          if (-not (Test-Path "$site\bin\DSL_CMS.dll"))     { throw 'bin\DSL_CMS.dll missing - WebPublish produced nothing' }
+          if (-not (Test-Path "$site\bin\DSL_CMS.BAL.dll")) { throw 'bin\DSL_CMS.BAL.dll missing' }
+          if (-not (Test-Path "$site\bin\DSL_CMS.DAL.dll")) { throw 'bin\DSL_CMS.DAL.dll missing' }
+          if (-not (Test-Path "$site\login.aspx"))          { throw 'login.aspx missing' }
+          if (-not (Test-Path "$site\MasterPage.master"))   { throw 'MasterPage.master missing' }
+
+          # ClosedXML.pdb comes from the NuGet package rather than the compiler,
+          # so it survives DebugSymbols=false. Drop it with any other stragglers.
+          Get-ChildItem $site -Recurse -Filter *.pdb | ForEach-Object {
+            Write-Host "  dropping $($_.Name)"; Remove-Item $_.FullName -Force
+          }
+
+          # ---- THE CONNECTION-STRING GUARD, LAYER 1 ----
+          # Keep it as a template so a fresh server can be seeded by hand, but
+          # make sure NOTHING named Web.config leaves this stage.
+          $wc = Join-Path $site 'Web.config'
+          if (Test-Path $wc) {
+            $cs = ([xml](Get-Content $wc -Raw)).configuration.connectionStrings.add |
+                    Where-Object { $_.name -eq 'con' } | ForEach-Object { $_.connectionString }
+            Write-Host "Built Web.config points at: $cs"
+            Move-Item $wc (Join-Path $site 'Web.config.template') -Force
+            Write-Host 'Renamed Web.config -> Web.config.template (server owns the real one).'
+          } else {
+            Write-Host 'No Web.config in publish output.'
+          }
+          if (Test-Path $wc) { throw 'Web.config still present in the artifact' }
+
+          $n = (Get-ChildItem $site -Recurse -File).Count
+          $mb = [Math]::Round(((Get-ChildItem $site -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), 1)
+          Write-Host "Artifact: $n files, $mb MB"
+        displayName: 'Strip Web.config and verify output'
+
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish artifact'
+        inputs:
+          targetPath: '$(Build.ArtifactStagingDirectory)\site'
+          artifact: 'site'
+
+# ---------------------------------------------------------------------------
+- stage: Deploy
+  displayName: 'Deploy (self-hosted, on the web server)'
+  dependsOn: Build
+  condition: succeeded()
+  pool:
+    name: cicd-pool
+  jobs:
+  - job: deploy
+    displayName: 'Deploy to IIS'
+    steps:
+      - checkout: none
+
+      - task: DownloadPipelineArtifact@2
+        displayName: 'Download artifact'
+        inputs:
+          artifact: 'site'
+          path: '$(Pipeline.Workspace)/site'
+
+      # Read the path from IIS rather than hardcoding it, so a site that has been
+      # repointed fails loudly instead of deploying into an orphaned folder.
+      - powershell: |
+          $ErrorActionPreference = 'Stop'
+          Import-Module WebAdministration
+          $s = Get-Website | Where-Object { $_.Name -eq '$(siteName)' }
+          if (-not $s) { throw "IIS site '$(siteName)' not found" }
+          $path = [Environment]::ExpandEnvironmentVariables($s.PhysicalPath)
+          if (-not (Test-Path $path)) { throw "Site physical path does not exist: $path" }
+          Write-Host "Site root: $path (pool $($s.applicationPool))"
+          Write-Host "##vso[task.setvariable variable=sitePath]$path"
+        displayName: 'Resolve site path from IIS'
+
+      # ---- THE CONNECTION-STRING GUARD, LAYER 2 ----
+      # Snapshot before anything is touched, so we can both verify and restore.
+      - powershell: |
+          $ErrorActionPreference = 'Stop'
+          $wc = Join-Path '$(sitePath)' 'Web.config'
+          if (-not (Test-Path $wc)) {
+            throw "Web.config is missing from $(sitePath). The artifact deliberately does not carry one - seed it from Web.config.template and set the real connection string before deploying."
+          }
+          $h = (Get-FileHash $wc -Algorithm SHA256).Hash
+          $i = Get-Item $wc
+          $safe = Join-Path $env:TEMP "vcheck-webconfig-$(Build.BuildId).bak"
+          Copy-Item $wc $safe -Force
+
+          $cs = ([xml](Get-Content $wc -Raw)).configuration.connectionStrings.add |
+                  Where-Object { $_.name -eq 'con' } | ForEach-Object { $_.connectionString }
+          if (-not $cs) { throw 'Web.config has no connection string named "con" - SqlHelper.cs reads ConnectionStrings["con"] and every page goes through it.' }
+          $redacted = [regex]::Replace($cs, '(?i)(password|pwd)\s*=\s*[^;]*', '$1=***')
+
+          Write-Host "Protecting Web.config"
+          Write-Host "  sha256   : $h"
+          Write-Host "  size     : $($i.Length)"
+          Write-Host "  modified : $($i.LastWriteTimeUtc.ToString('o'))"
+          Write-Host "  conn     : $redacted"
+          Write-Host "  copy     : $safe"
+
+          Write-Host "##vso[task.setvariable variable=wcHash]$h"
+          Write-Host "##vso[task.setvariable variable=wcSize]$($i.Length)"
+          Write-Host "##vso[task.setvariable variable=wcTime]$($i.LastWriteTimeUtc.ToString('o'))"
+          Write-Host "##vso[task.setvariable variable=wcSafe]$safe"
+        displayName: 'Snapshot and protect Web.config'
+
+      - powershell: |
+          $ErrorActionPreference = 'Stop'
+          Import-Module WebAdministration
+          if ((Get-WebAppPoolState -Name '$(appPool)').Value -ne 'Stopped') {
+            Stop-WebAppPool -Name '$(appPool)'
+            $deadline = (Get-Date).AddSeconds(30)
+            do { Start-Sleep -Milliseconds 500; $st = (Get-WebAppPoolState -Name '$(appPool)').Value }
+            while ($st -ne 'Stopped' -and (Get-Date) -lt $deadline)
+            if ($st -ne 'Stopped') { throw "App pool did not stop (state=$st)" }
+          }
+          Write-Host 'App pool stopped (releases the bin\ DLL locks).'
+        displayName: 'Stop app pool'
+
+      - powershell: |
+          $ErrorActionPreference = 'Stop'
+          $dest = Join-Path '$(backupRoot)' '$(Build.BuildNumber)'
+          New-Item -ItemType Directory -Path $dest -Force | Out-Null
+          robocopy '$(sitePath)' $dest /E /NFL /NDL /NJH /NJS /NP /R:1 /W:1 | Out-Null
+          if ($LASTEXITCODE -ge 8) { throw "backup failed (robocopy $LASTEXITCODE)" }
+          Write-Host "Backed up to $dest"
+          Get-ChildItem '$(backupRoot)' -Directory |
+            Sort-Object LastWriteTime -Descending | Select-Object -Skip $(keepBackups) |
+            ForEach-Object { Write-Host "Pruning $($_.Name)"; Remove-Item $_.FullName -Recurse -Force }
+          $global:LASTEXITCODE = 0
+        displayName: 'Backup current deployment'
+
+      # ---- THE CONNECTION-STRING GUARD, LAYER 3 ----
+      # /XF excludes Web.config from BOTH the copy and /MIR's delete pass.
+      # /XD protects runtime data that only exists on the server.
+      - powershell: |
+          $ErrorActionPreference = 'Stop'
+          robocopy '$(Pipeline.Workspace)\site' '$(sitePath)' /MIR `
+            /XF Web.config `
+            /XD App_Data Uploads `
+            /NFL /NDL /NJH /NJS /NP /R:2 /W:2
+          $rc = $LASTEXITCODE
+          if ($rc -ge 8) { throw "robocopy failed with exit code $rc" }
+          Write-Host "robocopy completed (exit $rc = success)"
+          $global:LASTEXITCODE = 0
+        displayName: 'Deploy to IIS'
+
+      - powershell: |
+          $ErrorActionPreference = 'Stop'
+          Import-Module WebAdministration
+          Start-WebAppPool -Name '$(appPool)'
+          Start-Sleep -Seconds 3
+          Write-Host "App pool state: $((Get-WebAppPoolState -Name '$(appPool)').Value)"
+        displayName: 'Start app pool'
+
+      # ---- THE CONNECTION-STRING GUARD, VERIFICATION ----
+      # Deliberately runs AFTER the pool is back up. Detecting a problem is not a
+      # reason to leave the site down, so we restore, finish, and fail at the end.
+      - powershell: |
+          $ErrorActionPreference = 'Stop'
+          $wc = Join-Path '$(sitePath)' 'Web.config'
+          $problem = $null
+
+          if (-not (Test-Path $wc)) {
+            $problem = 'Web.config was DELETED by the deploy'
+          } else {
+            $now  = (Get-FileHash $wc -Algorithm SHA256).Hash
+            $item = Get-Item $wc
+            if ($now -ne '$(wcHash)') {
+              $problem = "Web.config CONTENT CHANGED (was $(wcHash), now $now)"
+            } elseif ($item.Length -ne [int]'$(wcSize)') {
+              $problem = "Web.config SIZE CHANGED (was $(wcSize), now $($item.Length))"
+            } else {
+              Write-Host 'Web.config verified UNCHANGED:'
+              Write-Host "  sha256   : $now  (matches)"
+              Write-Host "  size     : $($item.Length)  (matches)"
+              $t = $item.LastWriteTimeUtc.ToString('o')
+              if ($t -eq '$(wcTime)') { Write-Host "  modified : $t  (never written to)" }
+              else { Write-Host "  modified : $t  (was $(wcTime) - rewritten with identical bytes)" }
+              $cs = ([xml](Get-Content $wc -Raw)).configuration.connectionStrings.add |
+                      Where-Object { $_.name -eq 'con' } | ForEach-Object { $_.connectionString }
+              Write-Host ("  conn     : " + [regex]::Replace($cs,'(?i)(password|pwd)\s*=\s*[^;]*','$1=***'))
+              if ($cs -match 'localdb|MSSQLLocalDB') { $problem = 'Web.config now points at LocalDB - the development config reached the server' }
+            }
+          }
+
+          if ($problem) {
+            Write-Host "##vso[task.logissue type=error]$problem - restoring from the pre-deploy copy"
+            Copy-Item '$(wcSafe)' $wc -Force
+            Restart-WebAppPool -Name '$(appPool)'
+            Start-Sleep -Seconds 3
+            $rh = (Get-FileHash $wc -Algorithm SHA256).Hash
+            Write-Host "Restored Web.config, sha256 now $rh (expected $(wcHash))"
+            throw $problem
+          }
+        displayName: 'Verify Web.config survived'
+
+      - powershell: |
+          $ErrorActionPreference = 'Stop'
+          $failures = @()
+          function Check($path, $expect, $label) {
+            for ($i = 1; $i -le 6; $i++) {
+              try {
+                $r = Invoke-WebRequest -Uri "http://127.0.0.1$path" -Headers @{Host='$(siteName)'} `
+                       -UseBasicParsing -TimeoutSec 30 -MaximumRedirection 0 -ErrorAction Stop
+                if ($r.StatusCode -eq $expect) { Write-Host "  OK  $label -> $($r.StatusCode)"; return $r }
+                $last = "expected $expect got $($r.StatusCode)"
+              } catch {
+                $code = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
+                if ($code -eq $expect) { Write-Host "  OK  $label -> $code"; return $null }
+                $last = "expected $expect got $code"
+              }
+              Start-Sleep -Seconds 5
+            }
+            $script:failures += "$label $last"; return $null
+          }
+
+          $login = Check '/login.aspx' 200 'login page'
+          if ($login) {
+            # A Web Forms error page is still a 200, so check for real content.
+            if ($login.Content -notmatch '__VIEWSTATE')      { $failures += 'login.aspx rendered without __VIEWSTATE - not a working Web Forms page' }
+            if ($login.Content -match 'Server Error in|Stack Trace') { $failures += 'login.aspx is showing an ASP.NET error page' }
+          }
+          # Unauthenticated dashboard must bounce to login - proves auth still works.
+          Check '/dashboard.aspx' 302 'dashboard redirects when signed out' | Out-Null
+
+          if ($failures.Count) {
+            Write-Host '##vso[task.logissue type=error]Post-deploy checks failed'
+            $failures | ForEach-Object { Write-Host "  FAIL $_" }
+            throw "$($failures.Count) post-deploy check(s) failed"
+          }
+          Write-Host 'All post-deploy checks passed.'
+        displayName: 'Post-deploy health check'
