@@ -29,7 +29,7 @@
             <a class="brand" href="<%= ResolveUrl("~/voucher-status.aspx") %>">
                 <span class="mk"><img src="<%= ResolveUrl("~/assets/img/logo/logo.png") %>" alt="Succeed Learners" /></span>
                 <span class="wordmark">
-                    <b>UNIVERSITY&nbsp;PAYMENT</b>
+                    <b>VOUCHER&nbsp;CHECKING</b>
                     <span>Succeed Learners</span>
                 </span>
             </a>
