@@ -276,33 +276,60 @@ stages:
           }
         displayName: 'Verify Web.config survived'
 
+      # Uses HttpWebRequest rather than Invoke-WebRequest deliberately. In
+      # PowerShell 5.1, `Invoke-WebRequest -MaximumRedirection 0` raises an error
+      # whose .Response is NULL, so a perfectly good 302 reads back as 0 and the
+      # check fails against a healthy site. HttpWebRequest with
+      # AllowAutoRedirect=$false returns 3xx as an ordinary response.
       - powershell: |
           $ErrorActionPreference = 'Stop'
           $failures = @()
+
+          function Invoke-Probe($path) {
+            $req = [System.Net.WebRequest]::Create("http://127.0.0.1$path")
+            $req.Host = '$(siteName)'
+            $req.AllowAutoRedirect = $false
+            $req.Timeout = 30000
+            $req.UserAgent = 'vcheck-pipeline-healthcheck'
+            $resp = $null
+            try   { $resp = $req.GetResponse() }
+            catch [System.Net.WebException] { $resp = $_.Exception.Response }
+            if (-not $resp) { return @{ Code = 0; Body = ''; Location = '' } }
+            $code = [int]$resp.StatusCode
+            $loc  = $resp.Headers['Location']
+            $body = ''
+            try {
+              $sr = New-Object System.IO.StreamReader($resp.GetResponseStream())
+              $body = $sr.ReadToEnd(); $sr.Close()
+            } catch { }
+            $resp.Close()
+            return @{ Code = $code; Body = $body; Location = $loc }
+          }
+
           function Check($path, $expect, $label) {
+            $last = ''
             for ($i = 1; $i -le 6; $i++) {
-              try {
-                $r = Invoke-WebRequest -Uri "http://127.0.0.1$path" -Headers @{Host='$(siteName)'} `
-                       -UseBasicParsing -TimeoutSec 30 -MaximumRedirection 0 -ErrorAction Stop
-                if ($r.StatusCode -eq $expect) { Write-Host "  OK  $label -> $($r.StatusCode)"; return $r }
-                $last = "expected $expect got $($r.StatusCode)"
-              } catch {
-                $code = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
-                if ($code -eq $expect) { Write-Host "  OK  $label -> $code"; return $null }
-                $last = "expected $expect got $code"
+              $r = Invoke-Probe $path
+              if ($r.Code -eq $expect) {
+                $extra = if ($r.Location) { " -> $($r.Location)" } else { '' }
+                Write-Host "  OK  $label -> $($r.Code)$extra"
+                return $r
               }
+              $last = "expected $expect got $($r.Code)"
               Start-Sleep -Seconds 5
             }
-            $script:failures += "$label $last"; return $null
+            $script:failures += "$label $last"
+            return $null
           }
 
           $login = Check '/login.aspx' 200 'login page'
           if ($login) {
-            # A Web Forms error page is still a 200, so check for real content.
-            if ($login.Content -notmatch '__VIEWSTATE')      { $failures += 'login.aspx rendered without __VIEWSTATE - not a working Web Forms page' }
-            if ($login.Content -match 'Server Error in|Stack Trace') { $failures += 'login.aspx is showing an ASP.NET error page' }
+            # A Web Forms error page is also a 200, so status alone proves nothing.
+            if ($login.Body -notmatch '__VIEWSTATE')             { $failures += 'login.aspx rendered without __VIEWSTATE - not a working Web Forms page' }
+            if ($login.Body -match 'Server Error in|Stack Trace') { $failures += 'login.aspx is showing an ASP.NET error page' }
           }
-          # Unauthenticated dashboard must bounce to login - proves auth still works.
+          # Unauthenticated dashboard must bounce to login - proves authorisation
+          # still works after the deploy.
           Check '/dashboard.aspx' 302 'dashboard redirects when signed out' | Out-Null
 
           if ($failures.Count) {
