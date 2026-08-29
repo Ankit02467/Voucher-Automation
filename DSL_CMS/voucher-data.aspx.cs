@@ -1276,8 +1276,28 @@ namespace DSL_CMS
                 return;
             }
 
-            DataTable dt = VoucherBAL.BulkInsert(UploadProductId, payload, dealerPayload,
-                Convert.ToString(Session["UserId"]));
+            // The upload is the one screen that hands SQL a whole pasted sheet, so
+            // it is the one most able to find a shape the proc cannot take. An
+            // error page loses the paste and tells the uploader nothing they can
+            // act on; this keeps the modal open with their text still in it.
+            //
+            // It must never fall through to the success message. A failed upload
+            // that reports rows added is worse than the error page it replaces.
+            DataTable dt;
+            try
+            {
+                dt = VoucherBAL.BulkInsert(UploadProductId, payload, dealerPayload,
+                    Convert.ToString(Session["UserId"]));
+            }
+            catch (Exception ex)
+            {
+                // BulkInsert runs no transaction, so vouchers written before the
+                // failure stay written - say so rather than implying nothing saved.
+                ShowUploadError("The upload was stopped by a database error. Some vouchers "
+                    + "may already have been saved, so check the grid before trying again. "
+                    + "The database reported: " + ex.Message);
+                return;
+            }
 
             int inserted = 0, skipped = 0;
             if (dt != null && dt.Rows.Count > 0)
@@ -1391,6 +1411,12 @@ namespace DSL_CMS
 
             var sb = new StringBuilder();
             var dealers = new StringBuilder();
+
+            // Which (code, column) dealer slots have already been filled. A code
+            // that repeats is still one voucher, so its slots can only be claimed
+            // once - see the note where this is checked.
+            var dealerSlots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             string[] lines = pasted.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
 
             foreach (string raw in lines)
@@ -1443,6 +1469,22 @@ namespace DSL_CMS
                     // an empty pair still counts towards seq - the column it sits
                     // in is which dealer it is
                     if (dealer.Length == 0 && sale.Length == 0) continue;
+
+                    // BulkInsert groups @Data by code and then attaches dealers
+                    // to the one voucher that code became. So if the same code is
+                    // pasted on two lines and both carry a dealer in column 1,
+                    // both records arrive for the same voucher with Seq = 1 and
+                    // break UQ_VoucherDealer_Seq (VoucherId, Seq) - taking the
+                    // whole upload down AFTER the vouchers have been written,
+                    // since the proc runs no transaction. First line to fill a
+                    // slot keeps it; the repeat is dropped.
+                    //
+                    // The slot is claimed here rather than above, so a line that
+                    // leaves dealer 1 blank does not stop a later line filling it.
+                    //
+                    // The separator matters: joined without one, code "AWS101" in
+                    // column 1 and code "AWS10" in column 11 make the same key.
+                    if (!dealerSlots.Add(code + "\u001F" + seq)) continue;
 
                     if (dealers.Length > 0) dealers.Append('~');
                     dealers.Append(code).Append('|').Append(seq).Append('|')
