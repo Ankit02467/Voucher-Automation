@@ -36,6 +36,11 @@ Web.*.config
 # ---- Operational logs ----
 Tools/automove.log
 
+# ---- Session notes ----
+# Sits in the project root, so "git add -A" would otherwise pick it up. It
+# records deployed state and open security threads and is not for the repository.
+HANDOVER.md
+
 # ---- Claude Code ----
 # Machine-local permission approvals; not shared.
 .claude/settings.local.json

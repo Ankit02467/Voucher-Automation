@@ -527,11 +527,13 @@ namespace DSL_CMS
                 }
             }
 
-            // used date follows the check date, not the other way round
+            // Checked By sits next to the check date it belongs to, and the used
+            // date follows both. The body cells in the markup are in this same
+            // order - move one and the other has to move with it.
             t.Rows.Add("Status", "Voucher Status", string.Empty, string.Empty);
             t.Rows.Add("VoucherCheckDate", "Voucher Check Date", string.Empty, string.Empty);
-            t.Rows.Add("UsedDate", "Voucher Used Date", string.Empty, string.Empty);
             if (ShowCheckedBy) t.Rows.Add("CheckedBy", "Checked By", string.Empty, string.Empty);
+            t.Rows.Add("UsedDate", "Voucher Used Date", string.Empty, string.Empty);
             t.Rows.Add("CandidateName", "Candidate Name", string.Empty, string.Empty);
             t.Rows.Add("ExamDate", "Exam Date", string.Empty, string.Empty);
             t.Rows.Add("ExamMode", "Exam Mode", string.Empty, string.Empty);
@@ -1256,7 +1258,8 @@ namespace DSL_CMS
 
             int unreadableDates;
             string dealerPayload;
-            string payload = BuildPayload(txtPaste.Text, out dealerPayload, out unreadableDates);
+            List<string> codes;
+            string payload = BuildPayload(txtPaste.Text, out dealerPayload, out unreadableDates, out codes);
 
             if (payload.Length == 0)
             {
@@ -1286,8 +1289,14 @@ namespace DSL_CMS
             pnlUpload.Visible = false;
             txtPaste.Text = string.Empty;
 
+            // Two different things get called "duplicate" here, so they are
+            // reported separately. Skipped comes from the proc and counts codes
+            // that were already in the system; DuplicateNote counts lines that
+            // repeat inside this one paste, which the proc collapses before it
+            // ever gets as far as skipping anything.
             string message = inserted + " voucher(s) added.";
-            if (skipped > 0) message += " " + skipped + " skipped (duplicate code or blank row).";
+            if (skipped > 0) message += " " + skipped + " skipped - already in the system.";
+            message += DuplicateNote(codes);
             ShowMessage(message, inserted > 0);
 
             // Clear the filters so the rows just added are visible straight away.
@@ -1365,11 +1374,19 @@ namespace DSL_CMS
         /// <paramref name="unreadableDates"/> counts dates - expiry or sale -
         /// that carried something which could not be read, so the upload can say
         /// so instead of silently dropping them.
+        ///
+        /// <paramref name="codes"/> collects every voucher code the payload
+        /// carries, in the order it was pasted and repeats included, so the
+        /// upload can report what came in twice. It has to be gathered here
+        /// rather than by re-reading the paste: this is where a line becomes a
+        /// code, and a second reading could disagree with what was saved.
         /// </summary>
-        private static string BuildPayload(string pasted, out string dealerPayload, out int unreadableDates)
+        private static string BuildPayload(string pasted, out string dealerPayload,
+                                           out int unreadableDates, out List<string> codes)
         {
             unreadableDates = 0;
             dealerPayload = string.Empty;
+            codes = new List<string>();
             if (string.IsNullOrEmpty(pasted)) return string.Empty;
 
             var sb = new StringBuilder();
@@ -1403,6 +1420,7 @@ namespace DSL_CMS
                 }
 
                 if (code.Length == 0) continue;
+                codes.Add(code);
 
                 string date = NormaliseDate(rawDate);
                 if (rawDate.Length > 0 && date.Length == 0) unreadableDates++;
@@ -1434,6 +1452,82 @@ namespace DSL_CMS
 
             dealerPayload = dealers.ToString();
             return sb.ToString();
+        }
+
+        /// <summary>How many repeated codes the upload message names before it stops.</summary>
+        private const int MaxNamedDuplicates = 10;
+
+        /// <summary>
+        /// Names the codes one paste carried more than once, most-repeated first.
+        ///
+        /// These are invisible everywhere else. BulkInsert groups @Data by code
+        /// before it inserts, so three lines of AWS2236582 become one voucher -
+        /// and because Skipped counts distinct codes that were already in the
+        /// system, the other two are not reported as skipped either. Without
+        /// this note a three-line sheet reports "1 voucher(s) added" and never
+        /// says why the other two lines went nowhere.
+        ///
+        /// Compared case-insensitively, because that is what actually collapses
+        /// them: the proc groups on a code column whose collation ignores case,
+        /// so AWS100 and aws100 are one voucher there and must read as one here.
+        ///
+        /// Nothing is refused over this - the vouchers still save. The count is
+        /// the point: it tells the uploader their sheet has three copies, not
+        /// that the system lost two.
+        /// </summary>
+        private static string DuplicateNote(List<string> codes)
+        {
+            if (codes == null || codes.Count < 2) return string.Empty;
+
+            var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var firstSeen = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var order = new List<string>();
+
+            foreach (string code in codes)
+            {
+                int seen;
+                if (counts.TryGetValue(code, out seen))
+                {
+                    counts[code] = seen + 1;
+                }
+                else
+                {
+                    counts[code] = 1;
+                    firstSeen[code] = order.Count;
+                    order.Add(code);   // keeps the casing that was pasted first
+                }
+            }
+
+            var repeated = new List<string>();
+            foreach (string code in order)
+                if (counts[code] > 1) repeated.Add(code);
+
+            if (repeated.Count == 0) return string.Empty;
+
+            // Worst first, ties in paste order. The first-seen index is carried
+            // rather than looked up because List.Sort is not a stable sort -
+            // without it, equal counts would come back in an arbitrary order.
+            repeated.Sort(delegate (string a, string b)
+            {
+                int byCount = counts[b].CompareTo(counts[a]);
+                return byCount != 0 ? byCount : firstSeen[a].CompareTo(firstSeen[b]);
+            });
+
+            // One line on the screen - naming two hundred codes would bury the
+            // counts that matter.
+            int named = Math.Min(repeated.Count, MaxNamedDuplicates);
+            var list = new StringBuilder();
+
+            for (int i = 0; i < named; i++)
+            {
+                if (list.Length > 0) list.Append(", ");
+                list.Append(repeated[i]).Append(" (").Append(counts[repeated[i]]).Append(" times)");
+            }
+
+            if (repeated.Count > named)
+                list.Append(" and ").Append(repeated.Count - named).Append(" more");
+
+            return " Repeated in the pasted sheet, saved once each: " + list + ".";
         }
 
         private void ShowUploadError(string message)

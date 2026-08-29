@@ -321,8 +321,9 @@
                                 <td runat="server" visible='<%# ShowAddedBy %>'><%# Dash(Eval("AddedByName")) %></td>
                                 <%# DealerCells(Eval("DealerNames"), Eval("SaleDates")) %>
                                 <td><%# StatusBadge(Eval("Status")) %></td>
-                                <%-- check date first, used date after it - the cells
-                                     must stay in the order BindHead lists them --%>
+                                <%-- check date, then who checked it, then the used
+                                     date - the cells must stay in the order
+                                     BindHead lists them --%>
                                 <td>
                                     <asp:HiddenField runat="server" ID="hfCheckId" Value='<%# Eval("Id") %>' />
                                     <asp:CheckBox runat="server" ID="chkCheckDate" AutoPostBack="true"
@@ -333,8 +334,8 @@
                                         Text='<%# " " + DateOrDash(Eval("VoucherCheckDate")) %>' />
                                     <%# MoveNote(Eval("AutoMoveAfter")) %>
                                 </td>
-                                <td><%# DateOrDash(Eval("UsedDate")) %></td>
                                 <td runat="server" visible='<%# ShowCheckedBy %>'><%# Dash(Eval("CheckedBy")) %></td>
+                                <td><%# DateOrDash(Eval("UsedDate")) %></td>
                                 <td class="left"><%# Dash(Eval("CandidateName")) %></td>
                                 <td><%# DateOrDash(Eval("ExamDate")) %></td>
                                 <td><%# Dash(Eval("ExamMode")) %></td>
