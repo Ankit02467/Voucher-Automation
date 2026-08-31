@@ -1,6 +1,7 @@
 using DSL_CMS.BAL;
 using DSL_CMS.Helpers;
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Text;
 using System.Web.UI;
@@ -95,11 +96,45 @@ namespace DSL_CMS
             set { ViewState["Early"] = value; }
         }
 
-        /// <summary>Provider whose product list is currently expanded, if any.</summary>
-        private string ExpandedProvider
+        /// <summary>
+        /// Which providers have their product list open, as a delimited list of
+        /// ids. A set rather than the single id this used to hold: with one
+        /// value, opening a second provider silently shut the first, so clicking
+        /// "+" on one row made another row's products disappear.
+        ///
+        /// Kept as a string because ViewState has to serialise it, and this is a
+        /// handful of integers rather than a collection worth its own type.
+        /// </summary>
+        private string ExpandedProviders
         {
             get { return (string)(ViewState["Expanded"] ?? string.Empty); }
             set { ViewState["Expanded"] = value; }
+        }
+
+        private const char ExpandedSep = ',';
+
+        private bool IsProviderOpen(string id)
+        {
+            if (id.Length == 0) return false;
+
+            foreach (string held in ExpandedProviders.Split(ExpandedSep))
+                if (held == id) return true;
+
+            return false;
+        }
+
+        /// <summary>Opens or closes one provider, leaving every other one as it is.</summary>
+        private void SetProviderOpen(string id, bool open)
+        {
+            if (id.Length == 0) return;
+
+            var kept = new List<string>();
+            foreach (string held in ExpandedProviders.Split(ExpandedSep))
+                if (held.Length > 0 && held != id) kept.Add(held);
+
+            if (open) kept.Add(id);
+
+            ExpandedProviders = string.Join(ExpandedSep.ToString(), kept.ToArray());
         }
 
         private int PageIndex
@@ -219,7 +254,7 @@ namespace DSL_CMS
             // the row takes care of the scroll, which a fresh GET would otherwise
             // start at the top of the page.
             string from = (Request.QueryString["providerId"] ?? string.Empty).Trim();
-            if (from.Length > 0) ExpandedProvider = from;
+            if (from.Length > 0) SetProviderOpen(from, true);
 
             // The sidebar's Categories menu links back here with the category on
             // the query string; there is no chip row on the page any more.
@@ -437,11 +472,18 @@ namespace DSL_CMS
             lnkSortCount.ToolTip = SortTip(SortByCount);
         }
 
+        /// <summary>
+        /// Both sortable headings carry an icon at all times. One that shows
+        /// nothing until it is clicked does not look sortable, so nobody clicks
+        /// it. The glyphs match the ones the View Data grid already uses.
+        /// </summary>
         private string SortArrow(string key)
         {
-            if (!string.Equals(key, SortKey, StringComparison.Ordinal)) return string.Empty;
-            return SortDesc ? "<span class=\"vs-sortar\">&#9660;</span>"
-                            : "<span class=\"vs-sortar\">&#9650;</span>";
+            if (!string.Equals(key, SortKey, StringComparison.Ordinal))
+                return "<span class=\"vs-sortar\">&#8645;</span>";
+
+            return SortDesc ? "<span class=\"vs-sortar on\">&#9660;</span>"
+                            : "<span class=\"vs-sortar on\">&#9650;</span>";
         }
 
         private string SortTip(string key)
@@ -581,7 +623,7 @@ namespace DSL_CMS
             if (e.CommandName != "ToggleProducts") return;
 
             string id = Convert.ToString(e.CommandArgument);
-            ExpandedProvider = (ExpandedProvider == id) ? string.Empty : id;
+            SetProviderOpen(id, !IsProviderOpen(id));
 
             BindGrid();
         }
@@ -692,7 +734,7 @@ namespace DSL_CMS
 
         protected bool IsExpanded(object providerId)
         {
-            return string.Equals(Convert.ToString(providerId), ExpandedProvider, StringComparison.Ordinal);
+            return IsProviderOpen(Convert.ToString(providerId));
         }
 
         /// <summary>Used = red, Unused = green, Expired = yellow, Invalid = blue, Not Set = grey, All = plain.</summary>

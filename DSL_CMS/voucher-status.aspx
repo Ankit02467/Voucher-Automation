@@ -153,7 +153,7 @@
                                 OnCommand="sort_Command" CommandArgument="Name"
                                 CausesValidation="false">Provider<asp:Literal ID="litSortName" runat="server" /></asp:LinkButton>
                         </th>
-                        <th class="c" style="width: 120px;">
+                        <th class="c" style="width: 260px;">
                             <asp:LinkButton ID="lnkSortCount" runat="server" CssClass="vs-sortcol"
                                 OnCommand="sort_Command" CommandArgument="StatusCount"
                                 CausesValidation="false"><asp:Literal ID="litCountHead" runat="server" Text="All" /><asp:Literal ID="litSortCount" runat="server" /></asp:LinkButton>

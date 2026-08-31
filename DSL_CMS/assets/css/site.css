@@ -199,8 +199,11 @@ button.navitem.wide { padding-right: 66px; }
 .navtog { color: #93a6c9; }
 .navgroup.open > .navtog { color: #cfe0fb; }
 .navtog .chev { width: 16px; height: 16px; transition: transform .15s ease; }
-.navgroup.open > .navtog .chev,
-.navgroup.open > .navitem .chev { transform: rotate(90deg); }
+/* Open drops the upright stroke, turning the plus into a minus. The same
+   two-path icon the provider table on Voucher Status uses - no rotation,
+   because these are two states rather than one icon turning. */
+.navgroup.open > .navtog .chev .up,
+.navgroup.open > .navitem .chev .up { display: none; }
 
 /* Closed is the default so a menu of forty products does not unroll on a first
    visit; the group the current page belongs to is opened by the server. */
@@ -336,7 +339,7 @@ button.navitem.wide { padding-right: 66px; }
 /* ---- KPI cards ----
    Anchors, not divs: every card posts back to the rows it counted. The spans
    inside carry the layout because an <a> may not contain block elements. */
-.vs-kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+.vs-kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
 /* One pair per card - the border, the value and the arrow all take the same
    colour, so it is set once here rather than three times in the markup. */
 .k-total    { --cc: var(--brand);       --cbg: var(--brand-soft); }
@@ -347,8 +350,8 @@ button.navitem.wide { padding-right: 66px; }
 .k-notset   { --cc: var(--st-notset);   --cbg: var(--st-notset-bg); }
 .vs-kpi {
     display: block; background: var(--panel);
-    border: 1px solid var(--line); border-left: 4px solid var(--cc, var(--brand));
-    border-radius: var(--radius); padding: 12px 13px;
+    border: 1px solid var(--line); border-left: 3px solid var(--cc, var(--brand));
+    border-radius: var(--radius); padding: 8px 10px;
     box-shadow: var(--shadow); position: relative; overflow: hidden;
     color: var(--tx); transition: .15s;
 }
@@ -358,21 +361,21 @@ button.navitem.wide { padding-right: 66px; }
     border-left-color: var(--cc, var(--brand));
 }
 .vs-kpi .top { display: flex; align-items: center; justify-content: space-between; }
-.vs-kpi .lab { font-size: 12px; color: var(--tx-2); font-weight: 700; }
+.vs-kpi .lab { font-size: 10.5px; color: var(--tx-2); font-weight: 700; }
 .vs-kpi .ic {
-    width: 27px; height: 27px; border-radius: 8px; display: grid; place-items: center;
+    width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center;
     background: var(--cbg, var(--brand-soft)); color: var(--cc, var(--brand));
 }
-.vs-kpi .ic svg { width: 15px; height: 15px; stroke-width: 1.9; fill: none; stroke: currentColor; }
+.vs-kpi .ic svg { width: 12px; height: 12px; stroke-width: 1.9; fill: none; stroke: currentColor; }
 .vs-kpi .val {
-    display: block; font-size: 24px; font-weight: 800; margin-top: 6px;
+    display: block; font-size: 18px; font-weight: 800; margin-top: 2px;
     letter-spacing: -.03em; color: var(--cc, var(--tx));
 }
 /* Room kept on the right so a long subtitle never runs under the arrow. */
-.vs-kpi .sub { display: block; font-size: 11.5px; margin-top: 3px; color: var(--tx-3); padding-right: 22px; }
+.vs-kpi .sub { display: block; font-size: 9.5px; margin-top: 1px; color: var(--tx-3); padding-right: 16px; }
 .vs-kpi .sub b { font-weight: 700; }
-.vs-kpi .go { position: absolute; right: 14px; bottom: 13px; color: var(--cc, var(--brand)); opacity: .55; transition: .15s; }
-.vs-kpi .go svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.4; display: block; }
+.vs-kpi .go { position: absolute; right: 8px; bottom: 7px; color: var(--cc, var(--brand)); opacity: .5; transition: .15s; }
+.vs-kpi .go svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2.4; display: block; }
 .vs-kpi:hover .go { opacity: 1; transform: translateX(2px); }
 .vs-up { color: var(--st-unused); } .vs-down { color: var(--st-used); }
 
@@ -451,7 +454,9 @@ button.navitem.wide { padding-right: 66px; }
     display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
 }
 .vs-sortcol:hover { color: var(--brand); text-decoration: none; }
-.vs-sortar { font-size: 8.5px; color: var(--brand); line-height: 1; }
+.vs-sortar { font-size: 9px; color: var(--tx-3); line-height: 1; opacity: .55; }
+.vs-sortar.on { color: var(--brand); opacity: 1; }
+.vs-sortcol:hover .vs-sortar { opacity: 1; }
 .vs-page tbody td { padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: middle; }
 .vs-page tbody tr:last-child td { border-bottom: 0; }
 .vs-page tbody tr { transition: .12s; }
