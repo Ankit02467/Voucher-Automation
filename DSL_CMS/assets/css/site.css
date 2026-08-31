@@ -339,7 +339,11 @@ button.navitem.wide { padding-right: 66px; }
 /* ---- KPI cards ----
    Anchors, not divs: every card posts back to the rows it counted. The spans
    inside carry the layout because an <a> may not contain block elements. */
-.vs-kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+/* Capped rather than 1fr: at full width six cards stretched across the page and
+   each one was mostly empty space around a two-digit number. They now take the
+   width their contents need and stop, sitting left rather than spreading. */
+.vs-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 152px));
+           justify-content: start; gap: 8px; }
 /* One pair per card - the border, the value and the arrow all take the same
    colour, so it is set once here rather than three times in the markup. */
 .k-total    { --cc: var(--brand);       --cbg: var(--brand-soft); }
@@ -449,8 +453,13 @@ button.navitem.wide { padding-right: 66px; }
 .vs-page tbody td.r { text-align: right; }
 
 /* ---- a sortable heading ---- */
+/* colour and case are set outright rather than inherited: an <a> in a <th>
+   otherwise takes the global link colour, and "inherit" leaves the label at the
+   mercy of whatever the cell happens to carry. nowrap so a narrow column
+   shortens the column, never the word. */
 .vs-sortcol {
-    color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit;
+    color: var(--tx-3); font: inherit; font-size: 11px; font-weight: 700;
+    letter-spacing: .1em; text-transform: uppercase; white-space: nowrap;
     display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
 }
 .vs-sortcol:hover { color: var(--brand); text-decoration: none; }
@@ -468,7 +477,9 @@ button.navitem.wide { padding-right: 66px; }
 /* The whole name block opens the products, so it is one control rather than a
    caret you have to hit. */
 .vs-prov { display: flex; align-items: center; }
-.vs-provtoggle { display: flex; align-items: center; gap: 13px; color: inherit; }
+/* Tight gap: the + belongs to the provider beside it. At 13px it read as three
+   separate things sitting in a row rather than one control. */
+.vs-provtoggle { display: flex; align-items: center; gap: 7px; color: inherit; }
 .vs-provtoggle:hover { text-decoration: none; }
 .vs-provtoggle:hover b { color: var(--brand); }
 .vs-prov .logo {
@@ -553,8 +564,8 @@ button.navitem.wide { padding-right: 66px; }
 .vs-empty { padding: 34px 18px; text-align: center; color: var(--tx-3); font-size: 14px; }
 .vs-tfoot b { color: var(--tx); font-weight: 700; }
 
-@media (max-width: 1600px) { .vs-kpis { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 1180px) { .vs-kpis { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 1180px) { .vs-kpis { grid-template-columns: repeat(3, minmax(0, 152px)); } }
+@media (max-width:  760px) { .vs-kpis { grid-template-columns: repeat(2, minmax(0, 152px)); } }
 @media (max-width: 760px) {
     .vs-kpis { grid-template-columns: 1fr; }
     .topbar .crumb, .topbar .tbdate { display: none; }

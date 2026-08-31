@@ -148,10 +148,18 @@
                         <th style="width: 64px;">S.No</th>
                         <%-- Provider and the count both sort. The heading itself is
                              the control, so there is nothing extra to aim at. --%>
-                        <th>
+                        <th style="min-width: 220px;">
+                            <%-- The label is a Literal, not bare text. A LinkButton
+                                 that is handed loose text alongside a child control
+                                 pulls that text into its Text property during
+                                 parsing, and the heading came back EMPTY on every
+                                 postback - which is what made the Provider column
+                                 look like it had disappeared. The count heading
+                                 beside it was never affected because it was already
+                                 built out of controls only. --%>
                             <asp:LinkButton ID="lnkSortName" runat="server" CssClass="vs-sortcol"
                                 OnCommand="sort_Command" CommandArgument="Name"
-                                CausesValidation="false">Provider<asp:Literal ID="litSortName" runat="server" /></asp:LinkButton>
+                                CausesValidation="false"><asp:Literal ID="litNameHead" runat="server" Text="Provider" /><asp:Literal ID="litSortName" runat="server" /></asp:LinkButton>
                         </th>
                         <th class="c" style="width: 260px;">
                             <asp:LinkButton ID="lnkSortCount" runat="server" CssClass="vs-sortcol"
