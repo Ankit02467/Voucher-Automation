@@ -13,7 +13,7 @@ namespace DSL_CMS
     {
         #region Controls
 
-        protected Literal litProvider, litRole, litMsg, litCount, litPageInfo, litEditTitle,
+        protected Literal litProvider, litMsg, litCount, litPageInfo, litEditTitle,
                           litUploadMsg, litUploadHint, litAssignMsg, litAssignCount,
                           litAssignTitle, litAssignBox, litAssignEmpty,
                           litGridTitle, litReassignMsg, litReassignCode,
@@ -315,7 +315,6 @@ namespace DSL_CMS
 
         private void ApplyRole()
         {
-            litRole.Text = Server.HtmlEncode(Role);
             litProvider.Text = ProviderName();
 
             pnlRoleNote.Visible = RoleUnmapped;

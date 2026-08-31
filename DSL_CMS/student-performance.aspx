@@ -10,7 +10,6 @@
         <a class="btn-back" href='<%= ResolveUrl("~/voucher-status.aspx") %>'
            title="Back to Voucher Status">&#8592; Back</a>
         <h1>Student wise Performance</h1>
-        <span class="role-chip"><asp:Literal ID="litRole" runat="server" /></span>
     </div>
 
     <asp:Panel ID="pnlDenied" runat="server" Visible="false" CssClass="msg msg-bad">

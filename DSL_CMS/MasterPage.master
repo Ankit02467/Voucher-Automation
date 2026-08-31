@@ -67,10 +67,8 @@
                         <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v4a2 2 0 000 4v4H4v-4a2 2 0 000-4zM10 6v12" /></svg>
                         <span>Voucher Status</span>
-                        <%-- "+" closed, "-" open, the same as the provider table
-                             on Voucher Status. CSS drops the upright stroke. --%>
                         <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                             stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14" /><path class="up" d="M12 5v14" /></svg>
+                             stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" /></svg>
                     </button>
                     <%-- Adds a provider to the tree this entry opens. A link, not
                          a toggle, so it sits outside the button rather than
@@ -95,7 +93,7 @@
                                     </a>
                                     <button type="button" class="navtog" data-nav-toggle aria-label="Show or hide the products">
                                         <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                             stroke-width="2.8" stroke-linecap="round"><path d="M5 12h14" /><path class="up" d="M12 5v14" /></svg>
+                                             stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" /></svg>
                                     </button>
                                     <div class="navbody">
                                         <%# NavProducts(Eval("Id"), Eval("ProductNames"), Eval("ProductIds"), Eval("ProductCounts")) %>

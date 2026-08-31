@@ -20,7 +20,6 @@
         <a class="btn-back" href='<%= BackUrl %>'
            title="Back to Voucher Status">&#8592; Back</a>
         <h1><asp:Literal ID="litProvider" runat="server" Text="Voucher Data" /></h1>
-        <span class="role-chip"><asp:Literal ID="litRole" runat="server" /></span>
 
         <span class="spacer"></span>
 

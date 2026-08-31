@@ -18,9 +18,6 @@ namespace DSL_CMS
         protected Repeater rptProviders;
         protected PlaceHolder phEmpty;
         protected Panel pnlBody, pnlDenied;
-        protected Literal litRole;
-
-        private const string RoleAdmin = "Voucher Admin";
 
         /// <summary>Provider whose product breakdown is currently open, if any.</summary>
         private string ExpandedProvider
@@ -49,13 +46,11 @@ namespace DSL_CMS
             {
                 pnlBody.Visible = false;
                 pnlDenied.Visible = true;
-                litRole.Text = "No access";
                 return;
             }
 
             if (IsPostBack) return;
 
-            litRole.Text = RoleAdmin;
             BindGrid();
         }
 

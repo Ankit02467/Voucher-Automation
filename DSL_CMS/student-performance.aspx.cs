@@ -17,7 +17,6 @@ namespace DSL_CMS
         protected Repeater rptProvider, rptPerformance;
         protected PlaceHolder phEmpty;
         protected Panel pnlBody, pnlDenied;
-        protected Literal litRole;
 
         private const string RoleAdmin = "Voucher Admin";
         private const string RoleSubAdmin = "Voucher Sub Admin";
@@ -40,7 +39,6 @@ namespace DSL_CMS
             if (IsPostBack) return;
 
             ResolveRole();
-            litRole.Text = Server.HtmlEncode(Role);
 
             // Sub-admin sees this screen too - it is not admin-only.
             bool allowed = (Role == RoleAdmin || Role == RoleSubAdmin);

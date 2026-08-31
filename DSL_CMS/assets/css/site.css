@@ -199,11 +199,10 @@ button.navitem.wide { padding-right: 66px; }
 .navtog { color: #93a6c9; }
 .navgroup.open > .navtog { color: #cfe0fb; }
 .navtog .chev { width: 16px; height: 16px; transition: transform .15s ease; }
-/* Open drops the upright stroke, turning the plus into a minus. The same
-   two-path icon the provider table on Voucher Status uses - no rotation,
-   because these are two states rather than one icon turning. */
-.navgroup.open > .navtog .chev .up,
-.navgroup.open > .navitem .chev .up { display: none; }
+/* Open turns the arrow a quarter turn, so it points down at what it opened -
+   the same arrow the provider table on Voucher Status uses. */
+.navgroup.open > .navtog .chev,
+.navgroup.open > .navitem .chev { transform: rotate(90deg); }
 
 /* Closed is the default so a menu of forty products does not unroll on a first
    visit; the group the current page belongs to is opened by the server. */
@@ -316,7 +315,7 @@ button.navitem.wide { padding-right: 66px; }
     font-size: 13.5px; color: var(--tx); width: 100%;
 }
 
-.content { padding: 26px 28px 40px; }
+.content { padding: 0px 28px 40px; }
 
 /* ============================================================
    Voucher Status dashboard
@@ -707,12 +706,6 @@ button.navitem.wide { padding-right: 66px; }
     font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px;
 }
 .toolbar .spacer { margin-left: auto; }
-
-.role-chip {
-    display: inline-flex; align-items: center; gap: 8px;
-    background: var(--blue-soft); color: var(--navy-ink);
-    border-radius: 999px; padding: 5px 14px; font-size: 12px; font-weight: 700;
-}
 
 .note {
     background: #fffbeb; border: 1px solid #fcd34d; color: #92400e;
