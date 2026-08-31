@@ -323,7 +323,7 @@ button.navitem.wide { padding-right: 66px; }
    source design styles bare `table`, `.btn`, `.chip` and `.pg`, all of
    which already mean something on the other screens.
    ============================================================ */
-.vs-page { display: flex; flex-direction: column; gap: 20px; letter-spacing: -.01em; }
+.vs-page { display: flex; flex-direction: column; gap: 5px; letter-spacing: -.01em; }
 .vs-num { font-variant-numeric: tabular-nums; }
 
 /* The server-rendered Panels wrap several blocks in one div, so .vs-page's own
