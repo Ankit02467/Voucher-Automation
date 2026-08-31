@@ -985,6 +985,75 @@ table.data td.empty { padding: 34px; color: var(--muted); }
 .tile.bad { border-left-color: var(--bad); }
 
 .filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+
+/* ---------------- View Data: counts and status buttons ----------------
+   What stands where the filter bar used to. Plainer than the dashboard cards
+   on purpose: those are a way in to a screen and carry a trend and an arrow,
+   these only say how much of what is already in front of you. The colour is
+   a left edge and the figure, nothing more. */
+.vd-status { margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; }
+
+.vd-cards { display: flex; flex-wrap: wrap; gap: 10px; }
+.vd-card {
+    display: flex; flex-direction: column; gap: 2px;
+    min-width: 132px; padding: 9px 14px;
+    background: var(--panel); border: 1px solid var(--line);
+    border-left: 3px solid var(--cc, var(--line-2));
+    border-radius: 10px;
+}
+.vd-card .lab { font-size: 11.5px; font-weight: 700; color: var(--tx-3); white-space: nowrap; }
+.vd-card .val { font-size: 19px; font-weight: 800; color: var(--cc, var(--tx)); line-height: 1.15; }
+.vd-card.s-total    { --cc: var(--brand); }
+.vd-card.s-used     { --cc: var(--st-used); }
+.vd-card.s-unused   { --cc: var(--st-unused); }
+.vd-card.s-notset   { --cc: var(--st-notset); }
+.vd-card.s-invalid  { --cc: var(--st-invalid); }
+.vd-card.s-expiring { --cc: var(--st-expired); }
+
+.vd-pills { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.vd-plab {
+    font-size: 11px; font-weight: 800; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--tx-3); margin-right: 4px;
+}
+.vd-pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 14px; border-radius: 999px;
+    background: var(--panel); border: 1px solid var(--line-2);
+    color: var(--tx-2); font-size: 13px; font-weight: 700; cursor: pointer;
+    transition: .15s; white-space: nowrap;
+}
+.vd-pill:hover { border-color: var(--brand); color: var(--brand); text-decoration: none; }
+.vd-pill .pip { width: 7px; height: 7px; border-radius: 50%; background: var(--cc, var(--tx-3)); }
+/* The lit one is filled rather than outlined, so which slice is showing reads
+   at a glance from across the row. */
+.vd-pill.on {
+    background: var(--brand); border-color: var(--brand); color: #fff;
+    box-shadow: 0 6px 16px rgba(46,107,230,.24);
+}
+.vd-pill.on:hover { color: #fff; }
+.vd-pill.on .pip { background: rgba(255,255,255,.85); }
+.vd-pill.s-all     { --cc: var(--brand); }
+.vd-pill.s-notset  { --cc: var(--st-notset); }
+.vd-pill.s-used    { --cc: var(--st-used); }
+.vd-pill.s-unused  { --cc: var(--st-unused); }
+.vd-pill.s-expired { --cc: var(--st-expired); }
+.vd-pill.s-invalid { --cc: var(--st-invalid); }
+
+/* Where the topbar search lands. Says what is being looked at, and offers the
+   way back out of it - the job Reset used to do. */
+.vd-chip {
+    display: inline-flex; align-items: center; gap: 7px; margin-left: auto;
+    padding: 6px 8px 6px 13px; border-radius: 999px;
+    background: var(--brand-soft); border: 1px solid var(--blue-line);
+    color: var(--navy-ink); font-size: 12.5px; font-weight: 600;
+}
+.vd-chip b { font-weight: 800; }
+.vd-chip a {
+    display: grid; place-items: center; width: 20px; height: 20px;
+    border-radius: 50%; color: var(--tx-2); font-size: 11px; line-height: 1;
+}
+.vd-chip a:hover { background: var(--brand); color: #fff; text-decoration: none; }
+
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field label { font-size: 12px; color: var(--muted); font-weight: 600; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 14px; }

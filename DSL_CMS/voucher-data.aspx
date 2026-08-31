@@ -55,44 +55,69 @@
         <asp:Literal ID="litMsg" runat="server" />
     </asp:Panel>
 
-    <%-- ---------------- Filters ---------------- --%>
-    <div class="card">
-        <div class="card-head"><h2>Filters</h2></div>
-        <div class="card-body">
-            <div class="filters">
-                <div class="field">
-                    <label>Product Name</label>
-                    <asp:DropDownList ID="ddlFilterProduct" runat="server" />
-                </div>
-                <div class="field">
-                    <label>Voucher Code</label>
-                    <asp:TextBox ID="txtFilterCode" runat="server" />
-                </div>
-                <asp:Panel ID="pnlFilterDealer" runat="server" CssClass="field">
-                    <label>Dealer Name</label>
-                    <asp:TextBox ID="txtFilterDealer" runat="server" />
-                </asp:Panel>
-                <div class="field">
-                    <label>Expiry Date</label>
-                    <asp:TextBox ID="txtFilterExpiry" runat="server" TextMode="Date" />
-                </div>
-                <div class="field">
-                    <label>Voucher Check Date</label>
-                    <asp:TextBox ID="txtFilterCheckDate" runat="server" TextMode="Date" />
-                </div>
-                <div class="field">
-                    <label>Checked By</label>
-                    <asp:DropDownList ID="ddlFilterCheckedBy" runat="server" />
-                </div>
-                <div class="field">
-                    <asp:Button ID="btnSearch" runat="server" CssClass="btn" Text="Search"
-                        OnClick="btnSearch_Click" CausesValidation="false" />
-                </div>
-                <div class="field">
-                    <asp:Button ID="btnResetFilter" runat="server" CssClass="btn btn-light" Text="Reset"
-                        OnClick="btnResetFilter_Click" CausesValidation="false" />
-                </div>
+    <%-- ---------------- Status ----------------
+         This replaced the filter bar. The counts describe whatever this screen
+         was opened on - a whole provider, or one product of it - so landing on
+         AWS reads against its 17 and landing on Associate reads against its 12.
+         The buttons narrow the grid inside that same set, which is why a card
+         and the button beside it never disagree: both are counted from one
+         fetch, in BindGrid, rather than each asking the database its own
+         question.
+
+         The cards are deliberately plain. The dashboard's are the way in to a
+         screen and carry a trend line and an arrow; these are only saying how
+         much of what is in front of you. --%>
+    <div class="vd-status">
+        <div class="vd-cards">
+            <div class="vd-card s-total">
+                <span class="lab">Total vouchers</span>
+                <span class="val vs-num"><asp:Literal ID="litCardTotal" runat="server" Text="0" /></span>
             </div>
+            <div class="vd-card s-used">
+                <span class="lab">Used</span>
+                <span class="val vs-num"><asp:Literal ID="litCardUsed" runat="server" Text="0" /></span>
+            </div>
+            <div class="vd-card s-unused">
+                <span class="lab">Unused</span>
+                <span class="val vs-num"><asp:Literal ID="litCardUnused" runat="server" Text="0" /></span>
+            </div>
+            <div class="vd-card s-notset">
+                <span class="lab">Not set</span>
+                <span class="val vs-num"><asp:Literal ID="litCardNotSet" runat="server" Text="0" /></span>
+            </div>
+            <div class="vd-card s-invalid">
+                <span class="lab">Invalid</span>
+                <span class="val vs-num"><asp:Literal ID="litCardInvalid" runat="server" Text="0" /></span>
+            </div>
+            <%-- Same meaning as the card of this name on the dashboard: unused
+                 and not-set only, within 30 days. Two screens using one phrase
+                 for two different sums would be worse than not showing it. --%>
+            <div class="vd-card s-expiring">
+                <span class="lab">Expiring soon</span>
+                <span class="val vs-num"><asp:Literal ID="litCardExpiring" runat="server" Text="0" /></span>
+            </div>
+        </div>
+
+        <div class="vd-pills">
+            <span class="vd-plab">Status</span>
+            <asp:Repeater ID="rptStatusPills" runat="server" OnItemCommand="rptStatusPills_ItemCommand">
+                <ItemTemplate>
+                    <asp:LinkButton runat="server" CommandName="PickStatus"
+                        CommandArgument='<%# Eval("Value") %>'
+                        CssClass='<%# StatusPillClass(Eval("Value")) %>'
+                        CausesValidation="false"><span class="pip"></span><asp:Literal runat="server" Text='<%# Eval("Text") %>' /></asp:LinkButton>
+                </ItemTemplate>
+            </asp:Repeater>
+
+            <%-- The topbar search lands here. With no filter bar left to show
+                 the code in, this says what is being looked at and offers the
+                 way out of it. --%>
+            <asp:Panel ID="pnlSearchChip" runat="server" Visible="false" CssClass="vd-chip">
+                <span>Showing results for</span>
+                <b><asp:Literal ID="litSearchChip" runat="server" /></b>
+                <asp:LinkButton ID="lnkClearSearch" runat="server" OnClick="lnkClearSearch_Click"
+                    CausesValidation="false" ToolTip="Clear this search">&#10005;</asp:LinkButton>
+            </asp:Panel>
         </div>
     </div>
 

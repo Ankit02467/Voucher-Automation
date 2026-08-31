@@ -17,26 +17,28 @@ namespace DSL_CMS
                           litUploadMsg, litUploadHint, litAssignMsg, litAssignCount,
                           litAssignTitle, litAssignBox, litAssignEmpty,
                           litGridTitle, litReassignMsg, litReassignCode,
-                          litHistCode, litHistSummary;
+                          litHistCode, litHistSummary, litSearchChip,
+                          litCardTotal, litCardUsed, litCardUnused, litCardNotSet,
+                          litCardInvalid, litCardExpiring;
         protected Panel pnlBody, pnlDenied,
                         pnlMsg, pnlRoleNote, pnlRoleSwitch, pnlEdit, pnlEditDealer, pnlEditStatus, pnlEditAdmin,
                         pnlUsedDate, pnlUpload, pnlUploadMsg, pnlHistory, pnlAssign, pnlAssignMsg,
-                        pnlFilterDealer, pnlReassign, pnlReassignMsg,
+                        pnlSearchChip, pnlReassign, pnlReassignMsg,
                         pnlStatusButtons, pnlStatusDropdown, pnlStatusExtras;
         protected LinkButton lnkStatusUsed, lnkStatusUnused, lnkStatusInvalid;
-        protected DropDownList ddlRoleSwitch, ddlFilterProduct, ddlFilterCheckedBy,
+        protected DropDownList ddlRoleSwitch,
                                ddlEditStatus, ddlExamMode, ddlAssignProduct, ddlReassignStudent,
                                ddlAdminStatus;
-        protected TextBox txtFilterCode, txtFilterDealer, txtFilterCheckDate, txtFilterExpiry,
-                          txtUsedDate, txtCandidate, txtExamDate, txtPaste, txtAssignCount,
+        protected TextBox txtUsedDate, txtCandidate, txtExamDate, txtPaste, txtAssignCount,
                           txtAdminCode, txtAdminExpiry, txtAdminCheckDate, txtAdminUsedDate,
                           txtAdminAddedBy, txtAdminCandidate, txtAdminExamDate, txtAdminExamMode;
         protected HiddenField hfId, hfReassignId;
         protected LinkButton lnkUpload, lnkAssign, lnkDone, lnkAddDealer, lnkPrev, lnkNext;
         protected Repeater rptHead, rptVoucher, rptPager, rptUploadProduct, rptHistory,
-                           rptAssignVouchers, rptStudents, rptDealerEdit, rptAdminDealers;
+                           rptAssignVouchers, rptStudents, rptDealerEdit, rptAdminDealers,
+                           rptStatusPills;
         protected PlaceHolder phEmpty, phPager, phHistoryEmpty, phAssignEmpty, phStudentsEmpty;
-        protected Button btnSearch, btnResetFilter, btnSaveEdit, btnCancelEdit,
+        protected Button btnSaveEdit, btnCancelEdit,
                          btnUploadSave, btnAssignPick, btnAssignSave, btnReassignSave;
         protected System.Web.UI.HtmlControls.HtmlGenericControl divEditModal, divStatusFields;
 
@@ -105,6 +107,48 @@ namespace DSL_CMS
         }
 
         protected bool HasProductLock { get { return LockedProductId.Length > 0; } }
+
+        /// <summary>
+        /// Name behind <see cref="LockedProductId"/>, remembered when the product
+        /// list is bound. It used to be read back out of the filter dropdown; there
+        /// is no dropdown any more, and re-querying for one string on every
+        /// postback would be a database round trip to print a heading.
+        /// </summary>
+        private string LockedProductNameValue
+        {
+            get { return (string)(ViewState["LockedProductName"] ?? string.Empty); }
+            set { ViewState["LockedProductName"] = value; }
+        }
+
+        /// <summary>
+        /// The voucher code being searched for, handed over by the box in the
+        /// topbar. Held here rather than in a textbox because the filter bar it
+        /// used to live in has gone; the chip above the grid shows it and clears it.
+        /// </summary>
+        private string SearchCode
+        {
+            get { return (string)(ViewState["SearchCode"] ?? string.Empty); }
+            set { ViewState["SearchCode"] = value; }
+        }
+
+        /// <summary>
+        /// The status buttons. "All" carries an empty value because that is what
+        /// <see cref="StatusFilter"/> holds for no restriction, so the lit button
+        /// falls out of a plain comparison.
+        ///
+        /// Note there is no button for the early-expiry status the dashboard can
+        /// hand down. That is deliberate: arriving on it lights nothing, exactly
+        /// as it lights no pill on the dashboard, and any button clears it.
+        /// </summary>
+        private static readonly ListItem[] StatusFilterButtons =
+        {
+            new ListItem("All",     string.Empty),
+            new ListItem("Not Set", "NotSet"),
+            new ListItem("Used",    "Used"),
+            new ListItem("Unused",  "Unused"),
+            new ListItem("Expired", "Expired"),
+            new ListItem("Invalid", "Invalid")
+        };
 
         /// <summary>
         /// Back to Voucher Status, carrying the provider so its row reopens and
@@ -287,15 +331,13 @@ namespace DSL_CMS
             // filter this screen already has rather than a state of its own, so it
             // shows in the filter bar where it can be seen and changed, and Reset
             // clears it like anything else typed there.
-            string searched = (Request.QueryString["code"] ?? string.Empty).Trim();
-            if (searched.Length > 0) txtFilterCode.Text = searched;
+            SearchCode = (Request.QueryString["code"] ?? string.Empty).Trim();
 
             ResolveRole();
             InitDealerColumns();
             ApplyRole();
 
             BindProducts();
-            BindCheckedBy();
             BindGrid();
         }
 
@@ -334,7 +376,6 @@ namespace DSL_CMS
             lnkDone.Visible = (Role == RoleSubAdmin);
             lnkDone.Text = DoneMode ? "View Open Entries" : "View Done Entries";
 
-            pnlFilterDealer.Visible = ShowDealers;
             ApplyGridTitle();
         }
 
@@ -400,8 +441,6 @@ namespace DSL_CMS
         {
             DataTable dt = VoucherBAL.GetProductDetail(ProviderId, string.Empty, "SelectDropdown");
 
-            ddlFilterProduct.Items.Clear();
-            ddlFilterProduct.Items.Add(new ListItem("-- All --", string.Empty));
             ddlAssignProduct.Items.Clear();
             ddlAssignProduct.Items.Add(new ListItem("-- All --", string.Empty));
 
@@ -410,63 +449,78 @@ namespace DSL_CMS
             {
                 string id = Convert.ToString(r["Id"]);
                 string name = Convert.ToString(r["Name"]);
-                ddlFilterProduct.Items.Add(new ListItem(name, id));
                 ddlAssignProduct.Items.Add(new ListItem(name, id));
-            }
 
-            // arrived by clicking a product on the dashboard - open on that product
-            if (HasProductLock) SelectIfPresent(ddlFilterProduct, LockedProductId);
+                // arrived by clicking a product on the dashboard - keep its name
+                // for the heading
+                if (HasProductLock && id == LockedProductId) LockedProductNameValue = name;
+            }
         }
 
         /// <summary>Product name behind the lock, for the grid heading.</summary>
         private string LockedProductName()
         {
-            if (!HasProductLock) return string.Empty;
-            ListItem item = ddlFilterProduct.Items.FindByValue(LockedProductId);
-            return (item == null) ? string.Empty : item.Text;
+            return HasProductLock ? LockedProductNameValue : string.Empty;
         }
 
-        private void BindCheckedBy()
+        private void BindStatusFilter()
         {
-            ddlFilterCheckedBy.Items.Clear();
-            ddlFilterCheckedBy.Items.Add(new ListItem("-- All --", string.Empty));
+            rptStatusPills.DataSource = StatusFilterButtons;
+            rptStatusPills.DataBind();
+        }
 
-            DataTable dt = VoucherBAL.GetCheckedByList(ProviderId);
-            if (dt == null) return;
-
-            foreach (DataRow r in dt.Rows)
-            {
-                string v = Convert.ToString(r["CheckedBy"]);
-                ddlFilterCheckedBy.Items.Add(new ListItem(v, v));
-            }
+        /// <summary>Which button is lit. "All" is the empty value, so it lights
+        /// when nothing is filtered without needing a case of its own.</summary>
+        protected string StatusPillClass(object buttonValue)
+        {
+            string v = Convert.ToString(buttonValue);
+            string css = "vd-pill s-" + (v.Length == 0 ? "all" : v.ToLowerInvariant());
+            return string.Equals(v, StatusFilter, StringComparison.OrdinalIgnoreCase)
+                 ? css + " on" : css;
         }
 
         private void BindGrid()
         {
-            DataTable dt = VoucherBAL.GetVoucherDetail(
+            // Fetched once and WITHOUT the status, because the cards have to be
+            // able to see past whichever button is pressed - otherwise picking
+            // Used would leave every other card reading zero. The status is
+            // applied below, in memory, so a card and the button beside it are
+            // always counting the same rows. The grid already reads the whole
+            // table to page it, so this is not an extra pass over anything.
+            DataTable all = VoucherBAL.GetVoucherDetail(
                 ProviderId,
-                ddlFilterProduct.SelectedValue,
-                txtFilterCode.Text.Trim(),
-                ShowDealers ? txtFilterDealer.Text.Trim() : string.Empty,
-                txtFilterCheckDate.Text.Trim(),
-                ddlFilterCheckedBy.SelectedValue,
-                StatusFilter,
+                LockedProductId,
+                SearchCode,
+                string.Empty,   // dealer name        - filter bar removed
+                string.Empty,   // voucher check date - filter bar removed
+                string.Empty,   // checked by         - filter bar removed
+                string.Empty,   // status: applied below
                 AssignedToFilter,
                 MovedFilter,
                 DaysFilter,
-                txtFilterExpiry.Text.Trim(),
+                string.Empty,   // expiry date        - filter bar removed
                 "Select");
 
+            BindCards(all);
+            BindStatusFilter();
+
+            pnlSearchChip.Visible = (SearchCode.Length > 0);
+            if (pnlSearchChip.Visible) litSearchChip.Text = Server.HtmlEncode(SearchCode);
+
+            DataTable dt = FilterByStatus(all, StatusFilter);
             int count = (dt == null) ? 0 : dt.Rows.Count;
             int pageCount = Pager.PageCount(count, PageSize);
 
             if (PageIndex >= pageCount) PageIndex = pageCount - 1;
             if (PageIndex < 0) PageIndex = 0;
 
-            // grow the dealer columns if any row on this page carries more
-            if (ShowDealers && dt != null)
+            // Grow the dealer columns if any row carries more. Read off the
+            // unfiltered set on purpose: counted off the filtered one, the number
+            // of dealer columns would change every time a status button was
+            // pressed, and the header would jump about.
+            if (ShowDealers && all != null)
             {
-                foreach (DataRow r in dt.Rows)
+                foreach (DataRow r in all.Rows)
                 {
                     int used = Convert.ToInt32(r["DealerCount"]);
                     if (used > DealerColumns) DealerColumns = used;
@@ -487,6 +541,89 @@ namespace DSL_CMS
             litCount.Text = count.ToString();
             phEmpty.Visible = (count == 0);
             BindPager(count, pageCount);
+        }
+
+        /// <summary>Window the "Expiring soon" card counts, matching the card of
+        /// that name on the dashboard. One phrase, one meaning.</summary>
+        private const int ExpiringSoonDays = 30;
+
+        /// <summary>
+        /// The six figures above the grid, counted from the rows this screen is
+        /// showing rather than asked of the database separately. Opened on a
+        /// provider they describe that provider; opened on one of its products
+        /// they describe that product; and for a student they describe only what
+        /// that student holds, because the fetch they are counted from is already
+        /// scoped by role.
+        /// </summary>
+        private void BindCards(DataTable all)
+        {
+            int total = 0, used = 0, unused = 0, notSet = 0, invalid = 0, expiring = 0;
+
+            DateTime today = DateTime.Today;
+            DateTime horizon = today.AddDays(ExpiringSoonDays);
+
+            if (all != null)
+            {
+                foreach (DataRow r in all.Rows)
+                {
+                    total++;
+
+                    string st = Convert.ToString(r["Status"]);
+                    bool isNotSet = (st.Length == 0);
+                    bool isUnused = string.Equals(st, "Unused", StringComparison.OrdinalIgnoreCase);
+
+                    if (isNotSet) notSet++;
+                    else if (string.Equals(st, "Used", StringComparison.OrdinalIgnoreCase)) used++;
+                    else if (isUnused) unused++;
+                    else if (string.Equals(st, "Invalid", StringComparison.OrdinalIgnoreCase)) invalid++;
+
+                    // Only what can still be salvaged, the same rule the dashboard
+                    // card uses. A used or expired voucher has no expiry to chase.
+                    if ((isNotSet || isUnused) && r["ExpiryDate"] != DBNull.Value)
+                    {
+                        DateTime exp = Convert.ToDateTime(r["ExpiryDate"]).Date;
+                        if (exp >= today && exp <= horizon) expiring++;
+                    }
+                }
+            }
+
+            litCardTotal.Text    = total.ToString();
+            litCardUsed.Text     = used.ToString();
+            litCardUnused.Text   = unused.ToString();
+            litCardNotSet.Text   = notSet.ToString();
+            litCardInvalid.Text  = invalid.ToString();
+            litCardExpiring.Text = expiring.ToString();
+        }
+
+        /// <summary>
+        /// Applies the picked status to rows already fetched. Done here rather
+        /// than in the proc so that one fetch feeds both the cards and the grid.
+        /// </summary>
+        private static DataTable FilterByStatus(DataTable source, string status)
+        {
+            if (source == null || status.Length == 0) return source;
+
+            DataTable kept = source.Clone();
+            foreach (DataRow r in source.Rows)
+                if (MatchesStatus(Convert.ToString(r["Status"]), status)) kept.ImportRow(r);
+            return kept;
+        }
+
+        /// <summary>
+        /// The same three cases the procs handle: NULL is "Not Set", the
+        /// early-expiry token covers unused and untriaged together, and anything
+        /// else is a plain match.
+        /// </summary>
+        private static bool MatchesStatus(string rowStatus, string status)
+        {
+            bool notSet = (rowStatus.Length == 0);
+
+            if (string.Equals(status, "NotSet", StringComparison.Ordinal))
+                return notSet;
+            if (string.Equals(status, "UnusedOrNotSet", StringComparison.Ordinal))
+                return notSet || string.Equals(rowStatus, "Unused", StringComparison.OrdinalIgnoreCase);
+
+            return string.Equals(rowStatus, status, StringComparison.OrdinalIgnoreCase);
         }
 
         private void BindPager(int rowCount, int pageCount)
@@ -752,33 +889,43 @@ namespace DSL_CMS
 
         #endregion
 
-        #region Filters and paging
+        #region Status buttons and paging
 
-        protected void btnSearch_Click(object sender, EventArgs e)
+        protected void rptStatusPills_ItemCommand(object source, RepeaterCommandEventArgs e)
         {
+            if (e.CommandName != "PickStatus") return;
+
+            // Picking a status also drops the early-expiry window carried over
+            // from the dashboard. Left in place, "Used" would quietly mean "used,
+            // and expiring within 30 days", and the grid would not match the card
+            // above it.
+            StatusFilter = Convert.ToString(e.CommandArgument);
+            DaysFilter = string.Empty;
             PageIndex = 0;
             BindGrid();
         }
 
-        protected void btnResetFilter_Click(object sender, EventArgs e)
+        /// <summary>
+        /// Drops the code the topbar search handed over and goes back to the whole
+        /// list. The search itself is untouched - this is only the way out of a
+        /// result, which the filter bar used to provide with Reset.
+        /// </summary>
+        protected void lnkClearSearch_Click(object sender, EventArgs e)
         {
-            ClearFilters();
+            SearchCode = string.Empty;
+            PageIndex = 0;
             BindGrid();
         }
 
         /// <summary>
-        /// Reset clears everything, including the status, expiry window and product
-        /// carried over from the dashboard - otherwise those would survive a Reset
-        /// invisibly and the grid would look wrong.
+        /// Clears everything narrowing the grid - the searched code, the status,
+        /// the expiry window and the product carried over from the dashboard.
+        /// Used after an upload, so the rows just added are visible straight away
+        /// whatever was being looked at before.
         /// </summary>
         private void ClearFilters()
         {
-            ddlFilterProduct.SelectedIndex = 0;
-            txtFilterCode.Text = string.Empty;
-            txtFilterDealer.Text = string.Empty;
-            txtFilterCheckDate.Text = string.Empty;
-            txtFilterExpiry.Text = string.Empty;
-            ddlFilterCheckedBy.SelectedIndex = 0;
+            SearchCode = string.Empty;
             StatusFilter = string.Empty;
             DaysFilter = string.Empty;
             LockedProductId = string.Empty;
@@ -1167,7 +1314,6 @@ namespace DSL_CMS
             }
 
             pnlEdit.Visible = false;
-            BindCheckedBy();
             BindGrid();
         }
 
@@ -1193,7 +1339,6 @@ namespace DSL_CMS
             VoucherBAL.UpdateVoucherCheck(hf.Value, checkedBy, Convert.ToString(Session["UserId"]));
             ShowMessage("Voucher check date stamped with today's date.", true);
 
-            BindCheckedBy();
             BindGrid();
         }
 
