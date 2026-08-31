@@ -180,14 +180,14 @@
                                         <asp:LinkButton runat="server" CommandName="ToggleProducts"
                                             CommandArgument='<%# Eval("Id") %>' CausesValidation="false"
                                             CssClass="vs-provtoggle" ToolTip="Show products">
-                                            <%-- "+" while the products are hidden, "-" once they are
-                                                 shown. One icon carrying both strokes: CSS drops the
-                                                 upright when the row is open, which cannot fall out of
-                                                 step with the row's own class the way two icons could. --%>
+                                            <%-- A chevron that turns, not a plus. The plus was tried here
+                                                 and read worse against the provider logo beside it; the
+                                                 sidebar keeps its own, which is a different control in a
+                                                 different place. --%>
                                             <span class='<%# CaretClass(Eval("Id")) %>'>
                                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                                     stroke-width="2.8" stroke-linecap="round"
-                                                     width="15" height="15"><path d="M5 12h14" /><path class="up" d="M12 5v14" /></svg>
+                                                     stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"
+                                                     width="15" height="15"><path d="M9 6l6 6-6 6" /></svg>
                                             </span>
                                             <%# ProviderTile(Eval("Id"), Eval("Name")) %>
                                             <span class="nm">

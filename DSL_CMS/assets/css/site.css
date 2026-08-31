@@ -499,10 +499,7 @@ button.navitem.wide { padding-right: 66px; }
     display: grid; place-items: center; color: var(--tx-3); flex: 0 0 auto;
     transition: transform .15s ease;
 }
-/* The upright stroke is dropped once the row is open, which turns the plus
-   into a minus. No rotation - these are two states, not one icon turning. */
-.vs-caret.open { color: var(--brand); }
-.vs-caret.open .up { display: none; }
+.vs-caret.open { transform: rotate(90deg); color: var(--brand); }
 .vs-total {
     display: inline-block; min-width: 48px; padding: 6px 10px;
     background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
