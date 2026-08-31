@@ -141,6 +141,27 @@
 
                 <div class="crumb">Voucher Portal <span>&rsaquo;</span> <b><%= Server.HtmlEncode(PageLabel) %></b></div>
 
+                <%-- Voucher code search, on every screen because "where is this
+                     code" gets asked from wherever you happen to be standing.
+                     It lands on View Data with no provider set, so it looks
+                     across the lot rather than one provider's list, and that
+                     screen's own role scoping still applies - a student finds
+                     only the vouchers they hold.
+
+                     DefaultButton so Enter searches. Without it Enter fires
+                     whichever button the page happens to have first, which on
+                     View Data is the filter Search and on another screen might
+                     be anything at all. --%>
+                <asp:Panel ID="pnlSearch" runat="server" CssClass="search" DefaultButton="lnkSearch">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.2-3.2" /></svg>
+                    <asp:TextBox ID="txtSearch" runat="server" MaxLength="100"
+                        placeholder="Search voucher code" />
+                    <asp:LinkButton ID="lnkSearch" runat="server" CssClass="go"
+                        OnClick="lnkSearch_Click" CausesValidation="false"
+                        ToolTip="Find this voucher code">Search</asp:LinkButton>
+                </asp:Panel>
+
                 <span class="tb-spacer"></span>
 
                 <div class="tbdate"><%= TodayLong %></div>

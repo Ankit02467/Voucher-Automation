@@ -11,7 +11,9 @@ namespace DSL_CMS
 {
     public partial class MasterPage : System.Web.UI.MasterPage
     {
-        protected LinkButton lnkLogout;
+        protected LinkButton lnkLogout, lnkSearch;
+        protected TextBox txtSearch;
+        protected Panel pnlSearch;
         protected Literal litUserRole;
         protected Repeater rptNavProviders, rptNavCategories;
         protected PlaceHolder phNavProductPerf, phNavStudentPerf, phNavAddProvider, phUserRole;
@@ -322,6 +324,24 @@ namespace DSL_CMS
                        || page == "manage-product.aspx";
 
             return inside ? "navgroup open" : "navgroup";
+        }
+
+        /// <summary>
+        /// Hands the typed code to View Data, which already knows how to find it:
+        /// it has the filter, the full row, Edit and View History. Sending the
+        /// search somewhere of its own would be a second screen showing the same
+        /// voucher, and a second set of role rules to keep in step with these.
+        ///
+        /// No providerId, so the search is not confined to whichever provider was
+        /// last looked at.
+        /// </summary>
+        protected void lnkSearch_Click(object sender, EventArgs e)
+        {
+            string code = (txtSearch.Text ?? string.Empty).Trim();
+            if (code.Length == 0) return;
+
+            Response.Redirect(
+                ResolveUrl("~/voucher-data.aspx?code=") + Server.UrlEncode(code), true);
         }
 
         protected void lnkLogout_Click(object sender, EventArgs e)

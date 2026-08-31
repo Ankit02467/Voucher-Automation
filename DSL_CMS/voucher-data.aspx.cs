@@ -283,6 +283,13 @@ namespace DSL_CMS
             DaysFilter = (Request.QueryString["days"] ?? string.Empty).Trim();
             LockedProductId = (Request.QueryString["productId"] ?? string.Empty).Trim();
 
+            // A code handed down by the search box in the topbar. It goes into the
+            // filter this screen already has rather than a state of its own, so it
+            // shows in the filter bar where it can be seen and changed, and Reset
+            // clears it like anything else typed there.
+            string searched = (Request.QueryString["code"] ?? string.Empty).Trim();
+            if (searched.Length > 0) txtFilterCode.Text = searched;
+
             ResolveRole();
             InitDealerColumns();
             ApplyRole();
@@ -340,8 +347,7 @@ namespace DSL_CMS
             string title = DoneMode ? "Done Entries" : "Voucher List";
 
             if (StatusFilter.Length > 0)
-                title += " - " + Server.HtmlEncode(
-                    StatusFilter == "NotSet" ? "Not Set" : StatusFilter);
+                title += " - " + Server.HtmlEncode(StatusLabel(StatusFilter));
 
             string product = LockedProductName();
             if (product.Length > 0)
@@ -351,6 +357,18 @@ namespace DSL_CMS
                 title += " - expiring within " + Server.HtmlEncode(DaysFilter) + " day(s)";
 
             litGridTitle.Text = title;
+        }
+
+        /// <summary>
+        /// The dashboard passes its status down in the query string, and two of
+        /// those are tokens the proc understands rather than words anyone would
+        /// write on a screen. Printed raw, the title read "UnusedOrNotSet".
+        /// </summary>
+        private static string StatusLabel(string status)
+        {
+            if (string.Equals(status, "NotSet", StringComparison.Ordinal)) return "Not Set";
+            if (string.Equals(status, "UnusedOrNotSet", StringComparison.Ordinal)) return "Unused & Not Set";
+            return status;
         }
 
         private string ProviderName()

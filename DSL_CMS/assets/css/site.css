@@ -305,7 +305,7 @@ button.navitem.wide { padding-right: 66px; }
 .topbar .logout svg { flex: 0 0 auto; }
 .topbar .logout:hover { border-color: var(--brand); color: var(--brand); text-decoration: none; }
 
-/* topbar search - narrows the provider list on the dashboard */
+/* topbar search - finds a voucher by its code, from any screen */
 .topbar .search {
     flex: 1; max-width: 420px; display: flex; align-items: center; gap: 9px;
     background: var(--panel-2); border: 1px solid var(--line);
@@ -316,6 +316,14 @@ button.navitem.wide { padding-right: 66px; }
     border: 0; background: transparent; outline: none; font: inherit;
     font-size: 13.5px; color: var(--tx); width: 100%;
 }
+.topbar .search:focus-within { border-color: var(--brand); background: var(--panel); }
+/* Enter searches, but the button has to be there and be reachable - a control
+   that only answers to a key nobody was told about is not a control. */
+.topbar .search .go {
+    flex: 0 0 auto; font-size: 12px; font-weight: 700; color: var(--brand);
+    padding: 3px 8px; border-radius: 8px; white-space: nowrap;
+}
+.topbar .search .go:hover { background: var(--brand-soft); text-decoration: none; }
 
 .content { padding: 0px 28px 40px; }
 
@@ -566,6 +574,8 @@ button.navitem.wide { padding-right: 66px; }
 @media (max-width:  760px) { .vs-kpis { grid-template-columns: repeat(2, minmax(0, 152px)); } }
 @media (max-width: 760px) {
     .vs-kpis { grid-template-columns: 1fr; }
+    /* The search stays. It is the one thing in this bar somebody came here to
+       use; the breadcrumb and the date are only telling them where they are. */
     .topbar .crumb, .topbar .tbdate { display: none; }
 }
 
