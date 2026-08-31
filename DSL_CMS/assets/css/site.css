@@ -199,10 +199,12 @@ button.navitem.wide { padding-right: 66px; }
 .navtog { color: #93a6c9; }
 .navgroup.open > .navtog { color: #cfe0fb; }
 .navtog .chev { width: 16px; height: 16px; transition: transform .15s ease; }
-/* Open turns the arrow a quarter turn, so it points down at what it opened -
-   the same arrow the provider table on Voucher Status uses. */
-.navgroup.open > .navtog .chev,
+/* Two different icons on purpose. The Voucher Status group turns a quarter
+   turn, the same arrow the provider table on that page uses. A provider row
+   inside it drops the upright stroke instead, turning "+" into "-" - no
+   rotation, because those are two states rather than one icon moving. */
 .navgroup.open > .navitem .chev { transform: rotate(90deg); }
+.navgroup.open > .navtog .chev .up { display: none; }
 
 /* Closed is the default so a menu of forty products does not unroll on a first
    visit; the group the current page belongs to is opened by the server. */
@@ -329,7 +331,7 @@ button.navitem.wide { padding-right: 66px; }
 /* The server-rendered Panels wrap several blocks in one div, so .vs-page's own
    gap cannot reach between them - the cards and the filter bar ended up touching.
    Any such wrapper stacks its children with the same spacing. */
-.vs-stack { display: flex; flex-direction: column; gap: 20px; }
+.vs-stack { display: flex; flex-direction: column; gap: 10px; }
 
 /* ---- Page head ---- */
 .vs-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
