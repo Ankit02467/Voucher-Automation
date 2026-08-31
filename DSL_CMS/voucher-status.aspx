@@ -148,7 +148,14 @@
                         <th style="width: 64px;">S.No</th>
                         <%-- Provider and the count both sort. The heading itself is
                              the control, so there is nothing extra to aim at. --%>
-                        <th style="min-width: 220px;">
+                        <%-- The spare width of the table goes to Actions, not here -
+                             see that column below. This one used to take it, which
+                             carried the count all the way over to the buttons, a long
+                             way from the provider it counts. The floor keeps a short
+                             gap after the name; it is a floor rather than a set width
+                             so a longer provider name widens the column instead of
+                             being cut off. --%>
+                        <th style="min-width: 420px;">
                             <%-- The label is a Literal, not bare text. A LinkButton
                                  that is handed loose text alongside a child control
                                  pulls that text into its Text property during
@@ -161,12 +168,12 @@
                                 OnCommand="sort_Command" CommandArgument="Name"
                                 CausesValidation="false"><asp:Literal ID="litNameHead" runat="server" Text="Provider" /><asp:Literal ID="litSortName" runat="server" /></asp:LinkButton>
                         </th>
-                        <th class="c" style="width: 260px;">
+                        <th class="c" style="width: 140px;">
                             <asp:LinkButton ID="lnkSortCount" runat="server" CssClass="vs-sortcol"
                                 OnCommand="sort_Command" CommandArgument="StatusCount"
                                 CausesValidation="false"><asp:Literal ID="litCountHead" runat="server" Text="All" /><asp:Literal ID="litSortCount" runat="server" /></asp:LinkButton>
                         </th>
-                        <th class="r" style="width: 250px;">Actions</th>
+                        <th class="r" style="width: 100%; min-width: 250px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
