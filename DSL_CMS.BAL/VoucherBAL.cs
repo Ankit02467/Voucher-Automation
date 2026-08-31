@@ -35,6 +35,11 @@ namespace DSL_CMS.BAL
             return VoucherDAL.GetDashboardTotals(assignedTo, isMoved);
         }
 
+        public static DataTable GetDashboardTotals(string assignedTo, string isMoved, string category)
+        {
+            return VoucherDAL.GetDashboardTotals(assignedTo, isMoved, category);
+        }
+
         public static DataTable GetProviderCategories()
         {
             return VoucherDAL.GetProviderCategories();

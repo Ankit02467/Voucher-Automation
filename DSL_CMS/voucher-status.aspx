@@ -77,6 +77,20 @@
             <span class="sub">flagged for review</span>
             <span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
         </asp:LinkButton>
+
+        <%-- Fresh uploads nobody has triaged yet - Status IS NULL. The proc has
+             always counted these; only the card was missing, so the one status
+             that most needs chasing was the one with no figure on the page. --%>
+        <asp:LinkButton ID="kpiNotSet" runat="server" CssClass="vs-kpi k-notset"
+            OnCommand="kpi_Command" CommandArgument="NotSet" CausesValidation="false">
+            <span class="top">
+                <span class="lab">Not set</span>
+                <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg></span>
+            </span>
+            <span class="val vs-num"><asp:Literal ID="litKpiNotSet" runat="server" Text="0" /></span>
+            <span class="sub">not triaged yet</span>
+            <span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
+        </asp:LinkButton>
     </div>
 
     <%-- ---------------- Filters ----------------
@@ -132,8 +146,18 @@
                 <thead>
                     <tr>
                         <th style="width: 64px;">S.No</th>
-                        <th>Provider</th>
-                        <th class="c" style="width: 120px;"><asp:Literal ID="litCountHead" runat="server" Text="All" /></th>
+                        <%-- Provider and the count both sort. The heading itself is
+                             the control, so there is nothing extra to aim at. --%>
+                        <th>
+                            <asp:LinkButton ID="lnkSortName" runat="server" CssClass="vs-sortcol"
+                                OnCommand="sort_Command" CommandArgument="Name"
+                                CausesValidation="false">Provider<asp:Literal ID="litSortName" runat="server" /></asp:LinkButton>
+                        </th>
+                        <th class="c" style="width: 120px;">
+                            <asp:LinkButton ID="lnkSortCount" runat="server" CssClass="vs-sortcol"
+                                OnCommand="sort_Command" CommandArgument="StatusCount"
+                                CausesValidation="false"><asp:Literal ID="litCountHead" runat="server" Text="All" /><asp:Literal ID="litSortCount" runat="server" /></asp:LinkButton>
+                        </th>
                         <th class="r" style="width: 250px;">Actions</th>
                     </tr>
                 </thead>
@@ -148,10 +172,14 @@
                                         <asp:LinkButton runat="server" CommandName="ToggleProducts"
                                             CommandArgument='<%# Eval("Id") %>' CausesValidation="false"
                                             CssClass="vs-provtoggle" ToolTip="Show products">
+                                            <%-- "+" while the products are hidden, "-" once they are
+                                                 shown. One icon carrying both strokes: CSS drops the
+                                                 upright when the row is open, which cannot fall out of
+                                                 step with the row's own class the way two icons could. --%>
                                             <span class='<%# CaretClass(Eval("Id")) %>'>
                                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                                     stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"
-                                                     width="15" height="15"><path d="M9 6l6 6-6 6" /></svg>
+                                                     stroke-width="2.8" stroke-linecap="round"
+                                                     width="15" height="15"><path d="M5 12h14" /><path class="up" d="M12 5v14" /></svg>
                                             </span>
                                             <%# ProviderTile(Eval("Id"), Eval("Name")) %>
                                             <span class="nm">

@@ -360,7 +360,23 @@ BEGIN
             INNER JOIN @New n ON n.CodeHash = HASHBYTES('SHA2_256', d.Code)
             WHERE d.Seq IS NOT NULL AND (d.Nm <> '' OR d.Dt <> '');
 
-        SELECT Inserted = @Ins, Skipped = @Total - @Ins;
+        /* The codes that did not go in, so the upload can name them instead of
+           reporting a bare count. These are the ones already held somewhere in
+           the system: a code repeated inside one paste never reaches here,
+           because @Rows is grouped by code before any of this runs.
+
+           CONVERT to MAX first - STRING_AGG over NVARCHAR(100) caps its result
+           at 8000 bytes and raises once enough codes are skipped to pass it. */
+        DECLARE @SkippedCodes NVARCHAR(MAX) = (
+            SELECT STRING_AGG(CONVERT(NVARCHAR(MAX), r.Code), '~')
+                   WITHIN GROUP (ORDER BY r.Code)
+            FROM @Rows r
+            WHERE NOT EXISTS (SELECT 1 FROM @New n
+                              WHERE n.CodeHash = HASHBYTES('SHA2_256', r.Code)));
+
+        SELECT Inserted     = @Ins,
+               Skipped      = @Total - @Ins,
+               SkippedCodes = ISNULL(@SkippedCodes, N'');
     END
 
     /* ================= dealers ================= */

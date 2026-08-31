@@ -1300,10 +1300,18 @@ namespace DSL_CMS
             }
 
             int inserted = 0, skipped = 0;
+            string skippedCodes = string.Empty;
             if (dt != null && dt.Rows.Count > 0)
             {
                 inserted = Convert.ToInt32(dt.Rows[0]["Inserted"]);
                 skipped = Convert.ToInt32(dt.Rows[0]["Skipped"]);
+
+                // Added by a later revision of the proc. Checked rather than
+                // assumed: the pipeline deploys the site but never the database,
+                // so a server can be running new code against an older proc, and
+                // that must cost the names rather than throw.
+                if (dt.Columns.Contains("SkippedCodes"))
+                    skippedCodes = Convert.ToString(dt.Rows[0]["SkippedCodes"]);
             }
 
             pnlUpload.Visible = false;
@@ -1315,7 +1323,8 @@ namespace DSL_CMS
             // repeat inside this one paste, which the proc collapses before it
             // ever gets as far as skipping anything.
             string message = inserted + " voucher(s) added.";
-            if (skipped > 0) message += " " + skipped + " skipped - already in the system.";
+            if (skipped > 0) message += " " + skipped + " skipped - already in the system"
+                                      + AlreadyHeldNote(skippedCodes) + ".";
             message += DuplicateNote(codes);
             ShowMessage(message, inserted > 0);
 
@@ -1498,6 +1507,43 @@ namespace DSL_CMS
 
         /// <summary>How many repeated codes the upload message names before it stops.</summary>
         private const int MaxNamedDuplicates = 10;
+
+        /// <summary>
+        /// Names the codes the upload turned away because they were already held
+        /// somewhere in the system. The proc sends them back as a ~ separated
+        /// list; it is the only thing that can, since the stored codes are
+        /// ciphertext and the duplicate check runs on a hash of them.
+        ///
+        /// Blank when the deployed proc is older than this and does not return
+        /// the list - the count still gets reported, just without the names.
+        /// </summary>
+        private static string AlreadyHeldNote(string skippedCodes)
+        {
+            if (string.IsNullOrWhiteSpace(skippedCodes)) return string.Empty;
+
+            string[] parts = skippedCodes.Split('~');
+            var named = new List<string>();
+
+            foreach (string part in parts)
+            {
+                string code = part.Trim();
+                if (code.Length == 0) continue;
+
+                named.Add(code);
+                if (named.Count == MaxNamedDuplicates) break;
+            }
+
+            if (named.Count == 0) return string.Empty;
+
+            int total = 0;
+            foreach (string part in parts)
+                if (part.Trim().Length > 0) total++;
+
+            string list = string.Join(", ", named.ToArray());
+            if (total > named.Count) list += " and " + (total - named.Count) + " more";
+
+            return ": " + list;
+        }
 
         /// <summary>
         /// Names the codes one paste carried more than once, most-repeated first.

@@ -56,10 +56,21 @@ namespace DSL_CMS.DAL
         /// </summary>
         public static DataTable GetDashboardTotals(string assignedTo, string isMoved)
         {
+            return GetDashboardTotals(assignedTo, isMoved, string.Empty);
+        }
+
+        /// <summary>
+        /// <paramref name="category"/> narrows the cards to one provider category,
+        /// the same way the sidebar narrows the grid beneath them. Blank means
+        /// every category, which is what the two-argument overload asks for.
+        /// </summary>
+        public static DataTable GetDashboardTotals(string assignedTo, string isMoved, string category)
+        {
             return SqlHelper.ExecuteDataTable("Sp_VoucherProvider_Table", true,
                 "@Action", "SelectDashboardTotals",
                 "@AssignedTo", assignedTo,
-                "@IsMoved", isMoved);
+                "@IsMoved", isMoved,
+                "@Category", category);
         }
 
         public static DataTable GetProvider(string Id)

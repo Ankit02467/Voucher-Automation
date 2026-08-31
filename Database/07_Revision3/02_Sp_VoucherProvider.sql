@@ -186,13 +186,24 @@ BEGIN
                how far it has moved since. Read off AddedDate - there is no daily
                snapshot anywhere, so this measures stock added, not stock held. */
             BeforeThisMonth = ISNULL(SUM(CASE WHEN AddedDate < @MonthStart THEN 1 ELSE 0 END), 0),
-            Providers = (SELECT COUNT(*) FROM dbo.VoucherProvider_Table),
-            Products  = (SELECT COUNT(*) FROM dbo.VoucherProduct_Table WHERE Status = 'A')
-        FROM dbo.VoucherStock_Table
+            Providers = (SELECT COUNT(*) FROM dbo.VoucherProvider_Table cp
+                          WHERE @Category IS NULL OR cp.Category = @Category),
+            Products  = (SELECT COUNT(*) FROM dbo.VoucherProduct_Table pr
+                          JOIN dbo.VoucherProvider_Table cp ON cp.Id = pr.ProviderId
+                         WHERE pr.Status = 'A'
+                           AND (@Category IS NULL OR cp.Category = @Category))
+        FROM dbo.VoucherStock_Table s
         /* scoped the same way as the grid below them - cards reading 128 above a
            table whose rows add up to less is the same mismatch, one level up */
-        WHERE (@AssignInt IS NULL OR AssignedTo = @AssignInt)
-          AND (@MovedBit  IS NULL OR IsMoved    = @MovedBit);
+        WHERE (@AssignInt IS NULL OR s.AssignedTo = @AssignInt)
+          AND (@MovedBit  IS NULL OR s.IsMoved    = @MovedBit)
+          /* The sidebar's category narrows these cards the same way it already
+             narrows the provider table underneath. Without it, picking IT or
+             Language left every figure still reading the whole stock, so All,
+             IT and Language all showed the same numbers. */
+          AND (@Category IS NULL OR EXISTS (
+                  SELECT 1 FROM dbo.VoucherProvider_Table cp
+                   WHERE cp.Id = s.ProviderId AND cp.Category = @Category));
     END
 
     ELSE IF @Action = 'SelectDropdown'

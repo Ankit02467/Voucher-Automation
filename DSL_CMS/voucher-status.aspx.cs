@@ -14,13 +14,19 @@ namespace DSL_CMS
         protected PlaceHolder phEmpty, phPager, phPerfEmpty;
         protected Panel pnlWindows, pnlFilters, pnlProviderGrid, pnlPerformance, pnlDenied;
         protected LinkButton lnkPrev, lnkNext, lnkEarlyExpiry;
-        protected LinkButton kpiTotal, kpiUsed, kpiUnused, kpiExpiring, kpiInvalid;
+        protected LinkButton kpiTotal, kpiUsed, kpiUnused, kpiExpiring, kpiInvalid, kpiNotSet;
+        protected LinkButton lnkSortName, lnkSortCount;
         protected Literal litCountHead, litPageInfo, litCategoryNote,
                           litKpiTotal, litKpiTrend, litKpiUsed, litKpiUsedPct,
-                          litKpiUnused, litKpiUnusedPct, litKpiExpiring, litKpiInvalid;
+                          litKpiUnused, litKpiUnusedPct, litKpiExpiring, litKpiInvalid,
+                          litKpiNotSet, litSortName, litSortCount;
 
         private const int PageSize = 10;
         private const string StatusAll = "All";
+
+        /// <summary>Sortable columns of the provider table.</summary>
+        private const string SortByName = "Name";
+        private const string SortByCount = "StatusCount";
 
         /// <summary>The window the "Expiring soon" card counts, and the one it opens.</summary>
         private const string ExpiringWindow = "30";
@@ -103,6 +109,28 @@ namespace DSL_CMS
         }
 
         protected int RowOffset { get { return PageIndex * PageSize; } }
+
+        /// <summary>
+        /// Which column the provider table is ordered by. Defaults to the
+        /// provider name, so the list reads alphabetically before anyone has
+        /// touched a header - the proc returns rows in Id order, which is the
+        /// order they happened to be created in and means nothing to a reader.
+        ///
+        /// Sorted here rather than in the proc because the header has to be able
+        /// to change it, and a round trip per click to re-order six rows is work
+        /// the page can do itself.
+        /// </summary>
+        private string SortKey
+        {
+            get { return (string)(ViewState["SortKey"] ?? SortByName); }
+            set { ViewState["SortKey"] = value; }
+        }
+
+        private bool SortDesc
+        {
+            get { return (bool)(ViewState["SortDesc"] ?? false); }
+            set { ViewState["SortDesc"] = value; }
+        }
 
         /// <summary>Manage Product is an admin-only action.</summary>
         protected bool CanManageProduct
@@ -204,12 +232,18 @@ namespace DSL_CMS
         }
 
         /// <summary>
-        /// The figures across the top. Independent of the status pills - they
-        /// describe the whole stock, which is the point of a summary.
+        /// The figures across the top. Independent of the status pills - a card
+        /// per status is what the summary is for, so narrowing them by the
+        /// selected status would leave one card holding everything.
+        ///
+        /// They DO follow the category, because that is a different question:
+        /// the sidebar's IT / Language narrows which providers are in scope at
+        /// all, and the provider table underneath already obeys it. While these
+        /// cards ignored it, All, IT and Language every one read the same totals.
         /// </summary>
         private void BindKpis()
         {
-            DataTable dt = VoucherBAL.GetDashboardTotals(RowAssignedTo, RowIsMoved);
+            DataTable dt = VoucherBAL.GetDashboardTotals(RowAssignedTo, RowIsMoved, SelectedCategory);
             if (dt == null || dt.Rows.Count == 0) return;
 
             DataRow r = dt.Rows[0];
@@ -224,6 +258,7 @@ namespace DSL_CMS
             litKpiUnused.Text = unused.ToString();
             litKpiExpiring.Text = Num(r, "ExpiringSoon").ToString();
             litKpiInvalid.Text = Num(r, "Invalid").ToString();
+            litKpiNotSet.Text = Num(r, "NotSet").ToString();
 
             litKpiUsedPct.Text = Percent(used, total);
             litKpiUnusedPct.Text = Percent(unused, total);
@@ -338,6 +373,9 @@ namespace DSL_CMS
                 SelectedStatus, SelectedDays, SelectedCategory, string.Empty, string.Empty,
                 RowAssignedTo, RowIsMoved);
 
+            dt = ApplySort(dt);
+            ApplySortHeads();
+
             int rowCount = (dt == null) ? 0 : dt.Rows.Count;
             int pageCount = Pager.PageCount(rowCount, PageSize);
 
@@ -349,6 +387,82 @@ namespace DSL_CMS
 
             phEmpty.Visible = (rowCount == 0);
             BindPager(rowCount, pageCount);
+        }
+
+        /// <summary>
+        /// Orders the provider rows before they are paged. Sorting after the
+        /// slice would only shuffle whichever ten rows page 1 happened to hold.
+        ///
+        /// Name is compared case-insensitively so "aws" and "AWS" do not land in
+        /// two different places; DataView cannot be told to ignore case, so the
+        /// comparison runs off a sort column added here rather than off Name.
+        /// </summary>
+        private DataTable ApplySort(DataTable dt)
+        {
+            if (dt == null || dt.Rows.Count == 0) return dt;
+
+            string key = SortKey;
+            if (!dt.Columns.Contains(key)) key = SortByName;
+            if (!dt.Columns.Contains(key)) return dt;   // nothing to sort on
+
+            string order = key;
+
+            if (key == SortByName)
+            {
+                const string shadow = "__NameSort";
+                if (!dt.Columns.Contains(shadow))
+                {
+                    dt.Columns.Add(shadow, typeof(string));
+                    foreach (DataRow row in dt.Rows)
+                        row[shadow] = Convert.ToString(row[SortByName]).Trim().ToUpperInvariant();
+                }
+                order = shadow;
+            }
+
+            var view = new DataView(dt) { Sort = order + (SortDesc ? " DESC" : " ASC") };
+            return view.ToTable();
+        }
+
+        /// <summary>
+        /// The arrow beside each sortable heading. Only the column actually in
+        /// use carries one, so the table says how it is ordered without having
+        /// to be clicked to find out.
+        /// </summary>
+        private void ApplySortHeads()
+        {
+            litSortName.Text = SortArrow(SortByName);
+            litSortCount.Text = SortArrow(SortByCount);
+
+            lnkSortName.ToolTip = SortTip(SortByName);
+            lnkSortCount.ToolTip = SortTip(SortByCount);
+        }
+
+        private string SortArrow(string key)
+        {
+            if (!string.Equals(key, SortKey, StringComparison.Ordinal)) return string.Empty;
+            return SortDesc ? "<span class=\"vs-sortar\">&#9660;</span>"
+                            : "<span class=\"vs-sortar\">&#9650;</span>";
+        }
+
+        private string SortTip(string key)
+        {
+            bool active = string.Equals(key, SortKey, StringComparison.Ordinal);
+            bool nextDesc = active ? !SortDesc : DefaultDesc(key);
+
+            if (key == SortByName)
+                return nextDesc ? "Sort Z to A" : "Sort A to Z";
+
+            return nextDesc ? "Sort highest first" : "Sort lowest first";
+        }
+
+        /// <summary>
+        /// Which way a column runs the first time it is picked. A name wants to
+        /// start at A; a count is being asked "which has most", so it starts at
+        /// the largest.
+        /// </summary>
+        private static bool DefaultDesc(string key)
+        {
+            return key == SortByCount;
         }
 
         private void BindPager(int rowCount, int pageCount)
@@ -469,6 +583,31 @@ namespace DSL_CMS
             string id = Convert.ToString(e.CommandArgument);
             ExpandedProvider = (ExpandedProvider == id) ? string.Empty : id;
 
+            BindGrid();
+        }
+
+        /// <summary>
+        /// A sortable column heading. Clicking the column already in use turns it
+        /// around; clicking a different one starts it whichever way that column
+        /// is usually read. Paging resets, because page 4 of the old order has
+        /// nothing to do with page 4 of the new one.
+        /// </summary>
+        protected void sort_Command(object sender, CommandEventArgs e)
+        {
+            string key = Convert.ToString(e.CommandArgument);
+            if (key != SortByName && key != SortByCount) return;
+
+            if (string.Equals(key, SortKey, StringComparison.Ordinal))
+            {
+                SortDesc = !SortDesc;
+            }
+            else
+            {
+                SortKey = key;
+                SortDesc = DefaultDesc(key);
+            }
+
+            PageIndex = 0;
             BindGrid();
         }
 

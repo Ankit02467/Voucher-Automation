@@ -14,7 +14,7 @@ namespace DSL_CMS
         protected LinkButton lnkLogout;
         protected Literal litUserRole;
         protected Repeater rptNavProviders, rptNavCategories;
-        protected PlaceHolder phNavProductPerf, phNavStudentPerf, phNavAddProvider;
+        protected PlaceHolder phNavProductPerf, phNavStudentPerf, phNavAddProvider, phUserRole;
 
         /// <summary>
         /// Cache buster appended to css/js links. Changes whenever the site is
@@ -83,7 +83,14 @@ namespace DSL_CMS
                 return;
             }
 
-            litUserRole.Text = Server.HtmlEncode(VoucherRole());
+            string role = VoucherRole();
+            litUserRole.Text = Server.HtmlEncode(role);
+
+            // Every voucher test account is named after the role it holds, so
+            // the two lines read "Voucher Admin" above "Voucher Admin". Shown
+            // only when it adds something the name does not already say.
+            phUserRole.Visible = !string.Equals(role.Trim(), CurrentUserName.Trim(),
+                                                StringComparison.OrdinalIgnoreCase);
 
             // Rebuilt on every request, postback included: a provider added on
             // Manage Product has to appear in the menu without a fresh login,

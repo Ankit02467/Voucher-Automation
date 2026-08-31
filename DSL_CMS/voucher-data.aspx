@@ -273,7 +273,11 @@
             <h2><asp:Literal ID="litGridTitle" runat="server" Text="Voucher List" />
                 (<asp:Literal ID="litCount" runat="server" Text="0" />)</h2>
         </div>
-        <div class="table-wrap">
+        <%-- "freeze" gives this wrapper its own vertical scroll so the header row
+             can stick to the top of it. Sticky against the page would not work:
+             the wrapper already scrolls sideways for the dealer columns, and a
+             box that scrolls in one axis is the scroll container for both. --%>
+        <div class="table-wrap freeze">
             <table class="data">
                 <%-- Built in code, not written out here: which columns exist
                      depends on the role and on how many dealer pairs the rows

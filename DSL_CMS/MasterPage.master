@@ -144,9 +144,15 @@
 
                 <div class="user">
                     <span class="av"><%= UserInitials %></span>
+                    <%-- The role sits under the name, but the voucher accounts are
+                         named after their role, so "Voucher Admin" was printed
+                         twice, one above the other. Page_Load drops the second
+                         line when it would only repeat the first. --%>
                     <span class="who">
                         <b><%= CurrentUserName %></b>
-                        <span><asp:Literal ID="litUserRole" runat="server" Text="Signed in" /></span>
+                        <asp:PlaceHolder ID="phUserRole" runat="server">
+                            <span><asp:Literal ID="litUserRole" runat="server" Text="Signed in" /></span>
+                        </asp:PlaceHolder>
                     </span>
                     <asp:LinkButton ID="lnkLogout" runat="server" CssClass="logout"
                         OnClick="lnkLogout_Click" CausesValidation="false">
