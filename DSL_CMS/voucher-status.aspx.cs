@@ -33,6 +33,18 @@ namespace DSL_CMS
         private const string ExpiringWindow = "30";
 
         /// <summary>
+        /// The status the early-expiry view runs under: Unused together with the
+        /// untriaged (Status IS NULL). It is not a pill and never will be - it is
+        /// what "approaching expiry" means. A voucher already used, expired or
+        /// written off cannot be saved by chasing it, so listing it among the ones
+        /// about to lapse only buries the ones that can.
+        ///
+        /// Both procs understand this token; the grid on View Data reads it too,
+        /// which is what keeps the card's figure and that screen's row count equal.
+        /// </summary>
+        private const string StatusExpiring = "UnusedOrNotSet";
+
+        /// <summary>
         /// Status pills. "All" is the default and counts every voucher; "NotSet"
         /// counts fresh uploads nobody has triaged yet (Status IS NULL).
         /// </summary>
@@ -391,7 +403,9 @@ namespace DSL_CMS
         /// <summary>Pill value to the wording used in the column heading.</summary>
         private static string StatusLabel(string status)
         {
-            return string.Equals(status, "NotSet", StringComparison.Ordinal) ? "Not Set" : status;
+            if (string.Equals(status, "NotSet", StringComparison.Ordinal)) return "Not Set";
+            if (string.Equals(status, StatusExpiring, StringComparison.Ordinal)) return "Unused & Not Set";
+            return status;
         }
 
         #region Binding
@@ -546,8 +560,11 @@ namespace DSL_CMS
 
             if (string.Equals(card, "Expiring", StringComparison.OrdinalIgnoreCase))
             {
-                // The card counts a 30 day window, so it opens the same one.
-                SelectedStatus = StatusAll;
+                // The card counts unused and untriaged vouchers over a 30 day
+                // window, so it opens exactly that - same status, same window.
+                // Anything else and the figure on the card would not match the
+                // rows underneath it.
+                SelectedStatus = StatusExpiring;
                 EarlyExpiry = true;
                 SelectedDays = ExpiringWindow;
                 PageIndex = 0;
@@ -580,7 +597,8 @@ namespace DSL_CMS
 
         /// <summary>
         /// Toggles the early-expiry window buttons into view. Switching it off
-        /// drops any window that was picked, so the grid goes back to every date.
+        /// drops the window and the status with it, so the grid goes back to
+        /// every voucher on every date.
         /// </summary>
         protected void lnkEarlyExpiry_Click(object sender, EventArgs e)
         {
@@ -588,12 +606,18 @@ namespace DSL_CMS
 
             if (EarlyExpiry)
             {
-                // switching into the expiry view clears whatever status was picked,
-                // so the two are never lit at once
-                SelectedStatus = StatusAll;
+                // The view has a status of its own - unused and untriaged - so
+                // whatever pill was lit is dropped and none is lit while it runs.
+                SelectedStatus = StatusExpiring;
+
+                // A window is what makes this "early" expiry rather than a list of
+                // everything unused. Opened cold it starts at a month, the same
+                // span the card above counts.
+                if (SelectedDays.Length == 0) SelectedDays = ExpiringWindow;
             }
             else
             {
+                SelectedStatus = StatusAll;
                 SelectedDays = string.Empty;
             }
 
@@ -610,8 +634,10 @@ namespace DSL_CMS
 
             string picked = Convert.ToString(e.CommandArgument);
 
-            // Clicking the active window clears it and drops the date restriction.
-            SelectedDays = (SelectedDays == picked) ? string.Empty : picked;
+            // The window is never cleared, only swapped. Clicking the active one
+            // used to drop the date restriction altogether, which left the screen
+            // headed "early expiry" while listing every unused voucher there is.
+            if (picked.Length > 0) SelectedDays = picked;
             PageIndex = 0;
 
             ApplyStatus();

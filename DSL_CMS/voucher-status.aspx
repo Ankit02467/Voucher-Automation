@@ -63,7 +63,9 @@
                 <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9L2 18a2 2 0 002 3h16a2 2 0 002-3L13.7 3.9a2 2 0 00-3.4 0z" /></svg></span>
             </span>
             <span class="val vs-num"><asp:Literal ID="litKpiExpiring" runat="server" Text="0" /></span>
-            <span class="sub">within 30 days</span>
+            <%-- Says what it counts, because it no longer counts everything: used,
+                 expired and invalid vouchers are past chasing and are left out. --%>
+            <span class="sub">unused &amp; not set, 30 days</span>
             <span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
         </asp:LinkButton>
 
@@ -115,7 +117,7 @@
 
             <asp:LinkButton ID="lnkEarlyExpiry" runat="server" CssClass="vs-chip ghost"
                 OnClick="lnkEarlyExpiry_Click" CausesValidation="false"
-                ToolTip="Show vouchers lapsing within a chosen window">
+                ToolTip="Unused and not-set vouchers lapsing within a chosen window">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                      width="14" height="14"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
                 View Early Expiry

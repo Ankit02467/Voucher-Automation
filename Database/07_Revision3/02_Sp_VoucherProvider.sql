@@ -18,6 +18,13 @@
    4. Fixed: a provider with no vouchers at all used to report a
       count of 1. The LEFT JOIN produces one all-NULL row for such
       a provider and the old CASE counted it.
+
+   5. @Status = 'UnusedOrNotSet' takes Unused and untriaged
+      (Status IS NULL) together. It is what "View Early Expiry"
+      asks for: a voucher already used, expired or written off has
+      nothing to chase, so counting it as expiring is noise. The
+      "Expiring soon" card is narrowed the same way, and the two
+      have to agree because the card opens that view.
    ============================================================ */
 USE DSL_New;
 GO
@@ -77,8 +84,9 @@ BEGIN
             LEFT JOIN dbo.VoucherStock_Table v
                    ON v.ProductId = pr.Id
                   AND (@Status IS NULL
-                       OR (@Status =  'NotSet' AND v.Status IS NULL)
-                       OR (@Status <> 'NotSet' AND v.Status = @Status))
+                       OR (@Status = 'NotSet'         AND v.Status IS NULL)
+                       OR (@Status = 'UnusedOrNotSet' AND (v.Status IS NULL OR v.Status = 'Unused'))
+                       OR (@Status NOT IN ('NotSet', 'UnusedOrNotSet') AND v.Status = @Status))
                   AND (@WinEnd IS NULL
                        OR (v.ExpiryDate IS NOT NULL
                            AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
@@ -101,8 +109,9 @@ BEGIN
             StatusCount = SUM(
                 CASE WHEN v.Id IS NOT NULL
                       AND (@Status IS NULL
-                           OR (@Status =  'NotSet' AND v.Status IS NULL)
-                           OR (@Status <> 'NotSet' AND v.Status = @Status))
+                           OR (@Status = 'NotSet'         AND v.Status IS NULL)
+                           OR (@Status = 'UnusedOrNotSet' AND (v.Status IS NULL OR v.Status = 'Unused'))
+                           OR (@Status NOT IN ('NotSet', 'UnusedOrNotSet') AND v.Status = @Status))
                       AND (@WinEnd IS NULL
                            OR (v.ExpiryDate IS NOT NULL
                                AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
@@ -179,8 +188,14 @@ BEGIN
             Expired  = ISNULL(SUM(CASE WHEN Status = 'Expired' THEN 1 ELSE 0 END), 0),
             Invalid  = ISNULL(SUM(CASE WHEN Status = 'Invalid' THEN 1 ELSE 0 END), 0),
             NotSet   = ISNULL(SUM(CASE WHEN Status IS NULL     THEN 1 ELSE 0 END), 0),
-            /* the "expiring soon" card - a 30 day window from today */
-            ExpiringSoon = ISNULL(SUM(CASE WHEN ExpiryDate BETWEEN @Today AND DATEADD(DAY, 30, @Today)
+            /* The "expiring soon" card - a 30 day window from today, counting
+               only what is still worth chasing: Unused, and untriaged uploads
+               nobody has looked at yet. A voucher already used, expired or
+               written off is going nowhere, and counting it here sent people to
+               a list they could do nothing with. The card opens the same
+               Unused / Not Set view, so the two figures agree. */
+            ExpiringSoon = ISNULL(SUM(CASE WHEN (Status IS NULL OR Status = 'Unused')
+                                        AND ExpiryDate BETWEEN @Today AND DATEADD(DAY, 30, @Today)
                                     THEN 1 ELSE 0 END), 0),
             /* stock as it stood at the start of this month, so the page can say
                how far it has moved since. Read off AddedDate - there is no daily

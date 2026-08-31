@@ -11,6 +11,11 @@
    1. @Status = 'NotSet' selects vouchers whose Status IS NULL, so
       the dashboard's new "Not Set" pill can drill through.
 
+      @Status = 'UnusedOrNotSet' takes both together. That is what
+      the dashboard's early-expiry view hands down, and the grid
+      has to read it the same way or the count on the card and the
+      rows on this screen stop agreeing.
+
    2. New @Days parameter - the early-expiry window. When set, only
       vouchers expiring between today and today + N days come back.
       This is what makes the dashboard count and the View Data row
@@ -197,8 +202,9 @@ BEGIN
                OR CONVERT(NVARCHAR(200), DECRYPTBYKEY(v.VoucherCode)) LIKE '%' + @VoucherCode + '%')
           AND (@CheckedBy   IS NULL OR v.CheckedBy   = @CheckedBy)
           AND (@Status      IS NULL
-               OR (@Status =  'NotSet' AND v.Status IS NULL)
-               OR (@Status <> 'NotSet' AND v.Status = @Status))
+               OR (@Status = 'NotSet'         AND v.Status IS NULL)
+               OR (@Status = 'UnusedOrNotSet' AND (v.Status IS NULL OR v.Status = 'Unused'))
+               OR (@Status NOT IN ('NotSet', 'UnusedOrNotSet') AND v.Status = @Status))
           AND (@WinEnd      IS NULL
                OR (v.ExpiryDate IS NOT NULL AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
           AND (@Expiry      IS NULL OR v.ExpiryDate = @Expiry)
