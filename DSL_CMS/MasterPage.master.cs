@@ -269,7 +269,7 @@ namespace DSL_CMS
                     case "voucher-status.aspx": return "Voucher Status";
                     case "voucher-data.aspx": return "View Data";
                     case "manage-product.aspx": return "Manage Product";
-                    case "add-provider.aspx": return "Add Provider";
+                    case "add-provider.aspx": return "Add Provider or Product";
                     case "product-performance.aspx": return "Product wise Performance";
                     case "student-performance.aspx": return "Student wise Performance";
                     case "dashboard.aspx": return "Dashboard";

@@ -8,20 +8,28 @@ using System.Web.UI.WebControls;
 namespace DSL_CMS
 {
     /// <summary>
-    /// Adds a provider, then its products, on one screen.
+    /// Adds a provider, then its products, on one screen - and adds a product to
+    /// a provider that is already here, which is the same screen with step one
+    /// answered a different way.
     ///
     /// Two steps rather than one form: a product row needs a ProviderId, so the
     /// provider has to exist before any product can be saved. Holding the
     /// products in memory until a final Save would lose the lot on any slip,
     /// and would need a second copy of the duplicate handling Manage Product
     /// already has.
+    ///
+    /// Step two never cared where the id came from, so picking an existing
+    /// provider opens exactly what saving a new one opens. That is the whole of
+    /// the change: no second screen, no second copy of the product form.
     /// </summary>
     public partial class add_provider : System.Web.UI.Page
     {
         protected TextBox txtName, txtNewCategory, txtProductName;
-        protected DropDownList ddlCategory, ddlStatus, ddlProductStatus;
+        protected DropDownList ddlCategory, ddlStatus, ddlProductStatus, ddlExistingProvider;
         protected Button btnSaveProvider, btnStartOver, btnAddProduct;
-        protected Panel pnlBody, pnlDenied, pnlMsg, pnlProducts;
+        protected Panel pnlBody, pnlDenied, pnlMsg, pnlProducts,
+                        pnlMode, pnlNewProvider, pnlPickProvider;
+        protected LinkButton lnkModeNew, lnkModeExisting;
         protected Literal litMsg, litStepOne, litProviderName, litCount;
         protected Repeater rptProduct;
         protected PlaceHolder phEmpty;
@@ -47,11 +55,25 @@ namespace DSL_CMS
             }
         }
 
-        /// <summary>The provider saved in step one; blank until then.</summary>
+        /// <summary>
+        /// The provider step two is working on - saved just now, or picked from
+        /// the ones already here. Step two cannot tell the difference and does
+        /// not need to.
+        /// </summary>
         private string NewProviderId
         {
             get { return (string)(ViewState["NewProvider"] ?? string.Empty); }
             set { ViewState["NewProvider"] = value; }
+        }
+
+        /// <summary>
+        /// True while the screen is adding a product to a provider that already
+        /// exists. False is the original job, making a new one.
+        /// </summary>
+        private bool PickMode
+        {
+            get { return (bool)(ViewState["PickMode"] ?? false); }
+            set { ViewState["PickMode"] = value; }
         }
 
         protected void Page_Load(object sender, EventArgs e)
@@ -65,8 +87,110 @@ namespace DSL_CMS
                 return;
             }
 
-            if (!IsPostBack) BindCategories();
+            if (!IsPostBack)
+            {
+                BindCategories();
+
+                // Arriving from a provider's row - "add a product to this one" -
+                // rather than from the "+" in the menu. The screen opens on that
+                // provider with its products already listed.
+                string providerId = (Request.QueryString["providerId"] ?? string.Empty).Trim();
+                if (providerId.Length > 0)
+                {
+                    PickMode = true;
+                    BindProviders();
+                    SelectIfPresent(ddlExistingProvider, providerId);
+                    ApplyMode();
+                    OpenPickedProvider();
+                    return;
+                }
+
+                ApplyMode();
+            }
         }
+
+        #region Which of the two jobs
+
+        protected void lnkModeNew_Click(object sender, EventArgs e)
+        {
+            // Back to a blank form. Redirecting rather than clearing by hand:
+            // step one locks itself once a provider has been saved, and there
+            // are more fields to put back than there are worth remembering.
+            Response.Redirect(Request.Path, true);
+        }
+
+        protected void lnkModeExisting_Click(object sender, EventArgs e)
+        {
+            if (!IsAdmin) return;
+
+            PickMode = true;
+            NewProviderId = string.Empty;
+            pnlProducts.Visible = false;
+            pnlMsg.Visible = false;
+
+            BindProviders();
+            ApplyMode();
+
+            // Open on whichever provider the list starts with, so the screen
+            // shows what it can do rather than an empty half of a form.
+            OpenPickedProvider();
+        }
+
+        /// <summary>Which half of step one is showing, and which button is lit.</summary>
+        private void ApplyMode()
+        {
+            pnlPickProvider.Visible = PickMode;
+            pnlNewProvider.Visible = !PickMode;
+
+            lnkModeNew.CssClass = PickMode ? "pill-btn" : "pill-btn on";
+            lnkModeExisting.CssClass = PickMode ? "pill-btn on" : "pill-btn";
+
+            litStepOne.Text = PickMode ? "1. Choose a provider" : "1. Provider details";
+        }
+
+        /// <summary>
+        /// The providers a product can be added to - the same list Manage Product
+        /// offers, which is the active ones. A retired provider keeps the
+        /// vouchers it already has, but giving it a new product is not something
+        /// this screen should make easy.
+        /// </summary>
+        private void BindProviders()
+        {
+            DataTable dt = VoucherBAL.GetAllProvider();
+
+            ddlExistingProvider.Items.Clear();
+            if (dt == null) return;
+
+            foreach (DataRow r in dt.Rows)
+                ddlExistingProvider.Items.Add(
+                    new ListItem(Convert.ToString(r["Name"]), Convert.ToString(r["Id"])));
+        }
+
+        protected void ddlExistingProvider_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (!IsAdmin) return;
+
+            pnlMsg.Visible = false;
+            OpenPickedProvider();
+        }
+
+        /// <summary>Hands the picked provider to step two, which is the same step
+        /// two a newly saved provider gets.</summary>
+        private void OpenPickedProvider()
+        {
+            if (ddlExistingProvider.Items.Count == 0) return;
+
+            NewProviderId = ddlExistingProvider.SelectedValue;
+            OpenProducts(ddlExistingProvider.SelectedItem.Text);
+        }
+
+        private static void SelectIfPresent(ListControl list, string value)
+        {
+            ListItem item = list.Items.FindByValue(value ?? string.Empty);
+            if (item != null) list.SelectedValue = value;
+        }
+
+        #endregion
 
         /// <summary>
         /// The categories already in use. Picking from them is what keeps the
@@ -152,19 +276,26 @@ namespace DSL_CMS
         /// </summary>
         private void OpenProducts(string providerName)
         {
-            litStepOne.Text = "1. Provider details &mdash; saved";
             litProviderName.Text = Server.HtmlEncode(providerName);
 
-            txtName.Enabled = false;
-            ddlCategory.Enabled = false;
-            txtNewCategory.Enabled = false;
-            ddlStatus.Enabled = false;
-            txtName.CssClass = "locked";
-            ddlCategory.CssClass = "locked";
-            txtNewCategory.CssClass = "locked";
+            // Only the new-provider half locks. Picking from the list is a
+            // choice you are meant to be able to change, and there is nothing
+            // there to lock: the dropdown is the whole of step one.
+            if (!PickMode)
+            {
+                litStepOne.Text = "1. Provider details &mdash; saved";
 
-            btnSaveProvider.Visible = false;
-            btnStartOver.Visible = true;
+                txtName.Enabled = false;
+                ddlCategory.Enabled = false;
+                txtNewCategory.Enabled = false;
+                ddlStatus.Enabled = false;
+                txtName.CssClass = "locked";
+                ddlCategory.CssClass = "locked";
+                txtNewCategory.CssClass = "locked";
+
+                btnSaveProvider.Visible = false;
+                btnStartOver.Visible = true;
+            }
 
             lnkViewData.NavigateUrl = ResolveUrl("~/voucher-data.aspx?providerId=") + NewProviderId;
             lnkManage.NavigateUrl = ResolveUrl("~/manage-product.aspx?providerId=") + NewProviderId;

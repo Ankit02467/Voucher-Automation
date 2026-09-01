@@ -76,7 +76,7 @@
                          clicked on its own. --%>
                     <asp:PlaceHolder ID="phNavAddProvider" runat="server" Visible="false">
                         <a class="navadd" href="<%= ResolveUrl("~/add-provider.aspx") %>"
-                           title="Add a provider">
+                           title="Add a provider, or a product to one that is already here">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                  stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
                         </a>

@@ -8,7 +8,11 @@
     <div class="toolbar">
         <a class="btn-back" href='<%= ResolveUrl("~/voucher-status.aspx") %>'
            title="Back to Voucher Status">&#8592; Back</a>
-        <h1>Add Provider</h1>
+        <%-- The screen adds a product to a provider that already exists as well
+             as making a new one, so the heading says both. Calling it "Add
+             Provider" was why adding a product to AWS looked impossible from
+             here. --%>
+        <h1>Add Provider or Product</h1>
     </div>
 
     <asp:Panel ID="pnlDenied" runat="server" Visible="false" CssClass="msg msg-bad">
@@ -21,12 +25,38 @@
         <asp:Literal ID="litMsg" runat="server" />
     </asp:Panel>
 
-    <%-- ---------------- 1. the provider ---------------- --%>
+    <%-- ---------------- 1. the provider ----------------
+         Two ways in, one screen. Making a provider and adding a product to one
+         are the same job a step apart, and step two below is identical either
+         way - it only ever needed a provider id. Sending the admin to a second
+         screen to add a product to AWS would have been a second copy of
+         everything under it. --%>
     <div class="card">
         <div class="card-head">
             <h2><asp:Literal ID="litStepOne" runat="server" Text="1. Provider details" /></h2>
+            <asp:Panel ID="pnlMode" runat="server" CssClass="pill-row">
+                <asp:LinkButton ID="lnkModeNew" runat="server" CssClass="pill-btn on"
+                    OnClick="lnkModeNew_Click" CausesValidation="false"
+                    ToolTip="Create a provider that is not here yet">New provider</asp:LinkButton>
+                <asp:LinkButton ID="lnkModeExisting" runat="server" CssClass="pill-btn"
+                    OnClick="lnkModeExisting_Click" CausesValidation="false"
+                    ToolTip="Add a product to a provider that already exists">Existing provider</asp:LinkButton>
+            </asp:Panel>
         </div>
         <div class="card-body">
+
+        <%-- pick one that is already here, and its products open below --%>
+        <asp:Panel ID="pnlPickProvider" runat="server" Visible="false">
+            <%-- One field on its own, so it is capped rather than stretched the
+                 width of the card the way a grid of four would be. --%>
+            <div class="field" style="max-width: 420px;">
+                <label>Provider *</label>
+                <asp:DropDownList ID="ddlExistingProvider" runat="server" AutoPostBack="true"
+                    OnSelectedIndexChanged="ddlExistingProvider_SelectedIndexChanged" />
+            </div>
+        </asp:Panel>
+
+        <asp:Panel ID="pnlNewProvider" runat="server">
             <div class="form-grid">
                 <div class="field">
                     <label>Provider Name *</label>
@@ -60,6 +90,8 @@
                     </div>
                 </div>
             </div>
+        </asp:Panel>
+
         </div>
     </div>
 

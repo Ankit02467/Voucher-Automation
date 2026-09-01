@@ -212,12 +212,22 @@ grouped into rounds by `Sp_VoucherStock_Table @Action='SelectVoucherHistory'`,
 which counts hand-offs with a running `SUM() OVER`. The old toolbar button
 listed every change the whole provider had ever seen and answered nothing.
 
-**Add Provider** (`add-provider.aspx`, reached from the `+` beside Voucher
-Status in the menu) saves the provider first, then opens a products section
-against the new id. Two steps because a product needs a `ProviderId`; holding
-products in memory until one final Save would lose them on any slip. The
-product half calls the same `InsertProductDetail` Manage Product does, with a
-blank validity — that field is only on Manage Product.
+**Add Provider or Product** (`add-provider.aspx`, reached from the `+` beside
+Voucher Status in the menu) saves the provider first, then opens a products
+section against the new id. Two steps because a product needs a `ProviderId`;
+holding products in memory until one final Save would lose them on any slip.
+The product half calls the same `InsertProductDetail` Manage Product does, with
+a blank validity — that field is only on Manage Product.
+
+Step one has two halves, switched by the pair of buttons in its header:
+**New provider** is the above, **Existing provider** is a dropdown that hands
+step two an id the same way saving a new one does. Step two never cared where
+the id came from, which is why adding a product to AWS needed no second screen
+and no second copy of the product form. `?providerId=N` opens straight on the
+picker, so any row can link to "add a product to this one".
+
+Only the new-provider half locks itself after saving. The picker is a choice
+you are meant to change, and changing it re-reads step two.
 
 **Upload Entry takes dealer columns.** Paste order is voucher code, expiry
 date, then any number of dealer name / sale date pairs; a line may carry none
