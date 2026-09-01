@@ -17,9 +17,7 @@ namespace DSL_CMS
                           litUploadMsg, litUploadHint, litAssignMsg, litAssignCount,
                           litAssignTitle, litAssignBox, litAssignEmpty,
                           litGridTitle, litReassignMsg, litReassignCode,
-                          litHistCode, litHistSummary, litSearchChip,
-                          litCardTotal, litCardUsed, litCardUnused, litCardNotSet,
-                          litCardInvalid, litCardExpiring;
+                          litHistCode, litHistSummary, litSearchChip;
         protected Panel pnlBody, pnlDenied,
                         pnlMsg, pnlRoleNote, pnlRoleSwitch, pnlEdit, pnlEditDealer, pnlEditStatus, pnlEditAdmin,
                         pnlUsedDate, pnlUpload, pnlUploadMsg, pnlHistory, pnlAssign, pnlAssignMsg,
@@ -36,7 +34,7 @@ namespace DSL_CMS
         protected LinkButton lnkUpload, lnkAssign, lnkDone, lnkAddDealer, lnkPrev, lnkNext;
         protected Repeater rptHead, rptVoucher, rptPager, rptUploadProduct, rptHistory,
                            rptAssignVouchers, rptStudents, rptDealerEdit, rptAdminDealers,
-                           rptStatusPills;
+                           rptStatusPills, rptCards;
         protected PlaceHolder phEmpty, phPager, phHistoryEmpty, phAssignEmpty, phStudentsEmpty;
         protected Button btnSaveEdit, btnCancelEdit,
                          btnUploadSave, btnAssignPick, btnAssignSave, btnReassignSave;
@@ -140,14 +138,42 @@ namespace DSL_CMS
         /// hand down. That is deliberate: arriving on it lights nothing, exactly
         /// as it lights no pill on the dashboard, and any button clears it.
         /// </summary>
+        /// <summary>
+        /// Vouchers about to lapse: unused or untriaged, expiry inside the window.
+        ///
+        /// A button of its own rather than a new meaning for "Expired". The two
+        /// are not the same thing and the difference matters: Expired is a status
+        /// somebody set on a voucher that has already gone, while this is a
+        /// warning about one that still could be used. Folding them together
+        /// would have hidden every genuinely expired voucher behind a count that
+        /// was really about something else.
+        /// </summary>
+        private const string StatusExpiringSoon = "ExpiringSoon";
+
         private static readonly ListItem[] StatusFilterButtons =
         {
-            new ListItem("All",     string.Empty),
-            new ListItem("Not Set", "NotSet"),
-            new ListItem("Used",    "Used"),
-            new ListItem("Unused",  "Unused"),
-            new ListItem("Expired", "Expired"),
-            new ListItem("Invalid", "Invalid")
+            new ListItem("All",           string.Empty),
+            new ListItem("Not Set",       "NotSet"),
+            new ListItem("Used",          "Used"),
+            new ListItem("Unused",        "Unused"),
+            new ListItem("Expired",       "Expired"),
+            new ListItem("Invalid",       "Invalid"),
+            new ListItem("Expiring soon", StatusExpiringSoon)
+        };
+
+        /// <summary>
+        /// The cards. Same values as the buttons, so pressing a card presses its
+        /// button - "Total vouchers" is All under another name. There is no
+        /// Expired card because the review asked for these six.
+        /// </summary>
+        private static readonly ListItem[] StatusCards =
+        {
+            new ListItem("Total vouchers", string.Empty),
+            new ListItem("Used",           "Used"),
+            new ListItem("Unused",         "Unused"),
+            new ListItem("Not set",        "NotSet"),
+            new ListItem("Invalid",        "Invalid"),
+            new ListItem("Expiring soon",  StatusExpiringSoon)
         };
 
         /// <summary>
@@ -409,6 +435,7 @@ namespace DSL_CMS
         {
             if (string.Equals(status, "NotSet", StringComparison.Ordinal)) return "Not Set";
             if (string.Equals(status, "UnusedOrNotSet", StringComparison.Ordinal)) return "Unused & Not Set";
+            if (string.Equals(status, StatusExpiringSoon, StringComparison.Ordinal)) return "Expiring soon";
             return status;
         }
 
@@ -473,8 +500,19 @@ namespace DSL_CMS
         /// when nothing is filtered without needing a case of its own.</summary>
         protected string StatusPillClass(object buttonValue)
         {
-            string v = Convert.ToString(buttonValue);
-            string css = "vd-pill s-" + (v.Length == 0 ? "all" : v.ToLowerInvariant());
+            return StatusCss("vd-pill", buttonValue);
+        }
+
+        /// <summary>The same, for the card that carries the same value.</summary>
+        protected string CardClass(object cardValue)
+        {
+            return StatusCss("vd-card", cardValue);
+        }
+
+        private string StatusCss(string baseClass, object value)
+        {
+            string v = Convert.ToString(value);
+            string css = baseClass + " s-" + (v.Length == 0 ? "all" : v.ToLowerInvariant());
             return string.Equals(v, StatusFilter, StringComparison.OrdinalIgnoreCase)
                  ? css + " on" : css;
         }
@@ -548,51 +586,32 @@ namespace DSL_CMS
         private const int ExpiringSoonDays = 30;
 
         /// <summary>
-        /// The six figures above the grid, counted from the rows this screen is
-        /// showing rather than asked of the database separately. Opened on a
-        /// provider they describe that provider; opened on one of its products
-        /// they describe that product; and for a student they describe only what
-        /// that student holds, because the fetch they are counted from is already
+        /// The figures above the grid. Each one is counted with the very predicate
+        /// its button filters by, so a card and its button cannot disagree - there
+        /// is no second sum to get wrong. They describe whatever this screen was
+        /// opened on: a provider, one of its products, or, for a student, only
+        /// what that student holds, because the fetch behind them is already
         /// scoped by role.
         /// </summary>
         private void BindCards(DataTable all)
         {
-            int total = 0, used = 0, unused = 0, notSet = 0, invalid = 0, expiring = 0;
+            var t = new DataTable();
+            t.Columns.Add("Label", typeof(string));
+            t.Columns.Add("Value", typeof(string));
+            t.Columns.Add("Count", typeof(int));
 
-            DateTime today = DateTime.Today;
-            DateTime horizon = today.AddDays(ExpiringSoonDays);
-
-            if (all != null)
+            foreach (ListItem card in StatusCards)
             {
-                foreach (DataRow r in all.Rows)
-                {
-                    total++;
+                int n = 0;
+                if (all != null)
+                    foreach (DataRow r in all.Rows)
+                        if (MatchesRow(r, card.Value)) n++;
 
-                    string st = Convert.ToString(r["Status"]);
-                    bool isNotSet = (st.Length == 0);
-                    bool isUnused = string.Equals(st, "Unused", StringComparison.OrdinalIgnoreCase);
-
-                    if (isNotSet) notSet++;
-                    else if (string.Equals(st, "Used", StringComparison.OrdinalIgnoreCase)) used++;
-                    else if (isUnused) unused++;
-                    else if (string.Equals(st, "Invalid", StringComparison.OrdinalIgnoreCase)) invalid++;
-
-                    // Only what can still be salvaged, the same rule the dashboard
-                    // card uses. A used or expired voucher has no expiry to chase.
-                    if ((isNotSet || isUnused) && r["ExpiryDate"] != DBNull.Value)
-                    {
-                        DateTime exp = Convert.ToDateTime(r["ExpiryDate"]).Date;
-                        if (exp >= today && exp <= horizon) expiring++;
-                    }
-                }
+                t.Rows.Add(card.Text, card.Value, n);
             }
 
-            litCardTotal.Text    = total.ToString();
-            litCardUsed.Text     = used.ToString();
-            litCardUnused.Text   = unused.ToString();
-            litCardNotSet.Text   = notSet.ToString();
-            litCardInvalid.Text  = invalid.ToString();
-            litCardExpiring.Text = expiring.ToString();
+            rptCards.DataSource = t;
+            rptCards.DataBind();
         }
 
         /// <summary>
@@ -605,25 +624,50 @@ namespace DSL_CMS
 
             DataTable kept = source.Clone();
             foreach (DataRow r in source.Rows)
-                if (MatchesStatus(Convert.ToString(r["Status"]), status)) kept.ImportRow(r);
+                if (MatchesRow(r, status)) kept.ImportRow(r);
             return kept;
         }
 
         /// <summary>
-        /// The same three cases the procs handle: NULL is "Not Set", the
-        /// early-expiry token covers unused and untriaged together, and anything
-        /// else is a plain match.
+        /// Does one row belong under this status? Takes the row rather than just
+        /// its status because "Expiring soon" is a question about the expiry date
+        /// as much as the status.
+        ///
+        /// Empty means All. NULL is "Not Set". The early-expiry token the
+        /// dashboard hands down covers unused and untriaged together. Everything
+        /// else is a plain match on the status.
         /// </summary>
-        private static bool MatchesStatus(string rowStatus, string status)
+        private static bool MatchesRow(DataRow r, string status)
         {
-            bool notSet = (rowStatus.Length == 0);
+            if (status.Length == 0) return true;
+
+            string st = Convert.ToString(r["Status"]);
+            bool notSet = (st.Length == 0);
+            bool isUnused = string.Equals(st, "Unused", StringComparison.OrdinalIgnoreCase);
 
             if (string.Equals(status, "NotSet", StringComparison.Ordinal))
                 return notSet;
             if (string.Equals(status, "UnusedOrNotSet", StringComparison.Ordinal))
-                return notSet || string.Equals(rowStatus, "Unused", StringComparison.OrdinalIgnoreCase);
+                return notSet || isUnused;
+            if (string.Equals(status, StatusExpiringSoon, StringComparison.Ordinal))
+                return IsExpiringSoon(r, notSet, isUnused);
 
-            return string.Equals(rowStatus, status, StringComparison.OrdinalIgnoreCase);
+            return string.Equals(st, status, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// About to lapse and still worth saving. Used, expired and invalid
+        /// vouchers are left out - the same rule as the dashboard card of this
+        /// name, so the two screens never mean different things by one phrase.
+        /// </summary>
+        private static bool IsExpiringSoon(DataRow r, bool notSet, bool isUnused)
+        {
+            if (!notSet && !isUnused) return false;
+            if (r["ExpiryDate"] == DBNull.Value) return false;
+
+            DateTime exp = Convert.ToDateTime(r["ExpiryDate"]).Date;
+            DateTime today = DateTime.Today;
+            return exp >= today && exp <= today.AddDays(ExpiringSoonDays);
         }
 
         private void BindPager(int rowCount, int pageCount)
@@ -891,7 +935,9 @@ namespace DSL_CMS
 
         #region Status buttons and paging
 
-        protected void rptStatusPills_ItemCommand(object source, RepeaterCommandEventArgs e)
+        /// <summary>Cards and buttons carry the same values, so one handler
+        /// serves both - pressing a card is pressing its button.</summary>
+        protected void status_Command(object source, RepeaterCommandEventArgs e)
         {
             if (e.CommandName != "PickStatus") return;
 

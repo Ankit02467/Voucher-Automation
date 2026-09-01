@@ -68,39 +68,28 @@
          screen and carry a trend line and an arrow; these are only saying how
          much of what is in front of you. --%>
     <div class="vd-status">
+        <%-- The cards are the buttons, said a different way, so they click too.
+             Somebody who reads "Expiring soon 1" and presses it expects the one
+             to appear underneath; before, nothing happened at all.
+
+             Both rows are bound from one array of counts, and every count is
+             "how many rows would this button show" - asked of the same
+             predicate the button filters with. A card cannot disagree with its
+             button, because neither is worked out separately. --%>
         <div class="vd-cards">
-            <div class="vd-card s-total">
-                <span class="lab">Total vouchers</span>
-                <span class="val vs-num"><asp:Literal ID="litCardTotal" runat="server" Text="0" /></span>
-            </div>
-            <div class="vd-card s-used">
-                <span class="lab">Used</span>
-                <span class="val vs-num"><asp:Literal ID="litCardUsed" runat="server" Text="0" /></span>
-            </div>
-            <div class="vd-card s-unused">
-                <span class="lab">Unused</span>
-                <span class="val vs-num"><asp:Literal ID="litCardUnused" runat="server" Text="0" /></span>
-            </div>
-            <div class="vd-card s-notset">
-                <span class="lab">Not set</span>
-                <span class="val vs-num"><asp:Literal ID="litCardNotSet" runat="server" Text="0" /></span>
-            </div>
-            <div class="vd-card s-invalid">
-                <span class="lab">Invalid</span>
-                <span class="val vs-num"><asp:Literal ID="litCardInvalid" runat="server" Text="0" /></span>
-            </div>
-            <%-- Same meaning as the card of this name on the dashboard: unused
-                 and not-set only, within 30 days. Two screens using one phrase
-                 for two different sums would be worse than not showing it. --%>
-            <div class="vd-card s-expiring">
-                <span class="lab">Expiring soon</span>
-                <span class="val vs-num"><asp:Literal ID="litCardExpiring" runat="server" Text="0" /></span>
-            </div>
+            <asp:Repeater ID="rptCards" runat="server" OnItemCommand="status_Command">
+                <ItemTemplate>
+                    <asp:LinkButton runat="server" CommandName="PickStatus"
+                        CommandArgument='<%# Eval("Value") %>'
+                        CssClass='<%# CardClass(Eval("Value")) %>'
+                        CausesValidation="false"><span class="lab"><asp:Literal runat="server" Text='<%# Eval("Label") %>' /></span><span class="val vs-num"><asp:Literal runat="server" Text='<%# Eval("Count") %>' /></span></asp:LinkButton>
+                </ItemTemplate>
+            </asp:Repeater>
         </div>
 
         <div class="vd-pills">
             <span class="vd-plab">Status</span>
-            <asp:Repeater ID="rptStatusPills" runat="server" OnItemCommand="rptStatusPills_ItemCommand">
+            <asp:Repeater ID="rptStatusPills" runat="server" OnItemCommand="status_Command">
                 <ItemTemplate>
                     <asp:LinkButton runat="server" CommandName="PickStatus"
                         CommandArgument='<%# Eval("Value") %>'
