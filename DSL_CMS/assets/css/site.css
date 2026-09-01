@@ -332,7 +332,7 @@ button.navitem.wide { padding-right: 66px; }
 }
 .topbar .search .go:hover { background: var(--brand-soft); text-decoration: none; }
 
-.content { padding: 0px 28px 40px; }
+.content { padding: 0px 28px 1px; }
 
 /* ============================================================
    Voucher Status dashboard
@@ -882,7 +882,7 @@ table.data .muted { color: var(--muted); }
 /* ---- pagination ---- */
 .pager {
     display: flex; align-items: center; gap: 8px;
-    margin-top: 16px; flex-wrap: wrap;
+    margin-top: 2px; flex-wrap: wrap;
 }
 .pager .info { color: var(--muted); font-size: 13px; margin-right: auto; }
 .pager .pg {
