@@ -108,6 +108,23 @@
                     CausesValidation="false" ToolTip="Clear this search">&#10005;</asp:LinkButton>
             </asp:Panel>
         </div>
+
+        <%-- "Expiring soon" is a question about a span of days as much as a
+             status, so picking it asks which span - the same 1 / 3 / 7 / 1 Month
+             the dashboard offers behind View Early Expiry. Shown only while that
+             button is the lit one: for any other status there is no window to
+             choose, and an inert row of days would suggest otherwise. --%>
+        <asp:Panel ID="pnlWindows" runat="server" Visible="false" CssClass="vd-pills">
+            <span class="vd-plab">Window</span>
+            <asp:Repeater ID="rptWindows" runat="server" OnItemCommand="rptWindows_ItemCommand">
+                <ItemTemplate>
+                    <asp:LinkButton runat="server" CommandName="PickDays"
+                        CommandArgument='<%# Eval("Value") %>'
+                        CssClass='<%# WindowPillClass(Eval("Value")) %>'
+                        Text='<%# Eval("Text") %>' CausesValidation="false" />
+                </ItemTemplate>
+            </asp:Repeater>
+        </asp:Panel>
     </div>
 
     <%-- ---------------- Edit modal ---------------- --%>
@@ -319,17 +336,32 @@
                     <asp:Repeater ID="rptVoucher" runat="server" OnItemCommand="rptVoucher_ItemCommand">
                         <ItemTemplate>
                             <tr>
-                                <td runat="server" visible='<%# ShowActions %>' style="white-space: nowrap;">
-                                    <asp:LinkButton runat="server" CssClass="btn-out btn-sm" CommandName="EditRow"
+                                <%-- Icons, not words. These three repeat on every
+                                     row, and "Edit  View History  Reassign"
+                                     spelled out on each one took more width than
+                                     the voucher code beside it. The name moves to
+                                     the tooltip and to aria-label, so it is still
+                                     there for anyone who needs it read out.
+
+                                     Each button holds nothing but its icon
+                                     markup. A LinkButton handed loose text
+                                     alongside a child control loses the text at
+                                     parse time and renders an empty anchor - the
+                                     failure that once emptied the Provider
+                                     heading on Voucher Status. --%>
+                                <td runat="server" visible='<%# ShowActions %>' class="rowacts">
+                                    <asp:LinkButton runat="server" CssClass="rowact" CommandName="EditRow"
                                         CommandArgument='<%# Eval("Id") %>'
-                                        Visible='<%# CanEdit %>'>Edit</asp:LinkButton>
-                                    <asp:LinkButton runat="server" CssClass="btn-out btn-sm" CommandName="HistoryRow"
+                                        Visible='<%# CanEdit %>' aria-label="Edit"
+                                        ToolTip="Edit this voucher"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20.5h4L19 9.5a2.8 2.8 0 0 0-4-4L4 16.5v4z" /><path d="M14 6.5l4 4" /></svg></asp:LinkButton>
+                                    <asp:LinkButton runat="server" CssClass="rowact" CommandName="HistoryRow"
                                         CommandArgument='<%# Eval("Id") %>'
-                                        Visible='<%# CanHistory %>'
-                                        ToolTip="Who held this voucher, and when">View History</asp:LinkButton>
-                                    <asp:LinkButton runat="server" CssClass="btn-fill btn-sm" CommandName="ReassignRow"
+                                        Visible='<%# CanHistory %>' aria-label="View History"
+                                        ToolTip="View History - who held this voucher, and when"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1" /><path d="M3.2 3.4v4.3h4.3" /><path d="M12 7.8V12l3 1.8" /></svg></asp:LinkButton>
+                                    <asp:LinkButton runat="server" CssClass="rowact go" CommandName="ReassignRow"
                                         CommandArgument='<%# Eval("Id") %>'
-                                        Visible='<%# CanReassign %>'>Reassign</asp:LinkButton>
+                                        Visible='<%# CanReassign %>' aria-label="Reassign"
+                                        ToolTip="Reassign this voucher to a student"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5h14" /><path d="M14.5 5l3.5 3.5-3.5 3.5" /><path d="M20 15.5H6" /><path d="M9.5 12L6 15.5 9.5 19" /></svg></asp:LinkButton>
                                 </td>
                                 <td><%# Container.ItemIndex + 1 + RowOffset %></td>
                                 <td class="left"><%# Eval("ProductName") %></td>
@@ -369,6 +401,25 @@
         <asp:PlaceHolder ID="phPager" runat="server" Visible="false">
             <div class="pager" style="padding: 0 18px 16px;">
                 <span class="info"><asp:Literal ID="litPageInfo" runat="server" /></span>
+
+                <%-- How many rows to a page. Ten is a page of a screen; a hundred
+                     is the whole provider at once for anyone reading down a
+                     column. Beside the count it changes, rather than up with the
+                     status buttons, which narrow what is listed rather than how
+                     much of it is shown at a time. --%>
+                <span class="psize">
+                    <span class="lab">Rows</span>
+                    <asp:DropDownList ID="ddlPageSize" runat="server" AutoPostBack="true"
+                        CssClass="psel" CausesValidation="false"
+                        OnSelectedIndexChanged="ddlPageSize_SelectedIndexChanged"
+                        ToolTip="How many rows to show on a page">
+                        <asp:ListItem Text="10"  Value="10" />
+                        <asp:ListItem Text="20"  Value="20" />
+                        <asp:ListItem Text="50"  Value="50" />
+                        <asp:ListItem Text="100" Value="100" />
+                    </asp:DropDownList>
+                </span>
+
                 <asp:LinkButton ID="lnkPrev" runat="server" CssClass="pg" OnClick="lnkPrev_Click"
                     CausesValidation="false">Prev</asp:LinkButton>
                 <asp:Repeater ID="rptPager" runat="server" OnItemCommand="rptPager_ItemCommand">

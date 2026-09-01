@@ -21,12 +21,12 @@ namespace DSL_CMS
         protected Panel pnlBody, pnlDenied,
                         pnlMsg, pnlRoleNote, pnlRoleSwitch, pnlEdit, pnlEditDealer, pnlEditStatus, pnlEditAdmin,
                         pnlUsedDate, pnlUpload, pnlUploadMsg, pnlHistory, pnlAssign, pnlAssignMsg,
-                        pnlSearchChip, pnlReassign, pnlReassignMsg,
+                        pnlSearchChip, pnlWindows, pnlReassign, pnlReassignMsg,
                         pnlStatusButtons, pnlStatusDropdown, pnlStatusExtras;
         protected LinkButton lnkStatusUsed, lnkStatusUnused, lnkStatusInvalid;
         protected DropDownList ddlRoleSwitch,
                                ddlEditStatus, ddlExamMode, ddlAssignProduct, ddlReassignStudent,
-                               ddlAdminStatus;
+                               ddlAdminStatus, ddlPageSize;
         protected TextBox txtUsedDate, txtCandidate, txtExamDate, txtPaste, txtAssignCount,
                           txtAdminCode, txtAdminExpiry, txtAdminCheckDate, txtAdminUsedDate,
                           txtAdminAddedBy, txtAdminCandidate, txtAdminExamDate, txtAdminExamMode;
@@ -34,7 +34,7 @@ namespace DSL_CMS
         protected LinkButton lnkUpload, lnkAssign, lnkDone, lnkAddDealer, lnkPrev, lnkNext;
         protected Repeater rptHead, rptVoucher, rptPager, rptUploadProduct, rptHistory,
                            rptAssignVouchers, rptStudents, rptDealerEdit, rptAdminDealers,
-                           rptStatusPills, rptCards;
+                           rptStatusPills, rptCards, rptWindows;
         protected PlaceHolder phEmpty, phPager, phHistoryEmpty, phAssignEmpty, phStudentsEmpty;
         protected Button btnSaveEdit, btnCancelEdit,
                          btnUploadSave, btnAssignPick, btnAssignSave, btnReassignSave;
@@ -42,7 +42,7 @@ namespace DSL_CMS
 
         #endregion
 
-        private const int PageSize = 10;
+        private const int DefaultPageSize = 10;
 
         private const string RoleAdmin = "Voucher Admin";
         private const string RoleSubAdmin = "Voucher Sub Admin";
@@ -55,6 +55,17 @@ namespace DSL_CMS
         {
             get { return (int)(ViewState["Page"] ?? 0); }
             set { ViewState["Page"] = value; }
+        }
+
+        /// <summary>
+        /// How many rows a page holds, chosen at the foot of the grid. Ten still
+        /// to begin with; someone reading down a column can ask for a hundred and
+        /// stop paging altogether.
+        /// </summary>
+        private int PageSize
+        {
+            get { return (int)(ViewState["PageSize"] ?? DefaultPageSize); }
+            set { ViewState["PageSize"] = value; }
         }
 
         protected int RowOffset { get { return PageIndex * PageSize; } }
@@ -175,6 +186,53 @@ namespace DSL_CMS
             new ListItem("Invalid",        "Invalid"),
             new ListItem("Expiring soon",  StatusExpiringSoon)
         };
+
+        /// <summary>
+        /// How far ahead "expiring soon" looks, the same four spans the dashboard
+        /// offers behind View Early Expiry. One list of windows across the two
+        /// screens, so a month means a month on both.
+        /// </summary>
+        private static readonly ListItem[] Windows =
+        {
+            new ListItem("1 Day",   "1"),
+            new ListItem("3 Days",  "3"),
+            new ListItem("7 Days",  "7"),
+            new ListItem("1 Month", "30")
+        };
+
+        /// <summary>
+        /// The window the dashboard's Expiring soon card counts, and where this
+        /// screen starts. One phrase, one meaning, until somebody picks another.
+        /// </summary>
+        private const int DefaultExpiringDays = 30;
+
+        /// <summary>
+        /// The chosen window, in days. Held as the string the buttons carry so
+        /// the lit one falls out of a plain comparison, and remembered while some
+        /// other status is showing - going back to Expiring soon should not
+        /// forget that a day was asked for.
+        /// </summary>
+        private string ExpiringDays
+        {
+            get { return (string)(ViewState["ExpDays"] ?? DefaultExpiringDays.ToString()); }
+            set { ViewState["ExpDays"] = value; }
+        }
+
+        private int ExpiringDaysValue
+        {
+            get
+            {
+                int days;
+                return int.TryParse(ExpiringDays, out days) && days > 0
+                     ? days : DefaultExpiringDays;
+            }
+        }
+
+        /// <summary>Is the early-expiry view the one showing?</summary>
+        private bool ExpiringView
+        {
+            get { return string.Equals(StatusFilter, StatusExpiringSoon, StringComparison.Ordinal); }
+        }
 
         /// <summary>
         /// Back to Voucher Status, carrying the provider so its row reopens and
@@ -345,13 +403,34 @@ namespace DSL_CMS
 
             // Status picked on the dashboard; "All" means no restriction.
             string status = (Request.QueryString["status"] ?? string.Empty).Trim();
-            StatusFilter = status.Equals("All", StringComparison.OrdinalIgnoreCase)
-                ? string.Empty
-                : status;
+            if (status.Equals("All", StringComparison.OrdinalIgnoreCase)) status = string.Empty;
 
             // Early-expiry window and product, both carried over from the dashboard.
             DaysFilter = (Request.QueryString["days"] ?? string.Empty).Trim();
             LockedProductId = (Request.QueryString["productId"] ?? string.Empty).Trim();
+
+            // The dashboard's early-expiry view asks exactly what this screen's
+            // "Expiring soon" button asks: unused or untriaged, lapsing inside a
+            // window. So it arrives as that button, with its window already
+            // chosen, rather than as a status nothing on this screen can light.
+            //
+            // The window moves out of DaysFilter on the way. DaysFilter narrows
+            // the fetch, which would leave every other card counting only what
+            // is about to lapse - Total vouchers reading 2 for a provider
+            // holding 17. Held here instead, one fetch still feeds every card
+            // and only this one answers to the window.
+            if (string.Equals(status, "UnusedOrNotSet", StringComparison.Ordinal)
+                || string.Equals(status, StatusExpiringSoon, StringComparison.Ordinal))
+            {
+                status = StatusExpiringSoon;
+                if (DaysFilter.Length > 0)
+                {
+                    ExpiringDays = DaysFilter;
+                    DaysFilter = string.Empty;
+                }
+            }
+
+            StatusFilter = status;
 
             // A code handed down by the search box in the topbar. It goes into the
             // filter this screen already has rather than a state of its own, so it
@@ -420,8 +499,11 @@ namespace DSL_CMS
             if (product.Length > 0)
                 title += " - " + Server.HtmlEncode(product);
 
-            if (DaysFilter.Length > 0)
-                title += " - expiring within " + Server.HtmlEncode(DaysFilter) + " day(s)";
+            // Under the early-expiry view the window is the one on the buttons;
+            // anywhere else it can only be one the query string carried in.
+            string days = ExpiringView ? ExpiringDays : DaysFilter;
+            if (days.Length > 0)
+                title += " - expiring within " + Server.HtmlEncode(days) + " day(s)";
 
             litGridTitle.Text = title;
         }
@@ -496,6 +578,67 @@ namespace DSL_CMS
             rptStatusPills.DataBind();
         }
 
+        /// <summary>
+        /// The window buttons, shown only while the early-expiry view is the one
+        /// running. Under any other status there is nothing for them to change,
+        /// and a row of days that did nothing would say otherwise.
+        /// </summary>
+        private void BindWindows()
+        {
+            pnlWindows.Visible = ExpiringView;
+            if (!pnlWindows.Visible) return;
+
+            rptWindows.DataSource = Windows;
+            rptWindows.DataBind();
+        }
+
+        /// <summary>
+        /// A window button. Carries "vd-win" as well as the pill class so the two
+        /// rows can be told apart - by the eye, by CSS, and by anything counting
+        /// how many status buttons are lit, which must not count this one.
+        /// </summary>
+        protected string WindowPillClass(object pillValue)
+        {
+            string css = "vd-pill vd-win s-expiringsoon";
+            return string.Equals(Convert.ToString(pillValue), ExpiringDays, StringComparison.Ordinal)
+                 ? css + " on" : css;
+        }
+
+        /// <summary>
+        /// The heading over the toolbar.
+        ///
+        /// A provider opened from the dashboard names itself and is left alone.
+        /// A code found by the search in the topbar arrives with no provider in
+        /// the query string at all, and the answer was a page headed "Voucher
+        /// Data" that never said whose voucher had been found. The name is read
+        /// back off the rows, which is the only place it exists on that journey.
+        ///
+        /// A code matching more than one provider stays unnamed rather than
+        /// picking one of them to print.
+        /// </summary>
+        private void ApplyHeading(DataTable all)
+        {
+            if (ProviderId.Length > 0) return;
+
+            litProvider.Text = SoleProviderName(all);
+        }
+
+        private static string SoleProviderName(DataTable all)
+        {
+            const string plain = "Voucher Data";
+            if (all == null || all.Rows.Count == 0 || !all.Columns.Contains("ProviderName"))
+                return plain;
+
+            string name = Convert.ToString(all.Rows[0]["ProviderName"]);
+            if (name.Length == 0) return plain;
+
+            foreach (DataRow r in all.Rows)
+                if (!string.Equals(Convert.ToString(r["ProviderName"]), name, StringComparison.Ordinal))
+                    return plain;
+
+            return name + " - " + plain;
+        }
+
         /// <summary>Which button is lit. "All" is the empty value, so it lights
         /// when nothing is filtered without needing a case of its own.</summary>
         protected string StatusPillClass(object buttonValue)
@@ -541,6 +684,8 @@ namespace DSL_CMS
 
             BindCards(all);
             BindStatusFilter();
+            BindWindows();
+            ApplyHeading(all);
 
             pnlSearchChip.Visible = (SearchCode.Length > 0);
             if (pnlSearchChip.Visible) litSearchChip.Text = Server.HtmlEncode(SearchCode);
@@ -581,10 +726,6 @@ namespace DSL_CMS
             BindPager(count, pageCount);
         }
 
-        /// <summary>Window the "Expiring soon" card counts, matching the card of
-        /// that name on the dashboard. One phrase, one meaning.</summary>
-        private const int ExpiringSoonDays = 30;
-
         /// <summary>
         /// The figures above the grid. Each one is counted with the very predicate
         /// its button filters by, so a card and its button cannot disagree - there
@@ -618,7 +759,7 @@ namespace DSL_CMS
         /// Applies the picked status to rows already fetched. Done here rather
         /// than in the proc so that one fetch feeds both the cards and the grid.
         /// </summary>
-        private static DataTable FilterByStatus(DataTable source, string status)
+        private DataTable FilterByStatus(DataTable source, string status)
         {
             if (source == null || status.Length == 0) return source;
 
@@ -637,7 +778,7 @@ namespace DSL_CMS
         /// dashboard hands down covers unused and untriaged together. Everything
         /// else is a plain match on the status.
         /// </summary>
-        private static bool MatchesRow(DataRow r, string status)
+        private bool MatchesRow(DataRow r, string status)
         {
             if (status.Length == 0) return true;
 
@@ -659,15 +800,18 @@ namespace DSL_CMS
         /// About to lapse and still worth saving. Used, expired and invalid
         /// vouchers are left out - the same rule as the dashboard card of this
         /// name, so the two screens never mean different things by one phrase.
+        ///
+        /// How far ahead it looks is whichever window button is lit: a month to
+        /// begin with, down to a day.
         /// </summary>
-        private static bool IsExpiringSoon(DataRow r, bool notSet, bool isUnused)
+        private bool IsExpiringSoon(DataRow r, bool notSet, bool isUnused)
         {
             if (!notSet && !isUnused) return false;
             if (r["ExpiryDate"] == DBNull.Value) return false;
 
             DateTime exp = Convert.ToDateTime(r["ExpiryDate"]).Date;
             DateTime today = DateTime.Today;
-            return exp >= today && exp <= today.AddDays(ExpiringSoonDays);
+            return exp >= today && exp <= today.AddDays(ExpiringDaysValue);
         }
 
         private void BindPager(int rowCount, int pageCount)
@@ -678,6 +822,8 @@ namespace DSL_CMS
             int from = (PageIndex * PageSize) + 1;
             int to = Math.Min(from + PageSize - 1, rowCount);
             litPageInfo.Text = string.Format("Showing {0}-{1} of {2}", from, to, rowCount);
+
+            SelectIfPresent(ddlPageSize, PageSize.ToString());
 
             rptPager.DataSource = Pager.Links(pageCount, PageIndex);
             rptPager.DataBind();
@@ -706,7 +852,8 @@ namespace DSL_CMS
             t.Columns.Add("Width", typeof(string));
             t.Columns.Add("Extra", typeof(string));
 
-            if (ShowActions) t.Rows.Add(string.Empty, "Actions", "width: 150px;", string.Empty);
+            // narrower than it was: the row buttons are icons now, not sentences
+            if (ShowActions) t.Rows.Add(string.Empty, "Actions", "width: 118px;", string.Empty);
             t.Rows.Add(string.Empty, "S.No", "width: 70px;", string.Empty);
             t.Rows.Add("ProductName", "Product Name", string.Empty, string.Empty);
             t.Rows.Add("VoucherCode", "Voucher Code", string.Empty, string.Empty);
@@ -948,6 +1095,41 @@ namespace DSL_CMS
             StatusFilter = Convert.ToString(e.CommandArgument);
             DaysFilter = string.Empty;
             PageIndex = 0;
+            BindGrid();
+        }
+
+        /// <summary>
+        /// Swaps the early-expiry window. Never clears it: pressing the lit
+        /// button again would otherwise leave the screen headed "expiring soon"
+        /// while listing every unused voucher there is - the same trap the
+        /// dashboard's window buttons were fixed for.
+        /// </summary>
+        protected void rptWindows_ItemCommand(object source, RepeaterCommandEventArgs e)
+        {
+            if (e.CommandName != "PickDays") return;
+
+            string picked = Convert.ToString(e.CommandArgument);
+            if (picked.Length > 0) ExpiringDays = picked;
+
+            PageIndex = 0;
+            BindGrid();
+        }
+
+        /// <summary>
+        /// Changes how many rows a page holds, keeping the row at the top of the
+        /// current page in view. Jumping back to page one instead would lose the
+        /// reader's place every time - and asking for more rows is not a request
+        /// to start again from the beginning.
+        /// </summary>
+        protected void ddlPageSize_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            int size;
+            if (!int.TryParse(ddlPageSize.SelectedValue, out size) || size < 1) return;
+
+            int firstRow = PageIndex * PageSize;
+            PageSize = size;
+            PageIndex = firstRow / size;
+
             BindGrid();
         }
 

@@ -232,11 +232,15 @@ button.navitem.wide { padding-right: 66px; }
 .navgroup.open > .navprov { background: rgba(59,138,230,.14); color: #fff; }
 .navgroup.open > .navprov .cnt { color: var(--brand-2); }
 
-/* ---- a product, or a category, at the last level ---- */
+/* ---- a product, or a category, at the last level ----
+   White standing still, not only under the pointer. These were the sidebar's
+   muted grey, which made a list of products read as disabled until it was
+   hovered - the one level of the tree you have to open something to reach was
+   the one hardest to read. Hover now moves the background, not the text. */
 .navprod {
     display: flex; align-items: center; gap: 9px;
     padding: 7px 12px 7px 48px; border-radius: 8px;
-    color: var(--sb-mut); font-size: 13.5px; font-weight: 500; transition: .15s;
+    color: #fff; font-size: 13.5px; font-weight: 500; transition: .15s;
 }
 .navprod:hover { background: rgba(255,255,255,.05); color: #fff; text-decoration: none; }
 .navprod.on { color: #fff; background: rgba(59,138,230,.16); font-weight: 600; }
@@ -894,6 +898,22 @@ table.data .muted { color: var(--muted); }
 .pager .pg.dots { border: 0; background: none; pointer-events: none; color: var(--muted); }
 .pager .pg.off { opacity: .45; pointer-events: none; }
 
+/* Rows to a page. Beside the count it changes and the buttons it changes the
+   number of, rather than up with the status buttons - those narrow what is
+   listed, this only says how much of it to show at a time. */
+.pager .psize { display: inline-flex; align-items: center; gap: 7px; margin-right: 4px; }
+.pager .psize .lab {
+    font-size: 11px; font-weight: 800; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+}
+.pager .psize .psel {
+    min-width: 0; height: 38px; padding: 0 8px;
+    border: 1px solid #cbd5e1; border-radius: 6px;
+    background: #fff; color: #334155; font: inherit; font-weight: 600;
+    cursor: pointer;
+}
+.pager .psize .psel:hover { border-color: var(--blue); color: var(--blue-dark); }
+
 .icon-btn {
     width: 46px; height: 46px;
     border: 1.5px solid var(--blue);
@@ -965,6 +985,32 @@ table.data td.empty { padding: 34px; color: var(--muted); }
 .act .btn-fill:hover { background: var(--blue-dark); color: #fff; text-decoration: none; }
 .act .btn-out { background: #fff; color: var(--blue-dark); }
 .act .btn-out:hover { background: #eff5ff; text-decoration: none; }
+
+/* ---- row actions on View Data ----
+   Icons rather than words. The same two or three buttons repeat on every row,
+   so their names were being read once and then re-read forty times; spelled
+   out they took more width than the voucher code beside them. The name lives
+   in the tooltip and in aria-label, so nothing is lost - only the repetition.
+
+   A plain title tooltip on purpose: the grid scrolls in both axes, and a
+   tooltip drawn by the page would be clipped by the box that scrolls it. */
+td.rowacts { white-space: nowrap; }
+.rowact {
+    display: inline-grid; place-items: center; vertical-align: middle;
+    width: 32px; height: 32px; margin: 0 2px;
+    border: 1.5px solid var(--blue-line); border-radius: 8px;
+    background: #fff; color: var(--blue-dark);
+    cursor: pointer; transition: .15s;
+}
+.rowact svg { width: 17px; height: 17px; }
+.rowact:hover {
+    background: var(--blue); border-color: var(--blue); color: #fff;
+    text-decoration: none; box-shadow: 0 4px 12px rgba(46,107,230,.28);
+}
+/* Reassign hands a voucher back to somebody, which is not the same weight of
+   action as opening a dialog - it stays filled, the way it was as a button. */
+.rowact.go { background: var(--blue); border-color: var(--blue); color: #fff; }
+.rowact.go:hover { background: var(--blue-dark); border-color: var(--blue-dark); }
 
 /* ---------------- Generic bits (voucher-data / manage-product) ---------------- */
 .card {
@@ -1054,6 +1100,9 @@ table.data td.empty { padding: 34px; color: var(--muted); }
 .vd-pill.s-expired      { --cc: var(--st-expired); }
 .vd-pill.s-invalid      { --cc: var(--st-invalid); }
 .vd-pill.s-expiringsoon { --cc: var(--st-expired); }
+/* The window row: 1 Day / 3 Days / 7 Days / 1 Month. Set to one width so four
+   spans of different name lengths read as one scale rather than four buttons. */
+.vd-win { min-width: 78px; justify-content: center; }
 
 /* Where the topbar search lands. Says what is being looked at, and offers the
    way back out of it - the job Reset used to do. */
