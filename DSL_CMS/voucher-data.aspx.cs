@@ -26,10 +26,10 @@ namespace DSL_CMS
         protected LinkButton lnkStatusUsed, lnkStatusUnused, lnkStatusInvalid;
         protected DropDownList ddlRoleSwitch,
                                ddlEditStatus, ddlExamMode, ddlAssignProduct, ddlReassignStudent,
-                               ddlAdminStatus, ddlPageSize;
+                               ddlAdminStatus, ddlAdminExamMode, ddlPageSize;
         protected TextBox txtUsedDate, txtCandidate, txtExamDate, txtPaste, txtAssignCount,
                           txtAdminCode, txtAdminExpiry, txtAdminCheckDate, txtAdminUsedDate,
-                          txtAdminAddedBy, txtAdminCandidate, txtAdminExamDate, txtAdminExamMode;
+                          txtAdminAddedBy, txtAdminCandidate, txtAdminExamDate;
         protected HiddenField hfId, hfReassignId;
         protected LinkButton lnkUpload, lnkAssign, lnkDone, lnkAddDealer, lnkPrev, lnkNext;
         protected Repeater rptHead, rptVoucher, rptPager, rptUploadProduct, rptHistory,
@@ -825,8 +825,29 @@ namespace DSL_CMS
                 return notSet || isUnused;
             if (string.Equals(status, StatusExpiringSoon, StringComparison.Ordinal))
                 return IsExpiringSoon(r, notSet, isUnused);
+            if (string.Equals(status, "Expired", StringComparison.OrdinalIgnoreCase))
+                return HasLapsed(r);
 
             return string.Equals(st, status, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Past its expiry date, whatever anybody has typed against it.
+        ///
+        /// "Expired" is a date having gone, not a word in the status column. A
+        /// voucher used, unused, invalid or never triaged is expired all the
+        /// same once its date is behind us - so the button asks the date. It
+        /// counted only the ones somebody had marked "Expired" by hand before,
+        /// which is why it read nought beside providers holding a dozen lapsed
+        /// vouchers.
+        ///
+        /// Sp_VoucherProvider_Table and Sp_VoucherStock_Table say the same, so
+        /// the dashboard column and this grid answer one question.
+        /// </summary>
+        private static bool HasLapsed(DataRow r)
+        {
+            if (r["ExpiryDate"] == DBNull.Value) return false;
+            return Convert.ToDateTime(r["ExpiryDate"]).Date < DateTime.Today;
         }
 
         /// <summary>
@@ -1296,15 +1317,15 @@ namespace DSL_CMS
                 // shown but locked - the proc will not write these either
                 txtAdminCode.Text = Convert.ToString(r["VoucherCode"]);
                 txtAdminAddedBy.Text = Convert.ToString(r["AddedByName"]);
-                txtAdminCandidate.Text = Convert.ToString(r["CandidateName"]);
-                txtAdminExamDate.Text = FormatDate(r["ExamDate"]);
-                txtAdminExamMode.Text = Convert.ToString(r["ExamMode"]);
 
                 // editable
                 txtAdminExpiry.Text = FormatDate(r["ExpiryDate"]);
                 txtAdminCheckDate.Text = FormatDate(r["VoucherCheckDate"]);
                 txtAdminUsedDate.Text = FormatDate(r["UsedDate"]);
                 SelectIfPresent(ddlAdminStatus, Convert.ToString(r["Status"]));
+                txtAdminCandidate.Text = Convert.ToString(r["CandidateName"]);
+                txtAdminExamDate.Text = FormatDate(r["ExamDate"]);
+                SelectIfPresent(ddlAdminExamMode, Convert.ToString(r["ExamMode"]));
 
                 // exactly as many dealer fields as this voucher already has
                 rptAdminDealers.DataSource = ExistingDealerRows(r["DealerNames"], r["SaleDates"]);
@@ -1500,16 +1521,19 @@ namespace DSL_CMS
             }
             else if (Role == RoleAdmin)
             {
-                if (ddlAdminStatus.SelectedValue == "Used" && txtAdminUsedDate.Text.Trim().Length == 0)
-                {
-                    ShowMessage("Voucher Used Date is required when the status is 'Used'.", false);
-                    return;
-                }
+                // Nothing is required of the admin. The used date is not asked
+                // for even under "Used": an admin setting a status on somebody
+                // else's voucher may not know the date, and refusing the save
+                // over it left them unable to record the status at all. The
+                // proc drops the used date whenever the status is not "Used",
+                // so a blank one cannot leave a stale date behind.
 
-                // the voucher code is displayed only - it is never sent
+                // the voucher code and Added By are displayed only - never sent
                 VoucherBAL.UpdateAdminEntry(id,
                     txtAdminExpiry.Text.Trim(), txtAdminCheckDate.Text.Trim(),
-                    ddlAdminStatus.SelectedValue, txtAdminUsedDate.Text.Trim(), userId);
+                    ddlAdminStatus.SelectedValue, txtAdminUsedDate.Text.Trim(),
+                    txtAdminCandidate.Text.Trim(), txtAdminExamDate.Text.Trim(),
+                    ddlAdminExamMode.SelectedValue, userId);
 
                 var dealers = new StringBuilder();
                 foreach (RepeaterItem item in rptAdminDealers.Items)

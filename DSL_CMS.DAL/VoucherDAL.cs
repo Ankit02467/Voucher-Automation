@@ -197,7 +197,8 @@ namespace DSL_CMS.DAL
         /// but are not editable, and the proc will not change them.
         /// </summary>
         public static DataTable UpdateAdminEntry(string id, string expiryDate,
-            string checkDate, string status, string usedDate, string userId)
+            string checkDate, string status, string usedDate,
+            string candidateName, string examDate, string examMode, string userId)
         {
             return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,
                 "@Action", "UpdateAdminEntry",
@@ -206,6 +207,9 @@ namespace DSL_CMS.DAL
                 "@VoucherCheckDate", checkDate,
                 "@Status", status,
                 "@UsedDate", usedDate,
+                "@CandidateName", candidateName,
+                "@ExamDate", examDate,
+                "@ExamMode", examMode,
                 "@AddedBy", userId);
         }
 

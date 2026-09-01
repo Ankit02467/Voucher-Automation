@@ -132,6 +132,17 @@ product those vouchers belonged to.
 / `Invalid` / **NULL**. NULL means a fresh upload nobody has triaged — the
 "Not Set" pill. Providers and products use `A` / `I`.
 
+**The "Expired" filter does not read that column.** It asks
+`ExpiryDate < today` — a used, unused, invalid or untriaged voucher past its
+date is expired all the same, and reading the column instead left the count at
+nought beside providers holding a dozen lapsed ones. `Status = 'Expired'` still
+exists and still shows in the grid's badge; nothing sets the filter from it.
+
+Both procs and `voucher-data.aspx.cs` say this, and all three have to agree or
+a card and the list under it stop matching. "Expiring soon" is the same
+question the other way round: unused or untriaged, expiring **within** the
+chosen window.
+
 ---
 
 ## Running it
@@ -182,9 +193,18 @@ The Edit modal differs by role — that is the whole point of `CanEdit` being
 true for everyone. `OpenEditor` picks the panel: the team gets the dealer
 pairs and nothing else, the student gets the three status buttons, the
 sub-admin gets the status entry, the admin gets the lot. Admin sees voucher
-code, added by, candidate name and exam details **greyed out** — and
-`UpdateAdminEntry` does not write them either. A disabled input is a hint to
-the browser, not a rule; the proc is where it is enforced.
+code and added by **greyed out** — and `UpdateAdminEntry` does not write them
+either. A disabled input is a hint to the browser, not a rule; the proc is
+where it is enforced. Candidate name, exam date and exam mode used to be in
+that list and are now the admin's to edit, so `UpdateAdminEntry` writes all
+three — plainly, not `ISNULL`'d onto what is there, because an admin who
+clears a field means to clear it.
+
+**Nothing is required of the admin's editor.** A status on its own saves. The
+used date is not demanded even under "Used": an admin setting a status on
+somebody else's voucher may not know the date, and refusing the save over it
+left them unable to record the status at all. The proc drops the used date
+whenever the status is not "Used", so a blank one cannot leave a stale date.
 
 **View History is a row action, not a screen action.** It opens one voucher's
 own history — assigned to a student, checked, reassigned, checked again —

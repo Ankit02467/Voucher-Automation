@@ -48,6 +48,19 @@
       change it whatever is posted. It gained Status and UsedDate,
       which the admin may now set.
 
+   Revision 3e:
+
+   10. UpdateAdminEntry also writes CandidateName, ExamDate and
+       ExamMode. The admin's editor shows them as fields rather
+       than greyed-out text, so the admin can correct a candidate
+       or an exam without going through anybody else.
+
+   11. @Status = 'Expired' means the expiry date has gone, not that
+       somebody typed "Expired" into the status column. A used,
+       unused, invalid or untriaged voucher past its date is
+       expired all the same. Sp_VoucherProvider_Table says the
+       same, so the dashboard count and this list agree.
+
    Revision 3d - encryption:
 
    9. VoucherCode, CandidateName, Remarks and the dealer names are
@@ -201,10 +214,18 @@ BEGIN
           AND (@VoucherCode IS NULL
                OR CONVERT(NVARCHAR(200), DECRYPTBYKEY(v.VoucherCode)) LIKE '%' + @VoucherCode + '%')
           AND (@CheckedBy   IS NULL OR v.CheckedBy   = @CheckedBy)
+          /* "Expired" is the expiry date having gone, not a word somebody typed
+             into the status column - a used, unused, invalid or untriaged
+             voucher whose date has passed is expired all the same. Kept in step
+             with Sp_VoucherProvider_Table, so the count on the dashboard and the
+             list this returns are answering one question. */
           AND (@Status      IS NULL
                OR (@Status = 'NotSet'         AND v.Status IS NULL)
                OR (@Status = 'UnusedOrNotSet' AND (v.Status IS NULL OR v.Status = 'Unused'))
-               OR (@Status NOT IN ('NotSet', 'UnusedOrNotSet') AND v.Status = @Status))
+               OR (@Status = 'Expired'        AND v.ExpiryDate IS NOT NULL
+                                              AND v.ExpiryDate < @Today)
+               OR (@Status NOT IN ('NotSet', 'UnusedOrNotSet', 'Expired')
+                   AND v.Status = @Status))
           AND (@WinEnd      IS NULL
                OR (v.ExpiryDate IS NOT NULL AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
           AND (@Expiry      IS NULL OR v.ExpiryDate = @Expiry)
@@ -412,13 +433,19 @@ BEGIN
     END
 
     /* ================= admin edit =================
-       Expiry date, check date, status and used date. Dealer names go
-       through SaveDealers.
+       Expiry date, check date, status, used date, and now the
+       candidate and exam details as well. Dealer names go through
+       SaveDealers.
 
-       VoucherCode, AddedBy, CandidateName, ExamDate and ExamMode are
-       deliberately NOT touched - the admin's editor shows them
-       greyed out, and the proc must not change them even if a value
-       is posted. */
+       VoucherCode and AddedBy are still deliberately NOT touched -
+       the admin's editor shows them greyed out, and the proc must
+       not change them even if a value is posted. The candidate name
+       and exam details used to be in that list; they are the admin's
+       to correct now, and the editor shows them as fields.
+
+       They are written straight, not ISNULL'd onto what is there:
+       an admin who clears a candidate name means to clear it, and
+       the editor shows the box it was cleared in. */
     ELSE IF @Action = 'UpdateAdminEntry'
     BEGIN
         UPDATE dbo.VoucherStock_Table
@@ -426,6 +453,9 @@ BEGIN
                VoucherCheckDate = @CheckDt,
                Status           = @Status,
                UsedDate         = CASE WHEN @Status = 'Used' THEN @Used ELSE NULL END,
+               CandidateName    = ENCRYPTBYKEY(KEY_GUID('VoucherDataKey'), @CandidateName),
+               ExamDate         = @Exam,
+               ExamMode         = @ExamMode,
                ModifiedBy       = @UserInt,
                ModifiedDate     = GETDATE()
          WHERE Id = @IdInt;

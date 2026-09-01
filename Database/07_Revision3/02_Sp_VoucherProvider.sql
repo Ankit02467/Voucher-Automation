@@ -86,7 +86,10 @@ BEGIN
                   AND (@Status IS NULL
                        OR (@Status = 'NotSet'         AND v.Status IS NULL)
                        OR (@Status = 'UnusedOrNotSet' AND (v.Status IS NULL OR v.Status = 'Unused'))
-                       OR (@Status NOT IN ('NotSet', 'UnusedOrNotSet') AND v.Status = @Status))
+                       OR (@Status = 'Expired'        AND v.ExpiryDate IS NOT NULL
+                                                      AND v.ExpiryDate < @Today)
+                       OR (@Status NOT IN ('NotSet', 'UnusedOrNotSet', 'Expired')
+                           AND v.Status = @Status))
                   AND (@WinEnd IS NULL
                        OR (v.ExpiryDate IS NOT NULL
                            AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
@@ -111,7 +114,10 @@ BEGIN
                       AND (@Status IS NULL
                            OR (@Status = 'NotSet'         AND v.Status IS NULL)
                            OR (@Status = 'UnusedOrNotSet' AND (v.Status IS NULL OR v.Status = 'Unused'))
-                           OR (@Status NOT IN ('NotSet', 'UnusedOrNotSet') AND v.Status = @Status))
+                           OR (@Status = 'Expired'        AND v.ExpiryDate IS NOT NULL
+                                                          AND v.ExpiryDate < @Today)
+                           OR (@Status NOT IN ('NotSet', 'UnusedOrNotSet', 'Expired')
+                               AND v.Status = @Status))
                       AND (@WinEnd IS NULL
                            OR (v.ExpiryDate IS NOT NULL
                                AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
@@ -147,7 +153,13 @@ BEGIN
                                     AND (@WinEnd IS NULL OR (v.ExpiryDate IS NOT NULL
                                          AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
                                    THEN 1 ELSE 0 END),
-            ExpiredCount = SUM(CASE WHEN v.Status = 'Expired'
+            /* Expired is the date, not the status. A voucher whose expiry date
+               has gone is expired whatever anybody has typed against it - used,
+               unused, invalid, or never triaged at all. Counting only the ones
+               somebody had marked "Expired" by hand left the column reading
+               nought beside providers holding a dozen lapsed vouchers. */
+            ExpiredCount = SUM(CASE WHEN v.ExpiryDate IS NOT NULL
+                                     AND v.ExpiryDate < @Today
                                      AND (@WinEnd IS NULL OR (v.ExpiryDate IS NOT NULL
                                           AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
                                     THEN 1 ELSE 0 END),
@@ -185,7 +197,9 @@ BEGIN
                hands the page DBNull cards and Convert.ToInt32 throws on them. */
             Used     = ISNULL(SUM(CASE WHEN Status = 'Used'    THEN 1 ELSE 0 END), 0),
             Unused   = ISNULL(SUM(CASE WHEN Status = 'Unused'  THEN 1 ELSE 0 END), 0),
-            Expired  = ISNULL(SUM(CASE WHEN Status = 'Expired' THEN 1 ELSE 0 END), 0),
+            /* the date, not the status - see ExpiredCount above */
+            Expired  = ISNULL(SUM(CASE WHEN ExpiryDate IS NOT NULL
+                                        AND ExpiryDate < @Today THEN 1 ELSE 0 END), 0),
             Invalid  = ISNULL(SUM(CASE WHEN Status = 'Invalid' THEN 1 ELSE 0 END), 0),
             NotSet   = ISNULL(SUM(CASE WHEN Status IS NULL     THEN 1 ELSE 0 END), 0),
             /* The "expiring soon" card - a 30 day window from today, counting

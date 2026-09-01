@@ -204,17 +204,27 @@
                         <label>Voucher Used Date</label>
                         <asp:TextBox ID="txtAdminUsedDate" runat="server" TextMode="Date" />
                     </div>
+                    <%-- The candidate and exam details are the admin's to
+                         correct now, so they are fields rather than greyed-out
+                         text. Voucher code and Added By stay locked: one
+                         identifies the voucher and the other is a record of who
+                         put it there, and neither is a correction anybody
+                         should be making from here. --%>
                     <div class="field">
-                        <label>Candidate Name <span class="locked-tag">read only</span></label>
-                        <asp:TextBox ID="txtAdminCandidate" runat="server" Enabled="false" CssClass="locked" />
+                        <label>Candidate Name</label>
+                        <asp:TextBox ID="txtAdminCandidate" runat="server" />
                     </div>
                     <div class="field">
-                        <label>Exam Date <span class="locked-tag">read only</span></label>
-                        <asp:TextBox ID="txtAdminExamDate" runat="server" Enabled="false" CssClass="locked" />
+                        <label>Exam Date</label>
+                        <asp:TextBox ID="txtAdminExamDate" runat="server" TextMode="Date" />
                     </div>
                     <div class="field">
-                        <label>Exam Mode <span class="locked-tag">read only</span></label>
-                        <asp:TextBox ID="txtAdminExamMode" runat="server" Enabled="false" CssClass="locked" />
+                        <label>Exam Mode</label>
+                        <asp:DropDownList ID="ddlAdminExamMode" runat="server">
+                            <asp:ListItem Text="-- Select --" Value="" />
+                            <asp:ListItem Text="Online"      Value="Online" />
+                            <asp:ListItem Text="Test Centre" Value="Test Centre" />
+                        </asp:DropDownList>
                     </div>
                     <%-- one name + sale date pair per dealer already on this voucher --%>
                     <asp:Repeater ID="rptAdminDealers" runat="server">
