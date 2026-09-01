@@ -646,6 +646,39 @@ namespace DSL_CMS
             return StatusCss("vd-pill", buttonValue);
         }
 
+        /// <summary>
+        /// The inside of a card: its name over its figure.
+        ///
+        /// Built here and handed to the button as Text rather than written in
+        /// the markup as spans around a Literal. A LinkButton given markup and a
+        /// child control together keeps only the child, and the child's value
+        /// does not survive a postback that has not re-bound the repeater -
+        /// which is every postback that opens a dialog. The row of cards came
+        /// back as empty outlines. Text belongs to the button itself and is
+        /// remembered the way CssClass is.
+        /// </summary>
+        protected string CardBody(object dataItem)
+        {
+            var row = dataItem as DataRowView;
+            if (row == null) return string.Empty;
+
+            return "<span class=\"lab\">"
+                 + Server.HtmlEncode(Convert.ToString(row["Label"]))
+                 + "</span><span class=\"val vs-num\">"
+                 + Server.HtmlEncode(Convert.ToString(row["Count"]))
+                 + "</span>";
+        }
+
+        /// <summary>The inside of a status button - its colour dot, then its
+        /// name. Built as Text for the same reason as the cards.</summary>
+        protected string PillBody(object dataItem)
+        {
+            var item = dataItem as ListItem;
+            if (item == null) return string.Empty;
+
+            return "<span class=\"pip\"></span>" + Server.HtmlEncode(item.Text);
+        }
+
         /// <summary>The same, for the card that carries the same value.</summary>
         protected string CardClass(object cardValue)
         {

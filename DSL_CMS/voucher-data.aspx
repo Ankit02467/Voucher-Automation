@@ -76,13 +76,23 @@
              "how many rows would this button show" - asked of the same
              predicate the button filters with. A card cannot disagree with its
              button, because neither is worked out separately. --%>
+        <%-- The label and the figure are built in code and handed over as Text,
+             not written here as spans wrapping a Literal.
+
+             A LinkButton given markup and a child control together keeps only
+             the child, and the child's own value does not come back on a
+             postback that has not re-bound the repeater - which is what opening
+             the Edit or View History dialog does. The cards and buttons came
+             back as empty outlines. Text is a property of the button itself, so
+             it is remembered the same way CssClass is, on every postback. --%>
         <div class="vd-cards">
             <asp:Repeater ID="rptCards" runat="server" OnItemCommand="status_Command">
                 <ItemTemplate>
                     <asp:LinkButton runat="server" CommandName="PickStatus"
                         CommandArgument='<%# Eval("Value") %>'
                         CssClass='<%# CardClass(Eval("Value")) %>'
-                        CausesValidation="false"><span class="lab"><asp:Literal runat="server" Text='<%# Eval("Label") %>' /></span><span class="val vs-num"><asp:Literal runat="server" Text='<%# Eval("Count") %>' /></span></asp:LinkButton>
+                        Text='<%# CardBody(Container.DataItem) %>'
+                        CausesValidation="false" />
                 </ItemTemplate>
             </asp:Repeater>
         </div>
@@ -91,10 +101,12 @@
             <span class="vd-plab">Status</span>
             <asp:Repeater ID="rptStatusPills" runat="server" OnItemCommand="status_Command">
                 <ItemTemplate>
+                    <%-- built as Text for the same reason as the cards above --%>
                     <asp:LinkButton runat="server" CommandName="PickStatus"
                         CommandArgument='<%# Eval("Value") %>'
                         CssClass='<%# StatusPillClass(Eval("Value")) %>'
-                        CausesValidation="false"><span class="pip"></span><asp:Literal runat="server" Text='<%# Eval("Text") %>' /></asp:LinkButton>
+                        Text='<%# PillBody(Container.DataItem) %>'
+                        CausesValidation="false" />
                 </ItemTemplate>
             </asp:Repeater>
 
