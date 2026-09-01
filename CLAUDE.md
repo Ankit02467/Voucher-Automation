@@ -206,6 +206,22 @@ somebody else's voucher may not know the date, and refusing the save over it
 left them unable to record the status at all. The proc drops the used date
 whenever the status is not "Used", so a blank one cannot leave a stale date.
 
+**Setting a status stamps the check date**, in all four editors. Three of them
+always did — `UpdateCheck`, `UpdateStatusEntry`, `UpdateStatusOnly` all write
+`GETDATE()`. `UpdateAdminEntry` did not, because it was written before the
+admin had a status field at all, so an admin could set a status and leave the
+Voucher Check Date column empty. It stamps now, with two rules: a date already
+in the box wins (the editor loads the one the voucher has, so this fills the
+first check rather than overwriting one), and no status means no stamp.
+`CheckedBy` is written with it, or the column reads blank beside a date that
+came from nowhere.
+
+Note the admin's branch still does **not** set `AutoMoveAfter` — the other
+three do. An admin's stamp therefore records the check without handing the
+voucher to the sub-admin overnight. Deliberate for now: an admin edits other
+people's vouchers, and moving one out from under a student because the admin
+corrected a field would be a surprise.
+
 **View History is a row action, not a screen action.** It opens one voucher's
 own history — assigned to a student, checked, reassigned, checked again —
 grouped into rounds by `Sp_VoucherStock_Table @Action='SelectVoucherHistory'`,

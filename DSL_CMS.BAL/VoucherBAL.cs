@@ -110,10 +110,11 @@ namespace DSL_CMS.BAL
 
         public static DataTable UpdateAdminEntry(string id, string expiryDate,
             string checkDate, string status, string usedDate,
-            string candidateName, string examDate, string examMode, string userId)
+            string candidateName, string examDate, string examMode,
+            string checkedBy, string userId)
         {
             return VoucherDAL.UpdateAdminEntry(id, expiryDate, checkDate, status, usedDate,
-                candidateName, examDate, examMode, userId);
+                candidateName, examDate, examMode, checkedBy, userId);
         }
 
         public static DataTable Move(string id, string userId)

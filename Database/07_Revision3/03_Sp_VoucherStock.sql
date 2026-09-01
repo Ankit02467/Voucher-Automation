@@ -437,6 +437,9 @@ BEGIN
        candidate and exam details as well. Dealer names go through
        SaveDealers.
 
+       Leaving the check date empty and setting a status stamps the
+       check date with today - see the CASE below.
+
        VoucherCode and AddedBy are still deliberately NOT touched -
        the admin's editor shows them greyed out, and the proc must
        not change them even if a value is posted. The candidate name
@@ -450,7 +453,25 @@ BEGIN
     BEGIN
         UPDATE dbo.VoucherStock_Table
            SET ExpiryDate       = @Expiry,
-               VoucherCheckDate = @CheckDt,
+               /* Setting a status IS checking the voucher, so the check date
+                  stamps itself - the same thing UpdateStatusEntry and
+                  UpdateStatusOnly have always done for the sub-admin and the
+                  student. The admin's editor was the one place it did not,
+                  because the admin only got a status field later and this
+                  branch was written before there was one.
+
+                  A date already in the box wins. The editor loads whatever the
+                  voucher has, so an existing check date comes back down here as
+                  @CheckDt and is kept - this stamps the first check, it does
+                  not overwrite one. */
+               VoucherCheckDate = CASE WHEN @CheckDt IS NOT NULL THEN @CheckDt
+                                       WHEN @Status  IS NOT NULL THEN GETDATE()
+                                       ELSE NULL END,
+               /* whoever's check it is gets their name against it, or the
+                  column reads blank beside a date that came from nowhere */
+               CheckedBy        = CASE WHEN @CheckDt IS NULL AND @Status IS NOT NULL
+                                       THEN ISNULL(@CheckedBy, CheckedBy)
+                                       ELSE CheckedBy END,
                Status           = @Status,
                UsedDate         = CASE WHEN @Status = 'Used' THEN @Used ELSE NULL END,
                CandidateName    = ENCRYPTBYKEY(KEY_GUID('VoucherDataKey'), @CandidateName),

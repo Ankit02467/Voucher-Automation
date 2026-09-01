@@ -198,7 +198,8 @@ namespace DSL_CMS.DAL
         /// </summary>
         public static DataTable UpdateAdminEntry(string id, string expiryDate,
             string checkDate, string status, string usedDate,
-            string candidateName, string examDate, string examMode, string userId)
+            string candidateName, string examDate, string examMode,
+            string checkedBy, string userId)
         {
             return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,
                 "@Action", "UpdateAdminEntry",
@@ -210,6 +211,9 @@ namespace DSL_CMS.DAL
                 "@CandidateName", candidateName,
                 "@ExamDate", examDate,
                 "@ExamMode", examMode,
+                // used only when the proc stamps the check date itself - see
+                // the UpdateAdminEntry branch
+                "@CheckedBy", checkedBy,
                 "@AddedBy", userId);
         }
 

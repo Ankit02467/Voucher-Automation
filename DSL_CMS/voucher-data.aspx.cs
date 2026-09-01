@@ -1528,12 +1528,18 @@ namespace DSL_CMS
                 // proc drops the used date whenever the status is not "Used",
                 // so a blank one cannot leave a stale date behind.
 
+                // Setting a status with the check date left empty stamps it
+                // with today, and this is the name that goes against it - the
+                // same name the sub-admin's and the student's checks carry.
+                string adminChecker = Convert.ToString(Session["FullName"]);
+                if (string.IsNullOrEmpty(adminChecker)) adminChecker = "System";
+
                 // the voucher code and Added By are displayed only - never sent
                 VoucherBAL.UpdateAdminEntry(id,
                     txtAdminExpiry.Text.Trim(), txtAdminCheckDate.Text.Trim(),
                     ddlAdminStatus.SelectedValue, txtAdminUsedDate.Text.Trim(),
                     txtAdminCandidate.Text.Trim(), txtAdminExamDate.Text.Trim(),
-                    ddlAdminExamMode.SelectedValue, userId);
+                    ddlAdminExamMode.SelectedValue, adminChecker, userId);
 
                 var dealers = new StringBuilder();
                 foreach (RepeaterItem item in rptAdminDealers.Items)
