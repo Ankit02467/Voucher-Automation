@@ -222,6 +222,22 @@ voucher to the sub-admin overnight. Deliberate for now: an admin edits other
 people's vouchers, and moving one out from under a student because the admin
 corrected a field would be a surprise.
 
+**Remarks are a log, and belong to two roles.** `VoucherRemark_Table`
+([Database/10_Remarks/01_VoucherRemark_Table.sql](Database/10_Remarks/01_VoucherRemark_Table.sql))
+holds every remark anybody leaves on a voucher, encrypted like the code beside
+it. `VoucherStock_Table.Remarks` — the single encrypted column that has never
+been written to — is untouched and still is nothing's source; one column cannot
+hold a conversation.
+
+`RoleName` is stored with each remark and the name is joined live: the role is
+what the writer *was* when they wrote it, and relabelling old remarks the day
+somebody changes role would be a lie, while a corrected spelling of a name
+should show everywhere.
+
+Only `Voucher Admin` and `Voucher Team` get the column, the "i", the log behind
+it and the box in the editor — `ShowRemarks` decides, and both the row command
+and the save check it again. It is a rule, not a hidden control.
+
 **View History is a row action, not a screen action.** It opens one voucher's
 own history — assigned to a student, checked, reassigned, checked again —
 grouped into rounds by `Sp_VoucherStock_Table @Action='SelectVoucherHistory'`,

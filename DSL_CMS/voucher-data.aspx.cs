@@ -17,25 +17,30 @@ namespace DSL_CMS
                           litUploadMsg, litUploadHint, litAssignMsg, litAssignCount,
                           litAssignTitle, litAssignBox, litAssignEmpty,
                           litGridTitle, litReassignMsg, litReassignCode,
-                          litHistCode, litHistSummary, litSearchChip;
+                          litHistCode, litHistSummary, litSearchChip,
+                          litRemarkCode, litEditRemarkCount;
         protected Panel pnlBody, pnlDenied,
                         pnlMsg, pnlRoleNote, pnlRoleSwitch, pnlEdit, pnlEditDealer, pnlEditStatus, pnlEditAdmin,
                         pnlUsedDate, pnlUpload, pnlUploadMsg, pnlHistory, pnlAssign, pnlAssignMsg,
                         pnlSearchChip, pnlWindows, pnlReassign, pnlReassignMsg,
-                        pnlStatusButtons, pnlStatusDropdown, pnlStatusExtras;
+                        pnlStatusButtons, pnlStatusDropdown, pnlStatusExtras,
+                        pnlRemarks, pnlEditRemarks;
         protected LinkButton lnkStatusUsed, lnkStatusUnused, lnkStatusInvalid;
         protected DropDownList ddlRoleSwitch,
                                ddlEditStatus, ddlExamMode, ddlAssignProduct, ddlReassignStudent,
                                ddlAdminStatus, ddlAdminExamMode, ddlPageSize;
         protected TextBox txtUsedDate, txtCandidate, txtExamDate, txtPaste, txtAssignCount,
                           txtAdminCode, txtAdminExpiry, txtAdminCheckDate, txtAdminUsedDate,
-                          txtAdminAddedBy, txtAdminCandidate, txtAdminExamDate;
+                          txtAdminAddedBy, txtAdminCandidate, txtAdminExamDate, txtRemark;
         protected HiddenField hfId, hfReassignId;
-        protected LinkButton lnkUpload, lnkAssign, lnkDone, lnkAddDealer, lnkPrev, lnkNext;
+        protected LinkButton lnkUpload, lnkAssign, lnkDone, lnkAddDealer, lnkPrev, lnkNext,
+                             lnkRemarksClose;
         protected Repeater rptHead, rptVoucher, rptPager, rptUploadProduct, rptHistory,
                            rptAssignVouchers, rptStudents, rptDealerEdit, rptAdminDealers,
-                           rptStatusPills, rptCards, rptWindows;
-        protected PlaceHolder phEmpty, phPager, phHistoryEmpty, phAssignEmpty, phStudentsEmpty;
+                           rptStatusPills, rptCards, rptWindows,
+                           rptRemarks, rptEditRemarks;
+        protected PlaceHolder phEmpty, phPager, phHistoryEmpty, phAssignEmpty, phStudentsEmpty,
+                              phRemarksEmpty, phEditRemarks;
         protected Button btnSaveEdit, btnCancelEdit,
                          btnUploadSave, btnAssignPick, btnAssignSave, btnReassignSave;
         protected System.Web.UI.HtmlControls.HtmlGenericControl divEditModal, divStatusFields;
@@ -352,6 +357,18 @@ namespace DSL_CMS
         /// The sub-admin and the student never see them.
         /// </summary>
         protected bool ShowDealers { get { return Role == RoleAdmin || Role == RoleTeam; } }
+
+        /// <summary>
+        /// Remarks belong to the admin and the voucher team, and to nobody else:
+        /// not the column, not the log behind the "i", not the box in the
+        /// editor. Written as its own rule rather than reusing ShowDealers,
+        /// which happens to cover the same two roles today - they are two
+        /// different decisions and one of them will move.
+        ///
+        /// This is the gate, not the markup. Both row commands and the save
+        /// check it again, because a hidden control is only hidden.
+        /// </summary>
+        protected bool ShowRemarks { get { return Role == RoleAdmin || Role == RoleTeam; } }
 
         /// <summary>A student sees neither Added By nor Checked By.</summary>
         protected bool ShowAddedBy { get { return Role != RoleStudent; } }
@@ -926,6 +943,12 @@ namespace DSL_CMS
                 }
             }
 
+            // After the last dealer pair and before the status, which is where
+            // the review asked for it. Not sortable: the cell is the latest
+            // remark plus a way in to the rest, and ordering a grid by the tail
+            // of a conversation answers nothing.
+            if (ShowRemarks) t.Rows.Add(string.Empty, "Remarks", "min-width: 190px;", string.Empty);
+
             // Checked By sits next to the check date it belongs to, and the used
             // date follows both. The body cells in the markup are in this same
             // order - move one and the other has to move with it.
@@ -1102,6 +1125,211 @@ namespace DSL_CMS
             return sb.ToString();
         }
 
+        #region Remarks
+
+        /// <summary>
+        /// Reads one of the two remark columns off a grid row, and coughs up
+        /// nothing rather than throwing when they are not there.
+        ///
+        /// They are not always there: the pipeline deploys the site but never
+        /// the database, so a server can be running this code against a proc
+        /// that predates the remarks log. Everything else about the row still
+        /// works; the cell just has nothing to show. Same care as SkippedCodes
+        /// takes on the upload.
+        /// </summary>
+        private static object RemarkField(object dataItem, string column)
+        {
+            var row = dataItem as DataRowView;
+            if (row == null || !row.Row.Table.Columns.Contains(column)) return null;
+
+            object v = row[column];
+            return (v == DBNull.Value) ? null : v;
+        }
+
+        private static int RemarkCount(object dataItem)
+        {
+            object v = RemarkField(dataItem, "RemarkCount");
+            return (v == null) ? 0 : Convert.ToInt32(v);
+        }
+
+        /// <summary>
+        /// The last remark, short enough to sit in a column. The whole of it is
+        /// on the tooltip and the whole log is behind the "i" - a cell is no
+        /// place to read a conversation.
+        /// </summary>
+        protected string LatestRemark(object dataItem)
+        {
+            string text = Convert.ToString(RemarkField(dataItem, "LastRemark")).Trim();
+            if (text.Length == 0) return "-";
+
+            const int cap = 48;
+            if (text.Length > cap) text = text.Substring(0, cap - 1).TrimEnd() + "…";
+
+            return Server.HtmlEncode(text);
+        }
+
+        /// <summary>What hovering the cell or the "i" says.</summary>
+        protected string RemarkTip(object dataItem)
+        {
+            int n = RemarkCount(dataItem);
+            if (n == 0) return "No remark yet - open Edit to leave one";
+
+            string text = Convert.ToString(RemarkField(dataItem, "LastRemark")).Trim();
+            string head = (n == 1) ? "1 remark" : n + " remarks";
+            return (text.Length == 0) ? head : head + " - latest: " + text;
+        }
+
+        /// <summary>The "i" lights up only when there is something behind it.</summary>
+        protected string RemarkIconClass(object dataItem)
+        {
+            return (RemarkCount(dataItem) > 0) ? "rem-info on" : "rem-info";
+        }
+
+        /// <summary>
+        /// The inside of the "i": the glyph, and how many remarks are behind it
+        /// once there is more than one. Built here and handed over as the
+        /// button's Text - see the note in the markup.
+        /// </summary>
+        protected string RemarkIcon(object dataItem)
+        {
+            const string glyph =
+                "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" "
+              + "stroke-linecap=\"round\" stroke-linejoin=\"round\">"
+              + "<circle cx=\"12\" cy=\"12\" r=\"9\" /><path d=\"M12 11v5\" /><path d=\"M12 7.6v.9\" /></svg>";
+
+            int n = RemarkCount(dataItem);
+            return (n > 1) ? glyph + "<span class=\"n\">" + n + "</span>" : glyph;
+        }
+
+        /// <summary>
+        /// "Voucher Admin (Kunal Goyal)" - the role stored with the remark, and
+        /// the name of whoever left it. The role comes from the row rather than
+        /// from the reader, so a remark left by the team still reads as the
+        /// team's when an admin opens the log.
+        /// </summary>
+        protected string RemarkWho(object dataItem)
+        {
+            var row = dataItem as DataRowView;
+            if (row == null) return string.Empty;
+
+            string role = Convert.ToString(row["RoleName"]).Trim();
+            string name = Convert.ToString(row["CreatedByName"]).Trim();
+
+            if (role.Length == 0) role = "Someone";
+            string who = (name.Length == 0) ? role : role + " (" + name + ")";
+
+            return Server.HtmlEncode(who) + " :";
+        }
+
+        /// <summary>A dot the colour of the role that wrote it.</summary>
+        protected string RemarkStepClass(object roleName)
+        {
+            string role = Convert.ToString(roleName);
+            if (string.Equals(role, RoleAdmin, StringComparison.OrdinalIgnoreCase))
+                return "hist-step rem-step k-admin";
+            if (string.Equals(role, RoleTeam, StringComparison.OrdinalIgnoreCase))
+                return "hist-step rem-step k-team";
+            return "hist-step rem-step";
+        }
+
+        /// <summary>
+        /// Opens the log for one voucher. Guarded rather than trusted: the
+        /// command arrives from a posted field, and a role with no remarks
+        /// column must not be able to read the log by posting one anyway.
+        /// </summary>
+        private void OpenRemarks(string id)
+        {
+            if (!ShowRemarks) return;
+
+            DataTable v = VoucherBAL.GetData(id);
+            litRemarkCode.Text = (v != null && v.Rows.Count > 0)
+                ? Server.HtmlEncode(Convert.ToString(v.Rows[0]["VoucherCode"]))
+                : string.Empty;
+
+            DataTable dt = VoucherBAL.GetRemarks(id);
+            rptRemarks.DataSource = dt;
+            rptRemarks.DataBind();
+
+            phRemarksEmpty.Visible = (dt == null || dt.Rows.Count == 0);
+            pnlRemarks.Visible = true;
+        }
+
+        protected void lnkRemarksClose_Click(object sender, EventArgs e)
+        {
+            pnlRemarks.Visible = false;
+        }
+
+        /// <summary>
+        /// The remark box in the editor, plus what is already on the voucher.
+        /// Only for the two roles that own remarks; for anyone else the whole
+        /// panel stays away.
+        /// </summary>
+        private void BindEditRemarks(string id)
+        {
+            pnlEditRemarks.Visible = ShowRemarks;
+            if (!ShowRemarks) return;
+
+            txtRemark.Text = string.Empty;
+
+            DataTable dt = VoucherBAL.GetRemarks(id);
+            int count = (dt == null) ? 0 : dt.Rows.Count;
+
+            rptEditRemarks.DataSource = dt;
+            rptEditRemarks.DataBind();
+
+            litEditRemarkCount.Text = count.ToString();
+            phEditRemarks.Visible = (count > 0);
+        }
+
+        /// <summary>
+        /// Writes whatever is in the box, if anything. Called from both saves
+        /// that can reach it - the admin's and the voucher team's - so a remark
+        /// is kept whichever editor it was typed into.
+        ///
+        /// A blank box is not an error. Most saves are not about a remark, and
+        /// refusing one because the box was empty would make the field feel
+        /// required when it is the opposite.
+        /// </summary>
+        private void SaveRemarkIfAny(string id)
+        {
+            if (!ShowRemarks) return;
+
+            string text = (txtRemark.Text ?? string.Empty).Trim();
+            if (text.Length == 0) return;
+
+            try
+            {
+                VoucherBAL.AddRemark(id, text, Role, Convert.ToString(Session["UserId"]));
+                txtRemark.Text = string.Empty;
+            }
+            catch (Exception ex)
+            {
+                // The pipeline deploys the site and never the database, so this
+                // code can meet a proc that has no AddRemark and no @Remark to
+                // pass it. That must cost the remark and nothing else: the
+                // expiry date, status and dealer rows saved above are already
+                // written, and an error page here would say they were not.
+                RemarkSaveError = ex.Message;
+            }
+        }
+
+        /// <summary>
+        /// Set when a remark could not be written, so the message after the save
+        /// can say which half worked. Blank the rest of the time.
+        /// </summary>
+        private string RemarkSaveError { get; set; }
+
+        /// <summary>Adds the "but not the remark" half to a save message.</summary>
+        private string WithRemarkNote(string message)
+        {
+            if (string.IsNullOrEmpty(RemarkSaveError)) return message;
+
+            return message + " The remark could not be saved - the database "
+                 + "reported: " + RemarkSaveError;
+        }
+
+        #endregion
+
         private static string[] Split(object value)
         {
             string raw = Convert.ToString(value);
@@ -1265,6 +1493,10 @@ namespace DSL_CMS
             {
                 OpenReassign(id);
             }
+            else if (e.CommandName == "RemarksRow" && ShowRemarks)
+            {
+                OpenRemarks(id);
+            }
         }
 
         private void OpenEditor(string id)
@@ -1293,6 +1525,11 @@ namespace DSL_CMS
             pnlEditDealer.Visible = dealerMode;
             pnlEditAdmin.Visible = adminMode;
             pnlEditStatus.Visible = !dealerMode && !adminMode;
+
+            // Remarks ride along with whichever panel is open, for the two roles
+            // that have them. BindEditRemarks decides; it is not the markup's
+            // to decide, and the save checks the same rule again.
+            BindEditRemarks(id);
 
             // student picks the status with buttons and sees nothing else;
             // sub-admin keeps the dropdown plus candidate and exam details
@@ -1517,7 +1754,8 @@ namespace DSL_CMS
                 }
 
                 VoucherBAL.SaveDealers(id, sb.ToString(), userId);
-                ShowMessage("Dealer details saved.", true);
+                SaveRemarkIfAny(id);
+                ShowMessage(WithRemarkNote("Dealer details saved."), RemarkSaveError == null);
             }
             else if (Role == RoleAdmin)
             {
@@ -1552,8 +1790,9 @@ namespace DSL_CMS
                            .Append((date == null) ? string.Empty : date.Text.Trim());
                 }
                 VoucherBAL.SaveDealers(id, dealers.ToString(), userId);
+                SaveRemarkIfAny(id);
 
-                ShowMessage("Voucher updated.", true);
+                ShowMessage(WithRemarkNote("Voucher updated."), RemarkSaveError == null);
             }
             else if (UsesStatusButtons)
             {

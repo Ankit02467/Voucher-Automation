@@ -61,6 +61,17 @@
        expired all the same. Sp_VoucherProvider_Table says the
        same, so the dashboard count and this list agree.
 
+   Revision 3f:
+
+   12. AddRemark / SelectRemarks, against the new
+       VoucherRemark_Table (10_Remarks/01). A voucher carries any
+       number of remarks, each with the role and person who left
+       it. The grid select gained RemarkCount and LastRemark for
+       the cell; the whole log is a click away.
+
+       Run 10_Remarks/01 before this file, or both new actions and
+       the two new grid columns fail on a missing table.
+
    Revision 3d - encryption:
 
    9. VoucherCode, CandidateName, Remarks and the dealer names are
@@ -109,6 +120,10 @@ CREATE OR ALTER PROCEDURE dbo.Sp_VoucherStock_Table
     @AssignedTo       NVARCHAR(50)   = NULL,
     @IsMoved          NVARCHAR(5)    = NULL,
     @Days             NVARCHAR(10)   = NULL,
+    /* one remark being added, and the role of whoever is adding it - see
+       AddRemark. Nothing else reads these. */
+    @Remark           NVARCHAR(1000) = NULL,
+    @RoleName         NVARCHAR(50)   = NULL,
     @Ids              NVARCHAR(MAX)  = NULL,
     @Data             NVARCHAR(MAX)  = NULL,
     /* BulkInsert only: the dealer pairs pasted alongside each voucher, as
@@ -165,6 +180,8 @@ BEGIN
        sub-admin's, without anyone pressing anything */
     DECLARE @NextMidnight DATETIME = DATEADD(DAY, 1, CAST(@Today AS DATETIME));
 
+    SET @Remark        = NULLIF(LTRIM(RTRIM(@Remark)),      '');
+    SET @RoleName      = NULLIF(LTRIM(RTRIM(@RoleName)),    '');
     SET @VoucherCode   = NULLIF(LTRIM(RTRIM(@VoucherCode)), '');
     SET @DealerName    = NULLIF(LTRIM(RTRIM(@DealerName)),  '');
     SET @CheckedBy     = NULLIF(LTRIM(RTRIM(@CheckedBy)),   '');
@@ -200,6 +217,17 @@ BEGIN
             v.AssignedTo, AssignedToName = ISNULL(a.FullName, ''),
             v.IsMoved, v.MovedDate, v.AutoMoveAfter,
             Remarks = CONVERT(NVARCHAR(1000), DECRYPTBYKEY(v.Remarks)),
+            /* The remarks log: how many there are, and the last one, which is
+               all the grid cell shows. The whole list is a click away through
+               SelectRemarks - a column is no place for a conversation.
+
+               The old single Remarks column above is left where it is and is
+               still nothing's source; these two are the ones the screen reads. */
+            RemarkCount = (SELECT COUNT(*) FROM dbo.VoucherRemark_Table r
+                            WHERE r.VoucherId = v.Id),
+            LastRemark = CONVERT(NVARCHAR(1000), DECRYPTBYKEY((
+                SELECT TOP 1 r.Remark FROM dbo.VoucherRemark_Table r
+                 WHERE r.VoucherId = v.Id ORDER BY r.Id DESC))),
             v.AddedDate
         FROM dbo.VoucherStock_Table v
         INNER JOIN dbo.VoucherProvider_Table p  ON p.Id  = v.ProviderId
@@ -760,6 +788,48 @@ BEGIN
 
         SELECT Assigned = @Ins;
     END
+
+    /* ================= remarks =================
+       A log, one row per remark, never an update. Two people can leave a
+       remark on the same voucher an hour apart and both are worth keeping -
+       that is the whole point of the feature, and why this is a table rather
+       than the Remarks column on the stock row.
+
+       A blank remark is not an error, it is nothing to say: the editor saves
+       whether or not the box was filled, so an empty one must not write a row.
+       @Remark is NULLIF'd to NULL at the top, so this simply does nothing. */
+    ELSE IF @Action = 'AddRemark'
+    BEGIN
+        IF @IdInt IS NULL OR @Remark IS NULL
+        BEGIN
+            SELECT Added = 0;
+            RETURN;
+        END
+
+        INSERT INTO dbo.VoucherRemark_Table (VoucherId, Remark, RoleName, CreatedBy, CreatedDate)
+        SELECT @IdInt,
+               ENCRYPTBYKEY(KEY_GUID('VoucherDataKey'), @Remark),
+               @RoleName, @UserInt, GETDATE()
+        /* the voucher has to exist - the id comes from a posted field */
+        WHERE EXISTS (SELECT 1 FROM dbo.VoucherStock_Table v WHERE v.Id = @IdInt);
+
+        SELECT Added = @@ROWCOUNT;
+    END
+
+    /* One voucher's remarks, oldest first, so the log reads down the page the
+       way View History does. The role is the one stored with the remark; the
+       name is joined live, because someone correcting the spelling of their
+       own name means it on everything they have written. */
+    ELSE IF @Action = 'SelectRemarks'
+        SELECT r.Id,
+               Remark = CONVERT(NVARCHAR(1000), DECRYPTBYKEY(r.Remark)),
+               RoleName = ISNULL(r.RoleName, ''),
+               CreatedByName = ISNULL(u.FullName, ''),
+               r.CreatedDate
+        FROM dbo.VoucherRemark_Table r
+        LEFT JOIN dbo.User_Table u ON u.Id = r.CreatedBy
+        WHERE r.VoucherId = @IdInt
+        ORDER BY r.Id;
 
     /* ================= history ================= */
     ELSE IF @Action = 'SelectHistory'

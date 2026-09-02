@@ -217,6 +217,30 @@ namespace DSL_CMS.DAL
                 "@AddedBy", userId);
         }
 
+        /// <summary>
+        /// Adds one remark to a voucher's log. A blank remark writes nothing -
+        /// the proc drops it - so the caller need not check before saving.
+        /// <paramref name="roleName"/> is stored as written: it is the role the
+        /// writer held at the time, not the one they hold today.
+        /// </summary>
+        public static DataTable AddRemark(string id, string remark, string roleName, string userId)
+        {
+            return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,
+                "@Action", "AddRemark",
+                "@Id", id,
+                "@Remark", remark,
+                "@RoleName", roleName,
+                "@AddedBy", userId);
+        }
+
+        /// <summary>One voucher's remarks, oldest first.</summary>
+        public static DataTable GetRemarks(string id)
+        {
+            return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,
+                "@Action", "SelectRemarks",
+                "@Id", id);
+        }
+
         /// <summary>Student - hands a finished voucher over to the sub-admin.</summary>
         public static DataTable Move(string id, string userId)
         {

@@ -242,6 +242,35 @@
                 </div>
             </asp:Panel>
 
+            <%-- Admin and voucher team: leave a remark.
+                 One box, not a list to edit - remarks are a log. Whatever is
+                 typed here is added when the dialog is saved, and what is
+                 already on the voucher is read underneath. Shown for these two
+                 roles only, and OpenEditor decides that, not the markup. --%>
+            <asp:Panel ID="pnlEditRemarks" runat="server" Visible="false" CssClass="rem-edit">
+                <div class="field">
+                    <label>Add a Remark</label>
+                    <asp:TextBox ID="txtRemark" runat="server" TextMode="MultiLine"
+                        CssClass="rem-box" MaxLength="1000"
+                        placeholder="Anything worth recording against this voucher." />
+                </div>
+                <asp:PlaceHolder ID="phEditRemarks" runat="server" Visible="false">
+                    <div class="rem-log">
+                        <div class="rem-log-head">Remarks so far
+                            (<asp:Literal ID="litEditRemarkCount" runat="server" Text="0" />)</div>
+                        <asp:Repeater ID="rptEditRemarks" runat="server">
+                            <ItemTemplate>
+                                <div class="rem-line">
+                                    <b><%# RemarkWho(Container.DataItem) %></b>
+                                    <span class="txt"><%# Server.HtmlEncode(Convert.ToString(Eval("Remark"))) %></span>
+                                    <span class="when"><%# Eval("CreatedDate", "{0:dd-MMM-yyyy  HH:mm}") %></span>
+                                </div>
+                            </ItemTemplate>
+                        </asp:Repeater>
+                    </div>
+                </asp:PlaceHolder>
+            </asp:Panel>
+
             <%-- Student / sub-admin: status entry --%>
             <asp:Panel ID="pnlEditStatus" runat="server" Visible="false">
 
@@ -391,6 +420,32 @@
                                 <td><%# DateOrDash(Eval("ExpiryDate")) %></td>
                                 <td runat="server" visible='<%# ShowAddedBy %>'><%# Dash(Eval("AddedByName")) %></td>
                                 <%# DealerCells(Eval("DealerNames"), Eval("SaleDates")) %>
+                                <%-- Remarks: after the last dealer pair, before
+                                     the status. A real cell rather than markup
+                                     built in code, because the "i" has to be a
+                                     LinkButton carrying the row's id - the same
+                                     way Edit and View History do. --%>
+                                <td runat="server" visible='<%# ShowRemarks %>' class="left rem-cell">
+                                    <%-- One flex row: the remark takes what is
+                                         left and is cut with an ellipsis, the
+                                         icon never shrinks and so lines up down
+                                         the column whatever the text does. --%>
+                                    <span class="rem-wrap">
+                                        <span class="rem-text" title='<%# RemarkTip(Container.DataItem) %>'><%# LatestRemark(Container.DataItem) %></span>
+                                        <%-- Icon and count are handed over as
+                                             Text, not written as markup around
+                                             a Literal. A LinkButton given both
+                                             keeps only the child, and the child
+                                             comes back empty on a postback that
+                                             has not re-bound the grid - which
+                                             opening any dialog is. --%>
+                                        <asp:LinkButton runat="server" CssClass='<%# RemarkIconClass(Container.DataItem) %>'
+                                            CommandName="RemarksRow" CommandArgument='<%# Eval("Id") %>'
+                                            aria-label="View remarks"
+                                            Text='<%# RemarkIcon(Container.DataItem) %>'
+                                            ToolTip='<%# RemarkTip(Container.DataItem) %>' />
+                                    </span>
+                                </td>
                                 <td><%# StatusBadge(Eval("Status")) %></td>
                                 <%-- check date, then who checked it, then the used
                                      date - the cells must stay in the order
@@ -541,6 +596,40 @@
                     <div class="hist-empty">
                         Nothing recorded against this voucher yet. History starts the
                         first time it is assigned, checked or edited.
+                    </div>
+                </asp:PlaceHolder>
+            </div>
+        </div>
+    </asp:Panel>
+
+    <%-- ================= Remarks modal =================
+         Everything anybody has written on one voucher, oldest first, read as a
+         log the way View History is. Reached from the "i" in the Remarks cell,
+         and only the admin and the voucher team can open it. --%>
+    <asp:Panel ID="pnlRemarks" runat="server" Visible="false" CssClass="modal-back">
+        <div class="modal md">
+            <div class="modal-head">
+                <h2>Remarks &mdash; <asp:Literal ID="litRemarkCode" runat="server" /></h2>
+                <asp:LinkButton ID="lnkRemarksClose" runat="server" CssClass="btn btn-light btn-sm"
+                    OnClick="lnkRemarksClose_Click" CausesValidation="false">Close</asp:LinkButton>
+            </div>
+            <div class="modal-body">
+                <asp:Repeater ID="rptRemarks" runat="server">
+                    <ItemTemplate>
+                        <div class='<%# RemarkStepClass(Eval("RoleName")) %>'>
+                            <span class="dot"></span>
+                            <div class="what">
+                                <b><%# RemarkWho(Container.DataItem) %></b>
+                                <span class="txt"><%# Server.HtmlEncode(Convert.ToString(Eval("Remark"))) %></span>
+                            </div>
+                            <span class="when"><%# Eval("CreatedDate", "{0:dd-MMM-yyyy  HH:mm}") %></span>
+                        </div>
+                    </ItemTemplate>
+                </asp:Repeater>
+
+                <asp:PlaceHolder ID="phRemarksEmpty" runat="server" Visible="false">
+                    <div class="hist-empty">
+                        No remark on this voucher yet. Open Edit to leave the first one.
                     </div>
                 </asp:PlaceHolder>
             </div>

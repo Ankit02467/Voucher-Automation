@@ -1012,6 +1012,83 @@ td.rowacts { white-space: nowrap; }
 .rowact.go { background: var(--blue); border-color: var(--blue); color: #fff; }
 .rowact.go:hover { background: var(--blue-dark); border-color: var(--blue-dark); }
 
+/* ---- remarks in the grid ----
+   The last remark and a way in to the rest. The text is the quiet half - it is
+   a fragment of a sentence sitting in a column of dates and codes, so it reads
+   in the muted ink the dashes around it use, and turns dark when there is
+   something to read. The "i" is the loud half only when it has something
+   behind it: hollow and grey on a voucher nobody has remarked on, filled and
+   blue the moment one exists, so a column of them can be skimmed. */
+td.rem-cell { white-space: nowrap; min-width: 210px; }
+/* One row: the remark takes whatever is left and is cut with an ellipsis, the
+   icon never shrinks. That is what keeps the icons in a straight line down the
+   column however long or short the remarks are. */
+.rem-cell .rem-wrap { display: flex; align-items: center; gap: 8px; }
+.rem-cell .rem-text {
+    flex: 1 1 auto; min-width: 0;
+    color: var(--tx-3); font-size: 13.5px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rem-info {
+    display: inline-flex; align-items: center; gap: 3px; flex: 0 0 auto;
+    height: 26px; padding: 0 7px;
+    border: 1.5px solid var(--line-2); border-radius: 999px;
+    background: #fff; color: var(--tx-3);
+    font-size: 11.5px; font-weight: 800; line-height: 1;
+    cursor: pointer; transition: .15s;
+}
+.rem-info svg { width: 15px; height: 15px; }
+.rem-info:hover {
+    border-color: var(--brand); background: var(--brand); color: #fff;
+    text-decoration: none; box-shadow: 0 4px 12px rgba(46,107,230,.28);
+}
+/* Something to read. Hollow and grey means nobody has written on this voucher,
+   filled and blue means somebody has - so the column can be skimmed rather
+   than opened one row at a time. */
+.rem-info.on {
+    border-color: var(--brand); background: var(--brand-soft); color: var(--brand);
+}
+.rem-info.on:hover { background: var(--brand); color: #fff; }
+.rem-info.on .rem-text { color: var(--tx); }
+/* the count only appears past the first remark - "1" beside an icon that is
+   already lit says nothing the colour has not */
+.rem-info .n { font-variant-numeric: tabular-nums; }
+/* a voucher with a remark reads in full ink; an empty one stays a quiet dash */
+.rem-cell .rem-wrap:has(.rem-info.on) .rem-text { color: var(--tx); }
+
+/* ---- the remark box in the editor ---- */
+.rem-edit { margin-top: 4px; }
+.rem-edit .rem-box {
+    width: 100%; min-height: 74px; resize: vertical;
+    padding: 9px 11px; border: 1px solid #cbd5e1; border-radius: 8px;
+    font: inherit; color: var(--ink);
+}
+.rem-log {
+    margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px;
+    max-height: 190px; overflow-y: auto;
+}
+.rem-log-head {
+    font-size: 11px; font-weight: 800; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--tx-3); margin-bottom: 8px;
+}
+.rem-line {
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+    padding: 7px 0; border-bottom: 1px dashed var(--line);
+    font-size: 13.5px;
+}
+.rem-line:last-child { border-bottom: 0; }
+.rem-line b { color: var(--navy-ink); font-weight: 700; white-space: nowrap; }
+.rem-line .txt { flex: 1; min-width: 140px; color: var(--tx); }
+.rem-line .when { color: var(--tx-3); font-size: 12px; white-space: nowrap; }
+
+/* ---- the remarks log, in its own dialog ----
+   Built on the View History step so the two logs read the same way; the dot
+   takes the colour of whoever wrote the line. */
+.rem-step .what b { display: inline; margin-right: 6px; }
+.rem-step .what .txt { color: var(--tx); }
+.rem-step.k-admin .dot { background: var(--brand); }
+.rem-step.k-team  .dot { background: var(--st-unused); }
+
 /* ---------------- Generic bits (voucher-data / manage-product) ---------------- */
 .card {
     background: #fff; border: 1px solid var(--line);

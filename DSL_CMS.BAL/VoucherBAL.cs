@@ -117,6 +117,16 @@ namespace DSL_CMS.BAL
                 candidateName, examDate, examMode, checkedBy, userId);
         }
 
+        public static DataTable AddRemark(string id, string remark, string roleName, string userId)
+        {
+            return VoucherDAL.AddRemark(id, remark, roleName, userId);
+        }
+
+        public static DataTable GetRemarks(string id)
+        {
+            return VoucherDAL.GetRemarks(id);
+        }
+
         public static DataTable Move(string id, string userId)
         {
             return VoucherDAL.Move(id, userId);
