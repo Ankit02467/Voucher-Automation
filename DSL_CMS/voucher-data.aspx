@@ -432,14 +432,22 @@
                                          the column whatever the text does. --%>
                                     <span class="rem-wrap">
                                         <span class="rem-text" title='<%# RemarkTip(Container.DataItem) %>'><%# LatestRemark(Container.DataItem) %></span>
-                                        <%-- Icon and count are handed over as
+                                        <%-- The "i" is only there when there is
+                                             something behind it. On a voucher
+                                             nobody has written on the cell is a
+                                             dash like every other empty column,
+                                             rather than a button that opens an
+                                             empty log.
+
+                                             Icon and count are handed over as
                                              Text, not written as markup around
                                              a Literal. A LinkButton given both
                                              keeps only the child, and the child
                                              comes back empty on a postback that
                                              has not re-bound the grid - which
                                              opening any dialog is. --%>
-                                        <asp:LinkButton runat="server" CssClass='<%# RemarkIconClass(Container.DataItem) %>'
+                                        <asp:LinkButton runat="server" CssClass="rem-info"
+                                            Visible='<%# HasRemark(Container.DataItem) %>'
                                             CommandName="RemarksRow" CommandArgument='<%# Eval("Id") %>'
                                             aria-label="View remarks"
                                             Text='<%# RemarkIcon(Container.DataItem) %>'

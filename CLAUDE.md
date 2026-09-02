@@ -238,6 +238,13 @@ Only `Voucher Admin` and `Voucher Team` get the column, the "i", the log behind
 it and the box in the editor — `ShowRemarks` decides, and both the row command
 and the save check it again. It is a rule, not a hidden control.
 
+The "i" is only rendered on a voucher somebody has written on (`HasRemark`), so
+it is never the empty state — an untouched row is the same dash as the columns
+either side of it, and a column of icons marks exactly the rows worth opening.
+The column sorts on `LastRemark`, which is what the cell shows; blanks sort
+first the way an empty date or name does, so one click gathers the untouched
+rows and the second brings every remarked voucher to the top.
+
 **View History is a row action, not a screen action.** It opens one voucher's
 own history — assigned to a student, checked, reassigned, checked again —
 grouped into rounds by `Sp_VoucherStock_Table @Action='SelectVoucherHistory'`,

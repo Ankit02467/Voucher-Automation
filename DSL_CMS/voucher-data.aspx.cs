@@ -944,10 +944,11 @@ namespace DSL_CMS
             }
 
             // After the last dealer pair and before the status, which is where
-            // the review asked for it. Not sortable: the cell is the latest
-            // remark plus a way in to the rest, and ordering a grid by the tail
-            // of a conversation answers nothing.
-            if (ShowRemarks) t.Rows.Add(string.Empty, "Remarks", "min-width: 190px;", string.Empty);
+            // the review asked for it. It sorts on the latest remark, like the
+            // cell shows - which also brings every voucher anybody has written
+            // on together, and the untouched ones together, since a row with no
+            // remark sorts as blank the way an empty date or name does.
+            if (ShowRemarks) t.Rows.Add("LastRemark", "Remarks", "min-width: 190px;", string.Empty);
 
             // Checked By sits next to the check date it belongs to, and the used
             // date follows both. The body cells in the markup are in this same
@@ -1168,21 +1169,29 @@ namespace DSL_CMS
             return Server.HtmlEncode(text);
         }
 
-        /// <summary>What hovering the cell or the "i" says.</summary>
+        /// <summary>
+        /// Whether this row has anything to show. Nothing written on a voucher
+        /// means no "i" at all - the cell is a dash like every other empty
+        /// column, rather than a button that opens an empty log.
+        /// </summary>
+        protected bool HasRemark(object dataItem)
+        {
+            return RemarkCount(dataItem) > 0;
+        }
+
+        /// <summary>
+        /// What hovering the cell or the "i" says. Nothing on an empty one: a
+        /// dash that explains itself on hover is not what the dashes in the
+        /// columns either side of it do.
+        /// </summary>
         protected string RemarkTip(object dataItem)
         {
             int n = RemarkCount(dataItem);
-            if (n == 0) return "No remark yet - open Edit to leave one";
+            if (n == 0) return string.Empty;
 
             string text = Convert.ToString(RemarkField(dataItem, "LastRemark")).Trim();
             string head = (n == 1) ? "1 remark" : n + " remarks";
             return (text.Length == 0) ? head : head + " - latest: " + text;
-        }
-
-        /// <summary>The "i" lights up only when there is something behind it.</summary>
-        protected string RemarkIconClass(object dataItem)
-        {
-            return (RemarkCount(dataItem) > 0) ? "rem-info on" : "rem-info";
         }
 
         /// <summary>

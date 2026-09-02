@@ -1013,12 +1013,10 @@ td.rowacts { white-space: nowrap; }
 .rowact.go:hover { background: var(--blue-dark); border-color: var(--blue-dark); }
 
 /* ---- remarks in the grid ----
-   The last remark and a way in to the rest. The text is the quiet half - it is
-   a fragment of a sentence sitting in a column of dates and codes, so it reads
-   in the muted ink the dashes around it use, and turns dark when there is
-   something to read. The "i" is the loud half only when it has something
-   behind it: hollow and grey on a voucher nobody has remarked on, filled and
-   blue the moment one exists, so a column of them can be skimmed. */
+   The last remark and a way in to the rest. The "i" is only rendered on a
+   voucher somebody has written on, so it is never the empty state: a column of
+   them marks exactly the rows with something to read, and a voucher with no
+   remark is a dash like every other empty column beside it. */
 td.rem-cell { white-space: nowrap; min-width: 210px; }
 /* One row: the remark takes whatever is left and is cut with an ellipsis, the
    icon never shrinks. That is what keeps the icons in a straight line down the
@@ -1032,29 +1030,21 @@ td.rem-cell { white-space: nowrap; min-width: 210px; }
 .rem-info {
     display: inline-flex; align-items: center; gap: 3px; flex: 0 0 auto;
     height: 26px; padding: 0 7px;
-    border: 1.5px solid var(--line-2); border-radius: 999px;
-    background: #fff; color: var(--tx-3);
+    border: 1.5px solid var(--brand); border-radius: 999px;
+    background: var(--brand-soft); color: var(--brand);
     font-size: 11.5px; font-weight: 800; line-height: 1;
     cursor: pointer; transition: .15s;
 }
 .rem-info svg { width: 15px; height: 15px; }
 .rem-info:hover {
-    border-color: var(--brand); background: var(--brand); color: #fff;
+    background: var(--brand); color: #fff;
     text-decoration: none; box-shadow: 0 4px 12px rgba(46,107,230,.28);
 }
-/* Something to read. Hollow and grey means nobody has written on this voucher,
-   filled and blue means somebody has - so the column can be skimmed rather
-   than opened one row at a time. */
-.rem-info.on {
-    border-color: var(--brand); background: var(--brand-soft); color: var(--brand);
-}
-.rem-info.on:hover { background: var(--brand); color: #fff; }
-.rem-info.on .rem-text { color: var(--tx); }
 /* the count only appears past the first remark - "1" beside an icon that is
-   already lit says nothing the colour has not */
+   there at all says nothing its presence has not */
 .rem-info .n { font-variant-numeric: tabular-nums; }
 /* a voucher with a remark reads in full ink; an empty one stays a quiet dash */
-.rem-cell .rem-wrap:has(.rem-info.on) .rem-text { color: var(--tx); }
+.rem-cell .rem-wrap:has(.rem-info) .rem-text { color: var(--tx); }
 
 /* ---- the remark box in the editor ---- */
 .rem-edit { margin-top: 4px; }
