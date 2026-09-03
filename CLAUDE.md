@@ -287,6 +287,21 @@ holds. On the done list it reads "Reassign" and offers `SelectForReassign` —
 `voucher-data.aspx.cs` is the switch. A row still has its own Reassign button
 for the one-off case.
 
+**The picker offers what the screen behind it is showing**, less whatever is
+already held. The three things that narrow the grid narrow `BindAssign` too —
+the product (`LockedProductId`), the status card (`StatusFilter`), and a code
+searched from the topbar (`SearchCode`) — each applied with the very predicate
+the grid uses, `FilterByStatus` and `FilterByCode` on the rows already fetched.
+No proc change: `SelectForAssign` already returns `Status` and `ExpiryDate`.
+
+Under a product lock the picker offers **only** that product and no
+"-- All --", and `BindAssign` reads `LockedProductId` rather than the posted
+`SelectedValue`, the same care `rptUploadProduct_ItemCommand` takes.
+
+"Unassigned" still sits on top of all of it, so the count is the card's minus
+what is out on loan — which is why the heading names the slice and an empty one
+says which slice is empty rather than "No unassigned vouchers."
+
 A student's Voucher Status screen shows their own performance instead of the
 provider summary.
 

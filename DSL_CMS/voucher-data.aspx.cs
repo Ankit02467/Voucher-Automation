@@ -563,23 +563,47 @@ namespace DSL_CMS
 
         #region Binding
 
+        /// <summary>
+        /// The product picker inside the Assign modal.
+        ///
+        /// Arriving from a product row on Voucher Status, that product is the
+        /// whole screen - so it is the only thing the picker offers, and there
+        /// is no "-- All --" to widen back to. Offering every product there
+        /// would let Assign hand out vouchers the grid behind the modal is not
+        /// showing, which is the confusion this screen exists to avoid. Same
+        /// rule the upload picker already follows.
+        /// </summary>
         private void BindProducts()
         {
             DataTable dt = VoucherBAL.GetProductDetail(ProviderId, string.Empty, "SelectDropdown");
 
             ddlAssignProduct.Items.Clear();
-            ddlAssignProduct.Items.Add(new ListItem("-- All --", string.Empty));
+            if (!HasProductLock) ddlAssignProduct.Items.Add(new ListItem("-- All --", string.Empty));
 
-            if (dt == null) return;
-            foreach (DataRow r in dt.Rows)
+            if (dt != null)
             {
-                string id = Convert.ToString(r["Id"]);
-                string name = Convert.ToString(r["Name"]);
-                ddlAssignProduct.Items.Add(new ListItem(name, id));
+                foreach (DataRow r in dt.Rows)
+                {
+                    string id = Convert.ToString(r["Id"]);
+                    string name = Convert.ToString(r["Name"]);
 
-                // arrived by clicking a product on the dashboard - keep its name
-                // for the heading
-                if (HasProductLock && id == LockedProductId) LockedProductNameValue = name;
+                    if (HasProductLock && id != LockedProductId) continue;
+                    ddlAssignProduct.Items.Add(new ListItem(name, id));
+
+                    // arrived by clicking a product on the dashboard - keep its name
+                    // for the heading
+                    if (HasProductLock && id == LockedProductId) LockedProductNameValue = name;
+                }
+            }
+
+            // A retired product still has vouchers against it and can still be
+            // linked to. Rather than leave the picker empty, name it - the list
+            // itself is scoped by LockedProductId, not by what this offers.
+            if (HasProductLock && ddlAssignProduct.Items.Count == 0)
+            {
+                string name = LockedProductName();
+                ddlAssignProduct.Items.Add(new ListItem(
+                    (name.Length > 0) ? name : "Selected product", LockedProductId));
             }
         }
 
@@ -816,6 +840,26 @@ namespace DSL_CMS
             DataTable kept = source.Clone();
             foreach (DataRow r in source.Rows)
                 if (MatchesRow(r, status)) kept.ImportRow(r);
+            return kept;
+        }
+
+        /// <summary>
+        /// The searched code, applied to rows already fetched. The grid gets this
+        /// from the proc, which matches LIKE '%code%' on the decrypted code; this
+        /// says the same thing in memory, for the Assign picker, whose own fetch
+        /// has no code to give it.
+        /// </summary>
+        private static DataTable FilterByCode(DataTable source, string code)
+        {
+            if (source == null || code.Length == 0) return source;
+            if (!source.Columns.Contains("VoucherCode")) return source;
+
+            DataTable kept = source.Clone();
+            foreach (DataRow r in source.Rows)
+            {
+                string v = Convert.ToString(r["VoucherCode"]);
+                if (v.IndexOf(code, StringComparison.OrdinalIgnoreCase) >= 0) kept.ImportRow(r);
+            }
             return kept;
         }
 
@@ -2516,20 +2560,48 @@ namespace DSL_CMS
             pnlAssign.Visible = true;
         }
 
+        /// <summary>
+        /// The picker offers what the screen behind it is showing, less whatever
+        /// is already held.
+        ///
+        /// It used to offer every unassigned voucher the provider had, whatever
+        /// the screen was narrowed to - so opening Assign from AWS' Associate
+        /// list, or from the Unused card, still listed all seventeen. The
+        /// sub-admin then had to find the ones they had just been looking at.
+        /// The three things that narrow the grid narrow this too: the product,
+        /// the status card, and a code searched from the topbar. Each is applied
+        /// with the very same predicate the grid uses, so the modal and the list
+        /// under it cannot disagree.
+        ///
+        /// "Unassigned" is still the rule on top of all of it - a voucher a
+        /// student already holds is not on offer, however the screen is filtered.
+        /// So the count here is what the card says minus what is out on loan,
+        /// and the heading names the slice rather than leaving that unexplained.
+        /// </summary>
         private void BindAssign()
         {
             bool reassign = ReassignMode;
 
+            // Never take the posted product on trust when the screen is locked to
+            // one - the same care rptUploadProduct_ItemCommand takes.
+            string productId = HasProductLock ? LockedProductId : ddlAssignProduct.SelectedValue;
+
             DataTable dt = reassign
-                ? VoucherBAL.GetForReassign(ProviderId, ddlAssignProduct.SelectedValue)
-                : VoucherBAL.GetForAssign(ProviderId, ddlAssignProduct.SelectedValue);
+                ? VoucherBAL.GetForReassign(ProviderId, productId)
+                : VoucherBAL.GetForAssign(ProviderId, productId);
+
+            dt = FilterByStatus(dt, StatusFilter);
+            dt = FilterByCode(dt, SearchCode);
 
             rptAssignVouchers.DataSource = dt;
             rptAssignVouchers.DataBind();
 
+            string slice = AssignScope();
+
             litAssignTitle.Text = reassign ? "Reassign Vouchers" : "Assign Vouchers";
-            litAssignBox.Text = reassign ? "Done Entries" : "Unassigned Vouchers";
-            litAssignEmpty.Text = reassign ? "No done entries." : "No unassigned vouchers.";
+            litAssignBox.Text = (reassign ? "Done Entries" : "Unassigned Vouchers")
+                              + (slice.Length == 0 ? string.Empty : " &mdash; " + Server.HtmlEncode(slice));
+            litAssignEmpty.Text = AssignEmptyText(reassign, slice);
             btnAssignSave.Text = reassign ? "Reassign" : "Assign";
 
             int count = (dt == null) ? 0 : dt.Rows.Count;
@@ -2540,6 +2612,42 @@ namespace DSL_CMS
             rptStudents.DataSource = students;
             rptStudents.DataBind();
             phStudentsEmpty.Visible = (students == null || students.Rows.Count == 0);
+        }
+
+        /// <summary>
+        /// What the picker has been narrowed to, in words - "Associate", or
+        /// "Associate &#183; Unused". Empty when nothing narrows it, so the
+        /// heading stays the plain "Unassigned Vouchers" it always was.
+        ///
+        /// Only the product lock is named, not a product chosen in the picker
+        /// itself: that one is already on screen in the dropdown above, and
+        /// saying it twice reads as two different filters.
+        /// </summary>
+        private string AssignScope()
+        {
+            var bits = new List<string>();
+
+            if (HasProductLock && LockedProductName().Length > 0) bits.Add(LockedProductName());
+            if (StatusFilter.Length > 0) bits.Add(StatusLabel(StatusFilter));
+            if (SearchCode.Length > 0) bits.Add("code \"" + SearchCode + "\"");
+
+            return string.Join(" · ", bits.ToArray());
+        }
+
+        /// <summary>
+        /// What an empty picker says. "No unassigned vouchers." on a screen
+        /// narrowed to one product and one status is a half truth that reads as
+        /// a fault - the provider may hold plenty, just none in this slice. So
+        /// the slice is named, along with what to do about it.
+        /// </summary>
+        private string AssignEmptyText(bool reassign, string slice)
+        {
+            if (slice.Length == 0)
+                return reassign ? "No done entries." : "No unassigned vouchers.";
+
+            return (reassign ? "No done entries under " : "Nothing unassigned under ")
+                 + Server.HtmlEncode(slice)
+                 + ". Close this and pick another card to widen it.";
         }
 
         protected void ddlAssignProduct_SelectedIndexChanged(object sender, EventArgs e)
