@@ -17,10 +17,12 @@ namespace DSL_CMS
         protected LinkButton lnkPrev, lnkNext, lnkEarlyExpiry;
         protected LinkButton kpiTotal, kpiUsed, kpiUnused, kpiExpiring, kpiInvalid, kpiNotSet;
         protected LinkButton lnkSortName, lnkSortCount;
+        protected LinkButton lnkPerfName, lnkPerfToday, lnkPerfWeekly, lnkPerfMonthly;
         protected Literal litCountHead, litPageInfo, litCategoryNote,
                           litKpiTotal, litKpiTrend, litKpiUsed, litKpiUsedPct,
                           litKpiUnused, litKpiUnusedPct, litKpiExpiring, litKpiInvalid,
-                          litKpiNotSet, litSortName, litSortCount;
+                          litKpiNotSet, litSortName, litSortCount,
+                          litPerfName, litPerfToday, litPerfWeekly, litPerfMonthly;
 
         private const int PageSize = 10;
         private const string StatusAll = "All";
@@ -28,6 +30,12 @@ namespace DSL_CMS
         /// <summary>Sortable columns of the provider table.</summary>
         private const string SortByName = "Name";
         private const string SortByCount = "StatusCount";
+
+        /// <summary>And of the student's own table, which has its own columns.</summary>
+        private const string PerfByName = "ProviderName";
+        private const string PerfByToday = "Today";
+        private const string PerfByWeekly = "Weekly";
+        private const string PerfByMonthly = "Monthly";
 
         /// <summary>The window the "Expiring soon" card counts, and the one it opens.</summary>
         private const string ExpiringWindow = "30";
@@ -177,6 +185,24 @@ namespace DSL_CMS
         {
             get { return (bool)(ViewState["SortDesc"] ?? false); }
             set { ViewState["SortDesc"] = value; }
+        }
+
+        /// <summary>
+        /// The student's own table sorts too, and separately: it is a different
+        /// table with different columns, and the two are never on screen at
+        /// once. Its own key, so neither can be left ordered by a column the
+        /// other owns.
+        /// </summary>
+        private string PerfSortKey
+        {
+            get { return (string)(ViewState["PerfSortKey"] ?? PerfByName); }
+            set { ViewState["PerfSortKey"] = value; }
+        }
+
+        private bool PerfSortDesc
+        {
+            get { return (bool)(ViewState["PerfSortDesc"] ?? false); }
+            set { ViewState["PerfSortDesc"] = value; }
         }
 
         /// <summary>Manage Product is an admin-only action.</summary>
@@ -363,10 +389,71 @@ namespace DSL_CMS
         {
             DataTable dt = VoucherBAL.GetPerformanceByProvider(Convert.ToString(Session["UserId"]));
 
+            dt = OnlyTheirProviders(dt);
+            dt = ApplyPerfSort(dt);
+            ApplyPerfHeads();
+
             rptPerformance.DataSource = dt;
             rptPerformance.DataBind();
 
             phPerfEmpty.Visible = (dt == null || dt.Rows.Count == 0);
+        }
+
+        /// <summary>
+        /// Drops the providers this student has nothing to do with.
+        ///
+        /// The proc lists every provider and left-joins the counts, so a student
+        /// holding AWS and CompTIA read seven rows, five of them nought across -
+        /// the two that meant anything had to be found among them.
+        ///
+        /// The rule is what they are holding, counted exactly the way the menu
+        /// beside it counts: assigned to them and not yet moved on. The same
+        /// rule on both, deliberately - the two are read together, and a
+        /// provider in one and not the other is worse than either list being a
+        /// row shorter. It also keeps every "View Data" here pointing at rows
+        /// that exist, since the student's grid is scoped the same way.
+        ///
+        /// The cost is that a provider whose vouchers have all moved on to the
+        /// sub-admin drops off, taking its figures with it. The work itself is
+        /// not lost - the history rows stand, and Student-wise Performance still
+        /// counts them for the admin and the sub-admin.
+        /// </summary>
+        private DataTable OnlyTheirProviders(DataTable dt)
+        {
+            if (dt == null || dt.Rows.Count == 0) return dt;
+
+            var held = new List<string>();
+            try
+            {
+                // Their own holdings, counted the way the menu counts them.
+                // Category is deliberately not passed: a provider must not drop
+                // off because a chip is set, when the rows below it are not
+                // narrowed by that chip either.
+                DataTable mine = VoucherBAL.GetProviderSummary("All", string.Empty, string.Empty,
+                    string.Empty, string.Empty, Convert.ToString(Session["UserId"]), "0");
+
+                if (mine != null && mine.Columns.Contains("StatusCount"))
+                {
+                    foreach (DataRow r in mine.Rows)
+                    {
+                        int n;
+                        if (int.TryParse(Convert.ToString(r["StatusCount"]), out n) && n > 0)
+                            held.Add(Convert.ToString(r["Id"]));
+                    }
+                }
+            }
+            catch
+            {
+                // If that lookup fails, show the table as it came rather than an
+                // empty one - a broken filter must not read as "you hold nothing".
+                return dt;
+            }
+
+            DataTable kept = dt.Clone();
+            foreach (DataRow r in dt.Rows)
+                if (held.Contains(Convert.ToString(r["Id"]))) kept.ImportRow(r);
+
+            return kept;
         }
 
         /// <summary>
@@ -677,6 +764,102 @@ namespace DSL_CMS
 
             PageIndex = 0;
             BindGrid();
+        }
+
+        /// <summary>
+        /// The student's table, sorted the same way the provider table above it
+        /// is - every column, one click to turn it round. It is not paged, so
+        /// there is no page index to reset.
+        /// </summary>
+        protected void perfSort_Command(object sender, CommandEventArgs e)
+        {
+            string key = Convert.ToString(e.CommandArgument);
+            if (key != PerfByName && key != PerfByToday
+             && key != PerfByWeekly && key != PerfByMonthly) return;
+
+            if (string.Equals(key, PerfSortKey, StringComparison.Ordinal))
+            {
+                PerfSortDesc = !PerfSortDesc;
+            }
+            else
+            {
+                PerfSortKey = key;
+                // a name starts at A; a count is asked "which is most", so it
+                // starts at the largest - the rule the other table already uses
+                PerfSortDesc = (key != PerfByName);
+            }
+
+            BindPerformance();
+        }
+
+        private DataTable ApplyPerfSort(DataTable dt)
+        {
+            if (dt == null || dt.Rows.Count == 0) return dt;
+
+            string key = PerfSortKey;
+            if (!dt.Columns.Contains(key)) key = PerfByName;
+            if (!dt.Columns.Contains(key)) return dt;
+
+            string order = key;
+
+            // DataView cannot be told to ignore case, so a name is compared off
+            // a shadow column rather than off the name itself - otherwise "aws"
+            // and "AWS" land in two different places.
+            if (key == PerfByName)
+            {
+                const string shadow = "__PerfNameSort";
+                if (!dt.Columns.Contains(shadow))
+                {
+                    dt.Columns.Add(shadow, typeof(string));
+                    foreach (DataRow row in dt.Rows)
+                        row[shadow] = Convert.ToString(row[PerfByName]).Trim().ToUpperInvariant();
+                }
+                order = shadow;
+            }
+
+            try
+            {
+                var view = new DataView(dt) { Sort = order + (PerfSortDesc ? " DESC" : " ASC") };
+                return view.ToTable();
+            }
+            catch (Exception)
+            {
+                // a column that will not sort must not take the table down with it
+                return dt;
+            }
+        }
+
+        private void ApplyPerfHeads()
+        {
+            litPerfName.Text = PerfArrow(PerfByName);
+            litPerfToday.Text = PerfArrow(PerfByToday);
+            litPerfWeekly.Text = PerfArrow(PerfByWeekly);
+            litPerfMonthly.Text = PerfArrow(PerfByMonthly);
+
+            lnkPerfName.ToolTip = PerfTip(PerfByName);
+            lnkPerfToday.ToolTip = PerfTip(PerfByToday);
+            lnkPerfWeekly.ToolTip = PerfTip(PerfByWeekly);
+            lnkPerfMonthly.ToolTip = PerfTip(PerfByMonthly);
+        }
+
+        private string PerfArrow(string key)
+        {
+            if (!string.Equals(key, PerfSortKey, StringComparison.Ordinal))
+                return "<span class=\"vs-sortar\">&#8645;</span>";
+
+            return PerfSortDesc ? "<span class=\"vs-sortar on\">&#9660;</span>"
+                                : "<span class=\"vs-sortar on\">&#9650;</span>";
+        }
+
+        private string PerfTip(string key)
+        {
+            bool active = string.Equals(key, PerfSortKey, StringComparison.Ordinal);
+            bool nextDesc = active ? !PerfSortDesc : (key != PerfByName);
+
+            if (key == PerfByName)
+                return nextDesc ? "Sort Z to A" : "Sort A to Z";
+
+            return nextDesc ? "Sort highest first" : "Sort lowest first";
         }
 
         protected void rptPager_ItemCommand(object source, RepeaterCommandEventArgs e)

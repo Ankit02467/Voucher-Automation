@@ -184,15 +184,17 @@ Passwords are stored **Base64, not hashed** — matching the existing site.
 | View History | ✓ | | | |
 | Add provider | ✓ | | | |
 | Assign / Reassign | | ✓ | | |
-| Edit | ✓ | ✓ | ✓ | ✓ |
+| Edit (row action) | ✓ | ✓ | ✓ | |
+| Edit status in the cell | | | | ✓ |
 | Dealer name / sale date columns | ✓ | | ✓ | |
 | Added By / Checked By columns | ✓ | ✓ | ✓ | |
 | Student-wise performance | ✓ | ✓ | | |
 
-The Edit modal differs by role — that is the whole point of `CanEdit` being
-true for everyone. `OpenEditor` picks the panel: the team gets the dealer
-pairs and nothing else, the student gets the three status buttons, the
-sub-admin gets the status entry, the admin gets the lot. Admin sees voucher
+The Edit modal differs by role — that is the whole point of `CanEdit` covering
+three of them. `OpenEditor` picks the panel: the team gets the dealer
+pairs and nothing else, the sub-admin gets the status entry, the admin gets the
+lot. The student has no modal at all any more — the status is the only thing
+they set and they set it in the cell that shows it. Admin sees voucher
 code and added by **greyed out** — and `UpdateAdminEntry` does not write them
 either. A disabled input is a hint to the browser, not a rule; the proc is
 where it is enforced. Candidate name, exam date and exam mode used to be in
@@ -329,8 +331,44 @@ state to keep. `pnlAssignFilters` carries `DefaultButton="btnAssignSearch"`,
 because Enter in that box would otherwise fire the first button on the form,
 which in this dialog is Select — or Assign.
 
-A student's Voucher Status screen shows their own performance instead of the
-provider summary.
+**A student sees only what they are holding.** Their Voucher Status screen shows
+their own performance instead of the provider summary, and both that table and
+the sidebar list the providers — and the products under them — where they hold
+a voucher that has not moved on. Two filters, one rule: `OnlyTheirProviders` on
+`voucher-status.aspx.cs` and `OnlyHeld` / the count check in `NavProducts` on
+`MasterPage.master.cs`, both reading the held count `Sp_VoucherProvider_Table`
+already returns when `@AssignedTo` is set.
+
+The two are kept identical on purpose. They are read side by side, and a
+provider in one and not the other is worse than either being a row shorter; it
+also keeps every "View Data" on that screen pointing at rows that exist, since
+the student's grid is scoped the same way. The cost is that a provider whose
+vouchers have all moved on to the sub-admin drops off, figures and all — the
+history rows still stand, and Student-wise Performance still counts them.
+
+Only the student. For every other role the tree is the catalogue, and a
+provider holding no stock is still a provider.
+
+Every column of that table sorts, on its own key (`PerfSortKey`) rather than the
+provider table's — the two are never on screen together, and neither should be
+left ordered by a column the other owns.
+
+**The student edits the status in the cell that shows it.** `CanEdit` no longer
+includes them, so they have no row action at all and `ShowActions` drops the
+whole Actions column rather than leaving an empty one. `CanInlineStatus` puts a
+pencil in the Voucher Status cell instead; it opens a dropdown of Used / Unused
+/ Invalid with a tick and a cross beside it. `StatusEditId` holds the one row
+that is open — a grid of open dropdowns is a form, not a list.
+
+The save is `UpdateStatusOnly`, the very call the dialog made, so the check
+date, the name against it and the overnight move are stamped exactly as before,
+and the proc still refuses (-3) a voucher that is not theirs. No used date is
+asked for: the proc already defaults it to today under "Used", which is the same
+answer the dialog's required field was collecting.
+
+`rptVoucher_ItemCommand` re-checks `CanInlineStatus`, so another role firing the
+command changes nothing — and ASP.NET's event validation refuses the postback
+before that, since their page never rendered it.
 
 ---
 
@@ -338,7 +376,9 @@ provider summary.
 
 - `UpdateStatusEntry` **overwrites** `CandidateName` / `ExamDate` / `ExamMode`
   with whatever it is handed. Saving from an editor that does not show those
-  fields blanks them. That is why `UpdateStatusOnly` exists for the student.
+  fields blanks them. That is why `UpdateStatusOnly` exists for the student, and
+  why the inline status cell calls that one and not the other — it shows a
+  status and nothing else, so it must write a status and nothing else.
 - Performance counts come from `VoucherHistory_Table`, not `VoucherStock_Table`
   — the stock row remembers only the *last* check. Any new action that counts
   as work must write a history row with `ChangedBy` set, or it counts for nobody.

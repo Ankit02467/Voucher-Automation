@@ -458,7 +458,50 @@
                                             ToolTip='<%# RemarkTip(Container.DataItem) %>' />
                                     </span>
                                 </td>
-                                <td><%# StatusBadge(Eval("Status")) %></td>
+                                <%-- The status, and for a student the place they
+                                     change it. A dialog for one field, opened
+                                     from a column away from the one it changes,
+                                     was more ceremony than the job - so the
+                                     pencil is here and the dropdown opens in
+                                     place. Every other role sees the badge on
+                                     its own and edits from Actions.
+
+                                     Each button carries its icon as Text. A
+                                     LinkButton handed markup alongside a child
+                                     control keeps only the child, and the child
+                                     comes back empty on a postback that has not
+                                     re-bound the grid. --%>
+                                <td class="stat-cell">
+                                    <asp:PlaceHolder runat="server" Visible='<%# !IsRowEditing(Eval("Id")) %>'>
+                                        <span class="stat-wrap">
+                                            <%# StatusBadge(Eval("Status")) %>
+                                            <asp:LinkButton runat="server" CssClass="rowact stat-edit"
+                                                Visible='<%# CanInlineStatus %>'
+                                                CommandName="StatusEdit" CommandArgument='<%# Eval("Id") %>'
+                                                aria-label="Edit status" ToolTip="Change the status"
+                                                Text='&lt;svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"&gt;&lt;path d="M4 20.5h4L19 9.5a2.8 2.8 0 0 0-4-4L4 16.5v4z" /&gt;&lt;path d="M14 6.5l4 4" /&gt;&lt;/svg&gt;' />
+                                        </span>
+                                    </asp:PlaceHolder>
+                                    <asp:PlaceHolder runat="server" Visible='<%# IsRowEditing(Eval("Id")) %>'>
+                                        <span class="stat-wrap">
+                                            <asp:DropDownList runat="server" ID="ddlRowStatus" CssClass="stat-pick"
+                                                SelectedValue='<%# RowStatusValue(Eval("Status")) %>'>
+                                                <asp:ListItem Text="-- Select --" Value="" />
+                                                <asp:ListItem Text="Used"    Value="Used" />
+                                                <asp:ListItem Text="Unused"  Value="Unused" />
+                                                <asp:ListItem Text="Invalid" Value="Invalid" />
+                                            </asp:DropDownList>
+                                            <asp:LinkButton runat="server" CssClass="rowact go"
+                                                CommandName="StatusSave" CommandArgument='<%# Eval("Id") %>'
+                                                aria-label="Save status" ToolTip="Save this status"
+                                                Text='&lt;svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"&gt;&lt;path d="M5 12.5l4.5 4.5L19 7.5" /&gt;&lt;/svg&gt;' />
+                                            <asp:LinkButton runat="server" CssClass="rowact"
+                                                CommandName="StatusCancel" CommandArgument='<%# Eval("Id") %>'
+                                                aria-label="Cancel" ToolTip="Leave it as it was"
+                                                Text='&lt;svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"&gt;&lt;path d="M6 6l12 12" /&gt;&lt;path d="M18 6L6 18" /&gt;&lt;/svg&gt;' />
+                                        </span>
+                                    </asp:PlaceHolder>
+                                </td>
                                 <%-- check date, then who checked it, then the used
                                      date - the cells must stay in the order
                                      BindHead lists them --%>

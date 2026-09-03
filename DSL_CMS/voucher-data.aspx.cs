@@ -325,17 +325,62 @@ namespace DSL_CMS
         protected bool CanHistory { get { return Role == RoleAdmin; } }
         protected bool CanAssign { get { return Role == RoleSubAdmin; } }
         /// <summary>
-        /// Every role edits, but not the same fields: the voucher team gets the
-        /// dealer pairs, the student the status, and the admin and sub-admin the
-        /// status entry. Which panel opens is decided in OpenEditor.
+        /// Who gets the pencil in the Actions column, and the dialog behind it:
+        /// the voucher team for the dealer pairs, the admin and sub-admin for
+        /// the status entry. Which panel opens is decided in OpenEditor.
+        ///
+        /// Not the student. The only thing they ever set is the status, and a
+        /// dialog for one field - opened from a column away from the one it
+        /// changes - was more ceremony than the job. They edit the status where
+        /// it is shown instead; see <see cref="CanInlineStatus"/>. With Edit
+        /// gone they have no row action left at all, so ShowActions drops the
+        /// whole column for them rather than leaving an empty one.
         /// </summary>
         protected bool CanEdit
         {
             get
             {
-                return Role == RoleTeam || Role == RoleStudent
-                    || Role == RoleSubAdmin || Role == RoleAdmin;
+                return Role == RoleTeam || Role == RoleSubAdmin || Role == RoleAdmin;
             }
+        }
+
+        /// <summary>
+        /// The student's editor: a pencil inside the Voucher Status cell that
+        /// turns it into a dropdown and a tick. Only the student - every other
+        /// role has a dialog with more than a status in it.
+        /// </summary>
+        protected bool CanInlineStatus { get { return Role == RoleStudent; } }
+
+        /// <summary>
+        /// The row whose status cell is open for editing, or empty. One at a
+        /// time: a grid full of open dropdowns is a form, not a list.
+        /// </summary>
+        private string StatusEditId
+        {
+            get { return (string)(ViewState["StatusEditId"] ?? string.Empty); }
+            set { ViewState["StatusEditId"] = value; }
+        }
+
+        protected bool IsRowEditing(object voucherId)
+        {
+            return CanInlineStatus
+                && StatusEditId.Length > 0
+                && string.Equals(Convert.ToString(voucherId), StatusEditId, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// What the dropdown opens on. Used / Unused / Invalid are the three a
+        /// student may set; anything else the voucher carries - untriaged, or
+        /// "Expired", which is the date's business rather than theirs - opens on
+        /// the blank, so the cell suggests nothing it was not already saying.
+        /// </summary>
+        protected string RowStatusValue(object status)
+        {
+            string s = Convert.ToString(status);
+            return (string.Equals(s, "Used", StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(s, "Unused", StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(s, "Invalid", StringComparison.OrdinalIgnoreCase))
+                 ? s : string.Empty;
         }
         /// <summary>
         /// Who may stamp the check date by ticking the box in the grid.
@@ -1566,6 +1611,66 @@ namespace DSL_CMS
             {
                 OpenRemarks(id);
             }
+            else if (e.CommandName == "StatusEdit" && CanInlineStatus)
+            {
+                StatusEditId = id;
+                BindGrid();
+            }
+            else if (e.CommandName == "StatusCancel" && CanInlineStatus)
+            {
+                StatusEditId = string.Empty;
+                BindGrid();
+            }
+            else if (e.CommandName == "StatusSave" && CanInlineStatus)
+            {
+                SaveRowStatus(e.Item, id);
+            }
+        }
+
+        /// <summary>
+        /// The student's inline save. Reads the dropdown out of the row that
+        /// raised the command - the repeater is rebuilt from ViewState before
+        /// postback data is applied, so by the time a command fires the control
+        /// holds what the browser sent.
+        ///
+        /// It goes through UpdateStatusOnly, the very call the dialog used to
+        /// make: status and used date only, so the candidate and exam fields a
+        /// student is never shown cannot be blanked by this save. The proc
+        /// stamps the check date, the name against it and the overnight move,
+        /// and refuses outright (-3) if the voucher is not theirs - the id
+        /// travels in a command argument, so that guard is the one that counts.
+        /// </summary>
+        private void SaveRowStatus(RepeaterItem item, string id)
+        {
+            var ddl = (item == null) ? null : item.FindControl("ddlRowStatus") as DropDownList;
+            string status = (ddl == null) ? string.Empty : ddl.SelectedValue;
+
+            if (status.Length == 0)
+            {
+                // stay open, or the pick they were about to make is thrown away
+                ShowMessage("Pick a status first.", false);
+                BindGrid();
+                return;
+            }
+
+            string checkedBy = Convert.ToString(Session["FullName"]);
+            if (string.IsNullOrEmpty(checkedBy)) checkedBy = "System";
+
+            int outcome = VoucherBAL.UpdateStatusOnly(id, status, string.Empty,
+                checkedBy, Convert.ToString(Session["UserId"]));
+
+            if (outcome == -3)
+            {
+                StatusEditId = string.Empty;
+                ShowMessage("That voucher is not assigned to you, so nothing was saved.", false);
+                BindGrid();
+                return;
+            }
+
+            StatusEditId = string.Empty;
+            ShowMessage("Status set to " + status + ". Voucher check date set to today, against "
+                + checkedBy + ". This entry moves to the sub admin after midnight.", true);
+            BindGrid();
         }
 
         private void OpenEditor(string id)

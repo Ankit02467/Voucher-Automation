@@ -260,13 +260,33 @@
         <div class="vs-panel">
             <div class="vs-tablewrap">
                 <table>
+                    <%-- Every column sorts, the same way the provider table
+                         above does. S.No is a row number rather than a field
+                         and Actions holds a link, so neither offers one - the
+                         same rule the View Data grid follows. --%>
                     <thead>
                         <tr>
                             <th style="width: 64px;">S.No</th>
-                            <th>Provider</th>
-                            <th class="c" style="width: 130px;">Today</th>
-                            <th class="c" style="width: 130px;">Weekly</th>
-                            <th class="c" style="width: 130px;">Monthly</th>
+                            <th>
+                                <asp:LinkButton ID="lnkPerfName" runat="server" CssClass="vs-sortcol"
+                                    OnCommand="perfSort_Command" CommandArgument="ProviderName"
+                                    CausesValidation="false"><asp:Literal runat="server" Text="Provider" /><asp:Literal ID="litPerfName" runat="server" /></asp:LinkButton>
+                            </th>
+                            <th class="c" style="width: 130px;">
+                                <asp:LinkButton ID="lnkPerfToday" runat="server" CssClass="vs-sortcol"
+                                    OnCommand="perfSort_Command" CommandArgument="Today"
+                                    CausesValidation="false"><asp:Literal runat="server" Text="Today" /><asp:Literal ID="litPerfToday" runat="server" /></asp:LinkButton>
+                            </th>
+                            <th class="c" style="width: 130px;">
+                                <asp:LinkButton ID="lnkPerfWeekly" runat="server" CssClass="vs-sortcol"
+                                    OnCommand="perfSort_Command" CommandArgument="Weekly"
+                                    CausesValidation="false"><asp:Literal runat="server" Text="Weekly" /><asp:Literal ID="litPerfWeekly" runat="server" /></asp:LinkButton>
+                            </th>
+                            <th class="c" style="width: 130px;">
+                                <asp:LinkButton ID="lnkPerfMonthly" runat="server" CssClass="vs-sortcol"
+                                    OnCommand="perfSort_Command" CommandArgument="Monthly"
+                                    CausesValidation="false"><asp:Literal runat="server" Text="Monthly" /><asp:Literal ID="litPerfMonthly" runat="server" /></asp:LinkButton>
+                            </th>
                             <th class="r" style="width: 160px;">Actions</th>
                         </tr>
                     </thead>

@@ -1012,6 +1012,28 @@ td.rowacts { white-space: nowrap; }
 .rowact.go { background: var(--blue); border-color: var(--blue); color: #fff; }
 .rowact.go:hover { background: var(--blue-dark); border-color: var(--blue-dark); }
 
+/* ---- the status, edited where it is shown ----
+   A student's only edit is the status, so the pencil sits in that cell and the
+   dropdown opens in its place. The badge and the pencil are one row, and the
+   cell keeps its width whichever of the two states it is in, so the column does
+   not jump about as rows are opened and closed. */
+td.stat-cell { white-space: nowrap; min-width: 168px; }
+.stat-cell .stat-wrap { display: inline-flex; align-items: center; gap: 6px; }
+/* smaller than a row action, because it is a mark on a cell rather than a
+   button in a column of buttons - and quiet until the row is pointed at */
+.stat-cell .rowact { width: 28px; height: 28px; margin: 0; }
+.stat-cell .rowact svg { width: 15px; height: 15px; }
+/* Quieter than a button in an Actions column, but not so quiet it has to be
+   hunted for - it is the student's only control on this screen. */
+.stat-edit { opacity: .72; transition: opacity .15s, background .15s, color .15s; }
+tr:hover .stat-edit, .stat-edit:focus { opacity: 1; }
+.stat-pick {
+    height: 30px; padding: 0 6px;
+    border: 1.5px solid var(--blue-line); border-radius: 8px;
+    background: #fff; color: var(--tx); font-size: 13px;
+}
+.stat-pick:focus { border-color: var(--brand); outline: none; }
+
 /* ---- remarks in the grid ----
    The last remark and a way in to the rest. The "i" is only rendered on a
    voucher somebody has written on, so it is never the empty state: a column of

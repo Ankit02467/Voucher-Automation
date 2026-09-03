@@ -139,14 +139,50 @@ namespace DSL_CMS
             {
                 // Narrowed by the chips above it, so the tree lists the same
                 // providers the page is showing rather than contradicting it.
-                return VoucherBAL.GetProviderSummary("All", string.Empty, CurrentCategory,
+                DataTable dt = VoucherBAL.GetProviderSummary("All", string.Empty, CurrentCategory,
                     string.Empty, string.Empty, NavAssignedTo, NavIsMoved);
+
+                return IsStudent ? OnlyHeld(dt) : dt;
             }
             catch
             {
                 // The menu is furniture. A database that is down must not take
                 // every page down with it - the page itself will report that.
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// For a student, the menu is a list of work, not a catalogue. The
+        /// counts beside each provider were already theirs, so every provider
+        /// they hold nothing from sat there reading 0 and opened an empty grid -
+        /// seven entries to find the two that were actually assigned. Rows with
+        /// nothing behind them are dropped, and NavProducts drops the products
+        /// under them the same way.
+        ///
+        /// Only for a student. For everyone else the tree is the catalogue, and
+        /// a provider holding no stock is still a provider.
+        /// </summary>
+        private static DataTable OnlyHeld(DataTable dt)
+        {
+            if (dt == null || !dt.Columns.Contains("StatusCount")) return dt;
+
+            DataTable kept = dt.Clone();
+            foreach (DataRow r in dt.Rows)
+            {
+                int n;
+                if (int.TryParse(Convert.ToString(r["StatusCount"]), out n) && n > 0)
+                    kept.ImportRow(r);
+            }
+            return kept;
+        }
+
+        private bool IsStudent
+        {
+            get
+            {
+                return string.Equals(VoucherRole(), "Voucher Student",
+                    StringComparison.OrdinalIgnoreCase);
             }
         }
 
@@ -196,6 +232,8 @@ namespace DSL_CMS
             string data = ResolveUrl("~/voucher-data.aspx");
             var sb = new StringBuilder();
 
+            bool student = IsStudent;
+
             for (int i = 0; i < names.Length; i++)
             {
                 string name = names[i].Trim();
@@ -203,6 +241,13 @@ namespace DSL_CMS
 
                 string id = (i < ids.Length) ? ids[i].Trim() : string.Empty;
                 string count = (i < counts.Length) ? counts[i].Trim() : string.Empty;
+
+                // A student is shown what they hold. Under "All" the proc keeps
+                // every active product whatever its count, because there the list
+                // is the catalogue; on a student's menu that meant fourteen
+                // products under a provider they held one of. Their own count is
+                // already in `count`, so the empty ones simply go.
+                if (student && count == "0") continue;
 
                 sb.Append("<a class=\"navprod\" href=\"").Append(Server.HtmlEncode(data))
                   .Append("?providerId=").Append(Server.UrlEncode(Convert.ToString(providerId)));
@@ -219,6 +264,11 @@ namespace DSL_CMS
 
                 sb.Append("</a>");
             }
+
+            // Every product filtered away - possible when the vouchers a student
+            // holds sit under a product that has since been retired, so the
+            // provider counts them but the product list does not carry it.
+            if (sb.Length == 0) return "<span class=\"navnone\">No products yet</span>";
 
             return sb.ToString();
         }
