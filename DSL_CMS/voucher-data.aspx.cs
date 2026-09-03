@@ -18,10 +18,11 @@ namespace DSL_CMS
                           litAssignTitle, litAssignBox, litAssignEmpty,
                           litGridTitle, litReassignMsg, litReassignCode,
                           litHistCode, litHistSummary, litSearchChip,
-                          litRemarkCode, litEditRemarkCount;
+                          litRemarkCode, litEditRemarkCount, litUsedReq;
         protected Panel pnlBody, pnlDenied,
                         pnlMsg, pnlRoleNote, pnlRoleSwitch, pnlEdit, pnlEditDealer, pnlEditStatus, pnlEditAdmin,
                         pnlUsedDate, pnlUpload, pnlUploadMsg, pnlHistory, pnlAssign, pnlAssignMsg,
+                        pnlAssignFilters,
                         pnlSearchChip, pnlWindows, pnlReassign, pnlReassignMsg,
                         pnlStatusButtons, pnlStatusDropdown, pnlStatusExtras,
                         pnlRemarks, pnlEditRemarks;
@@ -30,6 +31,7 @@ namespace DSL_CMS
                                ddlEditStatus, ddlExamMode, ddlAssignProduct, ddlReassignStudent,
                                ddlAdminStatus, ddlAdminExamMode, ddlPageSize;
         protected TextBox txtUsedDate, txtCandidate, txtExamDate, txtPaste, txtAssignCount,
+                          txtAssignSearch,
                           txtAdminCode, txtAdminExpiry, txtAdminCheckDate, txtAdminUsedDate,
                           txtAdminAddedBy, txtAdminCandidate, txtAdminExamDate, txtRemark;
         protected HiddenField hfId, hfReassignId;
@@ -42,7 +44,7 @@ namespace DSL_CMS
         protected PlaceHolder phEmpty, phPager, phHistoryEmpty, phAssignEmpty, phStudentsEmpty,
                               phRemarksEmpty, phEditRemarks;
         protected Button btnSaveEdit, btnCancelEdit,
-                         btnUploadSave, btnAssignPick, btnAssignSave, btnReassignSave;
+                         btnUploadSave, btnAssignPick, btnAssignSearch, btnAssignSave, btnReassignSave;
         protected System.Web.UI.HtmlControls.HtmlGenericControl divEditModal, divStatusFields;
 
         #endregion
@@ -335,7 +337,21 @@ namespace DSL_CMS
                     || Role == RoleSubAdmin || Role == RoleAdmin;
             }
         }
-        protected bool CanCheck { get { return Role == RoleStudent || Role == RoleSubAdmin; } }
+        /// <summary>
+        /// Who may stamp the check date by ticking the box in the grid.
+        ///
+        /// Not the sub-admin any more. Their editor stamps the date and their
+        /// name the moment they save a status, which is the check actually
+        /// happening; the tick box stamped the same two columns without anybody
+        /// having looked at the voucher, so the column could say "checked by
+        /// Anju Rani" on a voucher nobody had triaged. One way in, and it is the
+        /// one that means something. The box still shows what a voucher carries
+        /// - it just cannot be pressed.
+        ///
+        /// The student keeps it: their editor is three status buttons, and the
+        /// tick is how they record a look that changed nothing.
+        /// </summary>
+        protected bool CanCheck { get { return Role == RoleStudent; } }
 
         /// <summary>Reassign only appears on the sub-admin's done list.</summary>
         protected bool CanReassign { get { return Role == RoleSubAdmin && DoneMode; } }
@@ -1655,6 +1671,12 @@ namespace DSL_CMS
             // always has the dropdown and the exam details in it
             divStatusFields.Visible = !UsesStatusButtons || usedDate;
             pnlUsedDate.Visible = usedDate;
+
+            // The star belongs to whoever is still held to it, and that is only
+            // the student now. Marking a field required on the sub-admin's
+            // editor, which no longer refuses anything, would be a promise the
+            // save does not keep.
+            litUsedReq.Text = UsesStatusButtons ? " *" : string.Empty;
         }
 
         /// <summary>One editor row per dealer slot, padded out to DealerColumns.</summary>
@@ -1880,12 +1902,14 @@ namespace DSL_CMS
             }
             else
             {
-                if (ddlEditStatus.SelectedValue == "Used" && txtUsedDate.Text.Trim().Length == 0)
-                {
-                    ShowMessage("Voucher Used Date is required when the status is 'Used'.", false);
-                    return;
-                }
-
+                // Nothing is demanded here, the way nothing is demanded of the
+                // admin. The used date used to be required under "Used", and a
+                // sub-admin triaging somebody else's voucher often does not know
+                // it - so the save was refused, the status went unrecorded, and
+                // with it the check date and their name. Refusing the whole
+                // entry over one field they cannot fill cost more than it saved.
+                // The proc drops the used date whenever the status is not
+                // "Used", so a blank one cannot leave a stale date behind.
                 string checkedBy = Convert.ToString(Session["FullName"]);
                 if (string.IsNullOrEmpty(checkedBy)) checkedBy = "System";
 
@@ -1893,7 +1917,8 @@ namespace DSL_CMS
                     txtCandidate.Text.Trim(), txtExamDate.Text.Trim(), ddlExamMode.SelectedValue,
                     checkedBy, userId);
 
-                ShowMessage("Status updated. Voucher check date set to today.", true);
+                ShowMessage("Status updated. Voucher check date set to today, against "
+                    + checkedBy + ".", true);
             }
 
             pnlEdit.Visible = false;
@@ -2554,8 +2579,30 @@ namespace DSL_CMS
             PickedVouchers.Clear();
             PickedStudent = string.Empty;
             txtAssignCount.Text = string.Empty;
+            txtAssignSearch.Text = string.Empty;
             pnlAssignMsg.Visible = false;
 
+            BindAssign();
+            pnlAssign.Visible = true;
+        }
+
+        /// <summary>
+        /// The code typed into the picker's own search box. It narrows what is
+        /// already on offer and reaches no further: the product and the card the
+        /// screen was opened on still hold, so this cannot turn up a voucher
+        /// belonging to a slice the sub-admin is not looking at.
+        ///
+        /// Read off the box rather than kept in ViewState - it posts its own
+        /// value on every postback, so it is already carried between them.
+        /// </summary>
+        private string AssignSearchCode
+        {
+            get { return txtAssignSearch.Text.Trim(); }
+        }
+
+        protected void btnAssignSearch_Click(object sender, EventArgs e)
+        {
+            CaptureAssignSelection();
             BindAssign();
             pnlAssign.Visible = true;
         }
@@ -2593,6 +2640,9 @@ namespace DSL_CMS
             dt = FilterByStatus(dt, StatusFilter);
             dt = FilterByCode(dt, SearchCode);
 
+            // and last, whatever was typed into the picker's own search box
+            dt = FilterByCode(dt, AssignSearchCode);
+
             rptAssignVouchers.DataSource = dt;
             rptAssignVouchers.DataBind();
 
@@ -2601,7 +2651,7 @@ namespace DSL_CMS
             litAssignTitle.Text = reassign ? "Reassign Vouchers" : "Assign Vouchers";
             litAssignBox.Text = (reassign ? "Done Entries" : "Unassigned Vouchers")
                               + (slice.Length == 0 ? string.Empty : " &mdash; " + Server.HtmlEncode(slice));
-            litAssignEmpty.Text = AssignEmptyText(reassign, slice);
+            litAssignEmpty.Text = AssignEmptyText(reassign, slice, AssignSearchCode);
             btnAssignSave.Text = reassign ? "Reassign" : "Assign";
 
             int count = (dt == null) ? 0 : dt.Rows.Count;
@@ -2639,9 +2689,23 @@ namespace DSL_CMS
         /// narrowed to one product and one status is a half truth that reads as
         /// a fault - the provider may hold plenty, just none in this slice. So
         /// the slice is named, along with what to do about it.
+        ///
+        /// A code typed into the search box is named separately, because it is
+        /// the one narrowing the reader can undo without leaving the dialog.
         /// </summary>
-        private string AssignEmptyText(bool reassign, string slice)
+        private string AssignEmptyText(bool reassign, string slice, string typed)
         {
+            string kind = reassign ? "done entry" : "unassigned voucher";
+
+            if (typed.Length > 0)
+            {
+                string where = (slice.Length == 0)
+                    ? string.Empty : " under " + Server.HtmlEncode(slice);
+
+                return "No " + kind + where + " matches \""
+                     + Server.HtmlEncode(typed) + "\". Clear the search to see them all.";
+            }
+
             if (slice.Length == 0)
                 return reassign ? "No done entries." : "No unassigned vouchers.";
 

@@ -307,8 +307,12 @@
                         </asp:DropDownList>
                     </asp:Panel>
 
+                    <%-- This panel is shared: the sub-admin's Status Entry and the
+                         student's status buttons both hold it. Only the student is
+                         still required to give the date, so the star is theirs -
+                         set in ShowStatusFields rather than written here. --%>
                     <asp:Panel ID="pnlUsedDate" runat="server" Visible="false" CssClass="field">
-                        <label>Voucher Used Date *</label>
+                        <label>Voucher Used Date<asp:Literal ID="litUsedReq" runat="server" /></label>
                         <asp:TextBox ID="txtUsedDate" runat="server" TextMode="Date" />
                     </asp:Panel>
 
@@ -657,11 +661,26 @@
                     <asp:Literal ID="litAssignMsg" runat="server" />
                 </asp:Panel>
 
-                <div class="filters" style="margin-bottom: 16px;">
+                <%-- DefaultButton so Enter in the search box searches. Without it
+                     Enter submits the form and the first button on it fires -
+                     which in this dialog would be Select, or worse Assign. --%>
+                <asp:Panel ID="pnlAssignFilters" runat="server" CssClass="filters"
+                    DefaultButton="btnAssignSearch" style="margin-bottom: 16px;">
                     <div class="field">
                         <label>Product Name</label>
                         <asp:DropDownList ID="ddlAssignProduct" runat="server" AutoPostBack="true"
                             OnSelectedIndexChanged="ddlAssignProduct_SelectedIndexChanged" />
+                    </div>
+                    <%-- Finding one code in a list of a hundred. It narrows what
+                         is already on offer - it does not reach past the product
+                         or the card the screen was opened on. --%>
+                    <div class="field">
+                        <label>Voucher Code</label>
+                        <asp:TextBox ID="txtAssignSearch" runat="server" placeholder="Search code" />
+                    </div>
+                    <div class="field">
+                        <asp:Button ID="btnAssignSearch" runat="server" CssClass="btn btn-light" Text="Search"
+                            OnClick="btnAssignSearch_Click" CausesValidation="false" />
                     </div>
                     <div class="field">
                         <label>Select first N entries</label>
@@ -671,7 +690,7 @@
                         <asp:Button ID="btnAssignPick" runat="server" CssClass="btn btn-light" Text="Select"
                             OnClick="btnAssignPick_Click" CausesValidation="false" />
                     </div>
-                </div>
+                </asp:Panel>
 
                 <div class="assign-split">
                     <div class="box">

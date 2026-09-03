@@ -200,11 +200,17 @@ that list and are now the admin's to edit, so `UpdateAdminEntry` writes all
 three — plainly, not `ISNULL`'d onto what is there, because an admin who
 clears a field means to clear it.
 
-**Nothing is required of the admin's editor.** A status on its own saves. The
-used date is not demanded even under "Used": an admin setting a status on
-somebody else's voucher may not know the date, and refusing the save over it
-left them unable to record the status at all. The proc drops the used date
-whenever the status is not "Used", so a blank one cannot leave a stale date.
+**Nothing is required of the admin's or the sub-admin's editor.** A status on
+its own saves. The used date is not demanded even under "Used": either of them
+setting a status on somebody else's voucher may not know the date, and refusing
+the save over it left them unable to record the status at all. The proc drops
+the used date whenever the status is not "Used", so a blank one cannot leave a
+stale date.
+
+The `*` beside "Voucher Used Date" is the student's alone now — `pnlUsedDate`
+is shared between their editor and the sub-admin's, so `ShowStatusFields` sets
+the star rather than the markup carrying it. Marking a field required on an
+editor that refuses nothing is a promise the save does not keep.
 
 **Setting a status stamps the check date**, in all four editors. Three of them
 always did — `UpdateCheck`, `UpdateStatusEntry`, `UpdateStatusOnly` all write
@@ -221,6 +227,19 @@ three do. An admin's stamp therefore records the check without handing the
 voucher to the sub-admin overnight. Deliberate for now: an admin edits other
 people's vouchers, and moving one out from under a student because the admin
 corrected a field would be a surprise.
+
+**The tick box in the grid is the student's, not the sub-admin's.** `CanCheck`
+is `RoleStudent` only. It stamped the check date and a name on a voucher nobody
+had opened, so the column could read "checked by Anju Rani" beside a status
+nobody had set; the sub-admin's editor stamps both the moment they save a
+status, which is the check actually happening. One way in, and it is the one
+that means something. The box still renders — disabled — because it is how the
+column shows what a voucher carries. `chkCheckDate_CheckedChanged` re-checks
+`CanCheck`, so a forged postback stamps nothing either; a disabled input is a
+hint to the browser, not a rule.
+
+The student keeps it: their editor is three status buttons, and the tick is how
+they record a look that changed nothing.
 
 **Remarks are a log, and belong to two roles.** `VoucherRemark_Table`
 ([Database/10_Remarks/01_VoucherRemark_Table.sql](Database/10_Remarks/01_VoucherRemark_Table.sql))
@@ -301,6 +320,14 @@ Under a product lock the picker offers **only** that product and no
 "Unassigned" still sits on top of all of it, so the count is the card's minus
 what is out on loan — which is why the heading names the slice and an empty one
 says which slice is empty rather than "No unassigned vouchers."
+
+The picker's own **Voucher Code** box searches inside that, and no further: it
+is the last `FilterByCode` in `BindAssign`, after the screen's scope, so it can
+never turn up a voucher belonging to a slice the sub-admin is not looking at.
+Read straight off the box — a `TextBox` posts its own value, so there is no
+state to keep. `pnlAssignFilters` carries `DefaultButton="btnAssignSearch"`,
+because Enter in that box would otherwise fire the first button on the form,
+which in this dialog is Select — or Assign.
 
 A student's Voucher Status screen shows their own performance instead of the
 provider summary.
