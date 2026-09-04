@@ -393,6 +393,37 @@ linking to its own slice — two targets, and neither is a button in a column at
 the far end of the row. The other roles keep their Actions column because they
 have somewhere else to go from it (Manage Product), which this role has not.
 
+**Student-wise Performance is the same table, seen from above.** One row per
+student *and provider* — a student holding two providers is two rows, because
+those are two piles of work — with the same `All` / `Checked` / `Pending` /
+`Weekly` / `Monthly`, the same products behind a chevron, and a total across the
+top of everything on screen.
+
+The held figures come from the same call the student's own screen makes, with
+the student left off: `GetVoucherDetail(… assignedTo: "", isMoved: "0",
+"SelectAll")`, grouped in `BuildTable`. One query rather than one per student,
+and — the point — a figure here and the same figure on that student's own
+Voucher Status cannot disagree, because they are the same rows counted the same
+way. `Test-PerfTable` reads both screens and compares them.
+
+`Weekly` / `Monthly` come from `Sp_VoucherPerformance_Table @Action =
+'SelectByStudent'`, which answers "every student, for one provider" — so
+`HistoryCounts` asks it once per provider that actually appears. A handful of
+calls, not one per student, and providers nobody holds anything of are never
+asked about because they have no row to fill.
+
+**Nothing on that screen is a link.** It answers "who has what" and is not a way
+through to anywhere: the chevron is the only control on the table, and the row
+commands are all it has. Deliberate — the admin's route to a provider's vouchers
+is Voucher Status, and a second one here would be a second place to keep right.
+
+The student's name is written **once per run of their own rows**, not repeated
+down the column. A sort that scatters those rows turns every run into one row,
+so every row gets its name back without the code having to know a sort happened
+— `_lastStudent` is simply the last student asked about, and a Repeater binds in
+order. The two text columns are also the tie-breakers on every numeric sort, so
+a student's providers stay together underneath their name.
+
 Every column of that table sorts, on its own key (`PerfSortKey`) rather than the
 provider table's — the two are never on screen together, and neither should be
 left ordered by a column the other owns. `ExpandedProviders` *is* shared with the

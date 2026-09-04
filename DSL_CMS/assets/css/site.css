@@ -993,6 +993,35 @@ table.data td {
 table.data tbody tr:nth-child(even) td { background: var(--row-alt); }
 table.data td.empty { padding: 34px; color: var(--muted); }
 
+/* ---- student wise performance ----
+   A row per student and provider, opening into the products underneath. The
+   zebra above would stripe the sub-rows out of step with their parent once a
+   provider is open, so this table paints its own rows instead. */
+table.sp-table tbody tr:nth-child(even) td { background: transparent; }
+table.sp-table tbody tr.sp-row:hover td { background: #f4f8ff; }
+
+.sp-total td { background: var(--blue-soft); font-weight: 800; font-size: 15.5px; }
+.sp-total .sp-scope { font-weight: 600; font-size: 13px; color: var(--muted); margin-left: 8px; }
+
+.sp-toggle { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-align: left; }
+.sp-toggle:hover { text-decoration: none; }
+.sp-toggle:hover b { color: var(--blue); }
+.sp-toggle .nm b { display: block; font-weight: 700; }
+.sp-toggle .nm small { display: block; font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.sp-caret { display: grid; place-items: center; color: var(--muted); transition: transform .15s ease; }
+.sp-caret.open { transform: rotate(90deg); color: var(--blue); }
+
+table.sp-table tbody tr.sp-subrow td { background: var(--row-alt); }
+.sp-prod { display: inline-flex; align-items: center; gap: 9px; padding-left: 26px; font-size: 13.5px; }
+.sp-prod .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex: 0 0 auto; }
+.sp-subnone { color: var(--muted); font-style: italic; padding-left: 26px; }
+
+/* Done and still to do, told apart at a glance - the same two colours the
+   student's own screen uses for the same two numbers. */
+table.sp-table td.sp-done { color: var(--ok); font-weight: 700; }
+table.sp-table td.sp-todo { color: var(--warn); font-weight: 700; }
+table.sp-table td.sp-dash { color: var(--muted); font-weight: 700; }
+
 .act { display: inline-flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .act .btn-fill, .act .btn-out {
     padding: 9px 18px;
