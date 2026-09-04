@@ -1002,11 +1002,52 @@ table.data td.empty { padding: 34px; color: var(--muted); }
    screen. What is different is the extra column and the line across the top. */
 .vs-headline { display: flex; align-items: center; gap: 14px; }
 
-.vs-sumrow td {
-    background: var(--panel-2); border-bottom: 1px solid var(--line);
-    font-weight: 800; font-size: 15px; color: var(--tx);
+/* ---- the total, as a band of its own ----
+   Deep rather than white, because it is the one thing on the page that is not a
+   row of the table and should not have to be told apart from one. It picks up
+   the sidebar's navy so the page reads as having a head and a body rather than
+   two lists. */
+.sp-sum {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 22px; flex-wrap: wrap;
+    margin: 10px 0 16px; padding: 14px 20px;
+    border-radius: var(--radius);
+    background: linear-gradient(135deg, #16233f 0%, #1d3155 55%, #24406e 100%);
+    box-shadow: 0 10px 26px rgba(20, 40, 80, .22);
 }
-.vs-sumrow .vs-total { background: #fff; }
+.sp-sum-lab { display: flex; align-items: center; gap: 12px; color: #fff; }
+.sp-sum-lab .ic {
+    width: 36px; height: 36px; border-radius: 11px; flex: 0 0 auto;
+    display: grid; place-items: center;
+    background: rgba(255,255,255,.12); color: #fff;
+}
+.sp-sum-lab .tx b { display: block; font-size: 15.5px; font-weight: 800; letter-spacing: -.01em; }
+.sp-sum-lab .tx small { display: block; font-size: 11.5px; font-weight: 600; color: rgba(255,255,255,.62); }
+
+.sp-sum-figs { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sp-sum-figs .fig {
+    min-width: 84px; padding: 7px 14px; border-radius: 12px; text-align: center;
+    background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.14);
+}
+.sp-sum-figs .fig .v { display: block; font-size: 22px; font-weight: 800; color: #fff; line-height: 1.15; }
+.sp-sum-figs .fig .k {
+    display: block; font-size: 10px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: rgba(255,255,255,.6);
+}
+/* the same two colours the rows below use for the same two numbers */
+.sp-sum-figs .fig.done .v { color: #4ade80; }
+.sp-sum-figs .fig.todo .v { color: #fbbf24; }
+.sp-sum-figs .fig.quiet { background: transparent; border-color: rgba(255,255,255,.10); }
+.sp-sum-figs .fig.quiet .v { font-size: 19px; color: rgba(255,255,255,.86); }
+
+/* Held now on the left, worked through over time on the right - two different
+   questions, and the gap says so before anybody adds the wrong pair up. */
+.sp-sum-cut { width: 1px; align-self: stretch; margin: 2px 6px; background: rgba(255,255,255,.18); }
+
+@media (max-width: 900px) {
+    .sp-sum { justify-content: flex-start; }
+    .sp-sum-cut { display: none; }
+}
 
 /* The provider column is the third here rather than the second, and the two
    cells to its left already indent the row - the student screen's deeper inset

@@ -24,6 +24,54 @@
     </asp:Panel>
 
     <asp:Panel ID="pnlBody" runat="server">
+
+        <%-- Everything below, added up. It was a row of the table and is a band
+             of its own now: a total is not one more student, and reading it as
+             the first row meant the eye had to stop and work out that this one
+             was different. Out here it is the headline the screen is opened for,
+             and the table underneath is a list again.
+
+             The divider is not decoration. The first three are what is in the
+             students' hands this minute and the last two are what they have got
+             through over a week and a month - two different questions, and the
+             gap says so before anybody adds the wrong pair together. --%>
+        <div class="sp-sum">
+            <div class="sp-sum-lab">
+                <span class="ic">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                        <path d="M3 6h18M3 12h18M3 18h12" /></svg>
+                </span>
+                <span class="tx">
+                    <b>Total Provider</b>
+                    <small>every student, every provider</small>
+                </span>
+            </div>
+            <div class="sp-sum-figs">
+                <div class="fig">
+                    <span class="v vs-num"><asp:Literal ID="litTotalAll" runat="server" Text="0" /></span>
+                    <span class="k">Today All</span>
+                </div>
+                <div class="fig done">
+                    <span class="v vs-num"><asp:Literal ID="litTotalChecked" runat="server" Text="0" /></span>
+                    <span class="k">Checked</span>
+                </div>
+                <div class="fig todo">
+                    <span class="v vs-num"><asp:Literal ID="litTotalPending" runat="server" Text="0" /></span>
+                    <span class="k">Pending</span>
+                </div>
+                <span class="sp-sum-cut"></span>
+                <div class="fig quiet">
+                    <span class="v vs-num"><asp:Literal ID="litTotalWeekly" runat="server" Text="0" /></span>
+                    <span class="k">Weekly</span>
+                </div>
+                <div class="fig quiet">
+                    <span class="v vs-num"><asp:Literal ID="litTotalMonthly" runat="server" Text="0" /></span>
+                    <span class="k">Monthly</span>
+                </div>
+            </div>
+        </div>
+
         <div class="vs-panel">
             <div class="vs-tablewrap">
                 <table class="sp-table">
@@ -77,19 +125,6 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <%-- Everything on the screen added up, so "how much is out
-                             with the students altogether" needs no adding up by eye.
-                             At the top rather than the bottom because it is the
-                             headline the screen is opened for. --%>
-                        <tr class="vs-sumrow">
-                            <td colspan="3"><b>Total</b></td>
-                            <td class="c"><span class="vs-total vs-num"><asp:Literal ID="litTotalAll" runat="server" Text="0" /></span></td>
-                            <td class="c"><span class="vs-num vs-done"><asp:Literal ID="litTotalChecked" runat="server" Text="0" /></span></td>
-                            <td class="c"><span class="vs-num vs-todo"><asp:Literal ID="litTotalPending" runat="server" Text="0" /></span></td>
-                            <td class="c vs-num"><asp:Literal ID="litTotalWeekly" runat="server" Text="0" /></td>
-                            <td class="c vs-num"><asp:Literal ID="litTotalMonthly" runat="server" Text="0" /></td>
-                        </tr>
-
                         <asp:Repeater ID="rptPerformance" runat="server" OnItemCommand="rptPerformance_ItemCommand">
                             <ItemTemplate>
                                 <tr class='<%# RowClass(Eval("Key")) %>'>

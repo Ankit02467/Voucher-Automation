@@ -401,8 +401,14 @@ have somewhere else to go from it (Manage Product), which this role has not.
 **Student-wise Performance is the same table, seen from above.** One row per
 student *and provider* — a student holding two providers is two rows, because
 those are two piles of work — with the same `All` / `Checked` / `Pending` /
-`Weekly` / `Monthly`, the same products behind a chevron, and a total across the
-top of everything on screen.
+`Weekly` / `Monthly` and the same products behind a chevron.
+
+**"Total Provider" is a band above the table, not a row of it.** It was the
+first row and read as one more student until the eye stopped on it. Out on its
+own — dark, so it cannot be mistaken for the list — it is the headline the
+screen is opened for and the table under it is a list again. The rule inside it
+separates the three held figures from the two history ones, because those are
+two different questions and nobody should be able to add the wrong pair up.
 
 The held figures come from the same call the student's own screen makes, with
 the student left off: `GetVoucherDetail(… assignedTo: "", isMoved: "0",
