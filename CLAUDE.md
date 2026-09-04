@@ -475,18 +475,26 @@ student has queried, and two tables answering one question should not look like
 two products. `.sp-table` exists only to pull the product indent back, because
 the provider is the third column here and the second there.
 
-The student's name is written **once per run of their own rows**, and so is the
-number beside it. A student holding two providers is two rows because those are
-two piles of work, but they are one person's piles — numbering them 2 and 3 said
-there were two people, so `SerialCell` counts students and the rows under a name
-carry no number. A sort that scatters those rows turns every run into one row, so
-every run gets its number and its name back without the code having to know a
-sort happened — `_lastStudent` is simply the last student asked about, and a
-Repeater binds in order.
+**The number and the name are one cell, reaching down over the student's own
+rows.** A student holding two providers is two rows because those are two piles
+of work, but they are one person's piles: numbering them 2 and 3 said there were
+two people, and blanking the cells instead only said "same as above" while the
+row line went on cutting through the middle of them. `HeadCells` writes both
+cells with a `rowspan`, or nothing at all — on a continuation row there are no
+cells to write, and an empty pair would push that row's provider into the Today
+All column. `ProductRows` drops its two leading cells for the same reason.
 
-`SerialCell` is also where a run is *decided*, because it is the first cell in
-the row; `StudentCell` only reads the answer. Move the number out of column one
-and the name stops knowing where a run begins. The two text columns are also the tie-breakers on every numeric sort, so
+`MarkRuns` works the span out **after the sort**, into `Serial` and `RowSpan` on
+the table, because a sort that scatters a student's rows turns every run into one
+row and the answer changes with it. The span has to count the rows the table will
+actually render, so it adds `SubRowCount` for every row that is open — the same
+rule `ProductRows` emits by, and if the two ever disagree the name reaches too far
+or not far enough and the table comes apart. `Test-PerfTable` counts the `<tr>` of
+each run against the span written on it, closed, opened, and after every sort.
+
+The two spanned cells belong to the whole run, so `.vs-prow.open` must not tint
+them: opening one provider otherwise greyed a name covering three others and said
+all four were open. The two text columns are also the tie-breakers on every numeric sort, so
 a student's providers stay together underneath their name.
 
 Every column of that table sorts, on its own key (`PerfSortKey`) rather than the

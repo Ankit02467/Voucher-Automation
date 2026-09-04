@@ -128,8 +128,8 @@ namespace DSL_CMS
             dt = ApplySort(dt);
             ApplyHeads();
 
-            _lastStudent = null;
-            _serial = 0;
+            MarkRuns(dt);
+
             rptPerformance.DataSource = dt;
             rptPerformance.DataBind();
 
@@ -153,6 +153,12 @@ namespace DSL_CMS
             var t = new DataTable();
             t.Columns.Add("Key", typeof(string));
             t.Columns.Add("StudentId", typeof(string));
+            // Filled in by MarkRuns once the rows are in their final order:
+            // the number to write beside a student, and how many rows of the
+            // table their name has to reach down over. Both are nought on a
+            // row that is not the first of its student's run.
+            t.Columns.Add("Serial", typeof(int));
+            t.Columns.Add("RowSpan", typeof(int));
             t.Columns.Add(ByStudent, typeof(string));
             t.Columns.Add("ProviderId", typeof(string));
             t.Columns.Add(ByProvider, typeof(string));
@@ -580,51 +586,97 @@ namespace DSL_CMS
         }
 
         /// <summary>
-        /// The row number - and it numbers students, not rows. A student
-        /// holding two providers is two rows because those are two piles of
-        /// work, but they are one person's piles: numbering them 2 and 3 said
-        /// there were two people. The number is written once above the run and
-        /// the rows under it carry none, so the eye reads one entry with two
-        /// providers in it.
+        /// The number and the name of a student, as one cell reaching down over
+        /// every row that is theirs - or nothing at all on the rows under it.
         ///
-        /// This is also where a run is decided, because it is the first cell in
-        /// the row - StudentCell only reads the answer. A sort that scatters a
-        /// student's rows turns every run into one row, and every run gets its
-        /// own number and its own name back without either of them having to
-        /// know a sort happened.
+        /// A student holding two providers is two rows because those are two
+        /// piles of work, but they are one person's piles. Numbering them 2 and
+        /// 3 said there were two people; blanking the cells said "same as
+        /// above" and left the row line cutting through the middle of them. A
+        /// rowspan says it outright, and the name comes to rest in the middle
+        /// of its own providers.
+        ///
+        /// Both cells are written here rather than left in the markup because
+        /// on a continuation row there are no cells to write: the columns are
+        /// already spanned, and a pair of empty ones would push that row's
+        /// provider into the Today All column.
         /// </summary>
-        protected string SerialCell(object studentId)
+        protected string HeadCells(object serial, object span, object name)
         {
-            string id = Convert.ToString(studentId);
+            int n = Num(span);
+            if (n < 1) return string.Empty;
 
-            _newRun = (id.Length == 0 || id != _lastStudent);
-            if (!_newRun) return string.Empty;
+            string reach = (n > 1) ? " rowspan=\"" + n + "\"" : string.Empty;
 
-            _lastStudent = id;
-            return (++_serial).ToString();
+            return "<td class=\"vs-sn vs-num\"" + reach + ">" + Num(serial) + "</td>"
+                 + "<td class=\"vs-who\"" + reach + "><b>"
+                 + Server.HtmlEncode(Convert.ToString(name)) + "</b></td>";
         }
 
         /// <summary>
-        /// The student's name, written once above its own run of rows. When the
-        /// row above belongs to the same student the cell is left empty, which
-        /// is what makes two providers read as one person's work rather than as
-        /// two people who happen to share a name.
+        /// Which rows start a student's run, what to number them, and how far
+        /// their name has to reach. Worked out here, after the sort, because a
+        /// sort that scatters a student's rows turns every run into one row and
+        /// the answer changes with it - and because the reach has to count the
+        /// rows the table will actually render, which includes the product
+        /// sub-rows of any row that is open.
+        ///
+        /// SubRowCount is the same rule ProductRows emits by. If the two ever
+        /// disagree the name reaches too far or not far enough, and the table
+        /// below it comes apart - which is why Test-PerfTable counts the rows
+        /// of a run against the rowspan on it, opened and closed.
         /// </summary>
-        protected string StudentCell(object name)
+        private void MarkRuns(DataTable dt)
         {
-            if (!_newRun) return string.Empty;
-            return "<b>" + Server.HtmlEncode(Convert.ToString(name)) + "</b>";
+            if (dt == null) return;
+
+            int serial = 0;
+            for (int i = 0; i < dt.Rows.Count; i++)
+            {
+                string id = Convert.ToString(dt.Rows[i]["StudentId"]);
+
+                // not the first of a run: no number, no name, no cells at all
+                if (i > 0 && id.Length > 0 && id == Convert.ToString(dt.Rows[i - 1]["StudentId"]))
+                {
+                    dt.Rows[i]["Serial"] = 0;
+                    dt.Rows[i]["RowSpan"] = 0;
+                    continue;
+                }
+
+                int rows = 0;
+                for (int j = i; j < dt.Rows.Count; j++)
+                {
+                    if (j > i && Convert.ToString(dt.Rows[j]["StudentId"]) != id) break;
+
+                    rows++;
+                    if (IsOpen(dt.Rows[j]["Key"])) rows += SubRowCount(dt.Rows[j]["ProductNames"]);
+                }
+
+                dt.Rows[i]["Serial"] = ++serial;
+                dt.Rows[i]["RowSpan"] = rows;
+            }
         }
 
         /// <summary>
-        /// The student the row above belonged to, and whether this row is the
-        /// first of theirs. Fields rather than a look back into the data
-        /// source: a Repeater binds its rows in order and its cells in order,
-        /// so "the one before this" is simply the last one asked about.
+        /// How many rows ProductRows will emit for an opened row. Nothing at
+        /// all to say means the one row that says so.
         /// </summary>
-        private string _lastStudent;
-        private bool _newRun;
-        private int _serial;
+        private static int SubRowCount(object names)
+        {
+            string raw = Convert.ToString(names);
+            if (raw.Trim().Length == 0) return 1;
+
+            int n = 0;
+            foreach (string s in raw.Split('|'))
+                if (s.Trim().Length > 0) n++;
+            return n;
+        }
+
+        private static int Num(object value)
+        {
+            int n;
+            return int.TryParse(Convert.ToString(value), out n) ? n : 0;
+        }
 
         /// <summary>
         /// The products of an opened row, as rows of the same table. Emitted
@@ -640,9 +692,12 @@ namespace DSL_CMS
         {
             if (!IsOpen(key)) return string.Empty;
 
+            // No leading cells on any of these: the number and the name above
+            // are spanned down over them, so a pair of empty ones would shift
+            // the whole row two columns right.
             string raw = Convert.ToString(names);
             if (raw.Trim().Length == 0)
-                return "<tr class=\"vs-subrow\"><td></td><td></td><td colspan=\"6\" class=\"vs-subnone\">"
+                return "<tr class=\"vs-subrow\"><td colspan=\"6\" class=\"vs-subnone\">"
                      + "No products held under this provider.</td></tr>";
 
             string[] nm = raw.Split('|');
@@ -656,7 +711,7 @@ namespace DSL_CMS
                 string name = nm[i].Trim();
                 if (name.Length == 0) continue;
 
-                sb.Append("<tr class=\"vs-subrow\"><td></td><td></td><td>")
+                sb.Append("<tr class=\"vs-subrow\"><td>")
                   .Append("<span class=\"vs-prodname\"><span class=\"dot\"></span>")
                   .Append(Server.HtmlEncode(name)).Append("</span></td>")
                   .Append(Cell(Slot(na, i), string.Empty))

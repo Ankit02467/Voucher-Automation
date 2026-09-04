@@ -1079,6 +1079,13 @@ table.data td.empty { padding: 34px; color: var(--muted); }
 .sp-sum-figs .fig.done .v { color: #4ade80; }
 .sp-sum-figs .fig.todo .v { color: #fbbf24; }
 
+/* The number and the name reach down over the whole of a student's run, so
+   they belong to all of it and not to the one row that happens to be open.
+   Without this, opening one provider greyed a name that covered three others
+   and said all four were open. */
+.sp-table .vs-prow.open > .vs-sn,
+.sp-table .vs-prow.open > .vs-who { background: var(--panel); }
+
 /* The provider column is the third here rather than the second, and the two
    cells to its left already indent the row - the student screen's deeper inset
    would have pushed a product halfway across the table. */

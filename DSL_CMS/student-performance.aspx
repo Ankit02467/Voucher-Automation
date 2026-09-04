@@ -173,13 +173,14 @@
                         <asp:Repeater ID="rptPerformance" runat="server" OnItemCommand="rptPerformance_ItemCommand">
                             <ItemTemplate>
                                 <tr class='<%# RowClass(Eval("Key")) %>'>
-                                    <%-- The number counts students, not rows, and
-                                         SerialCell is what decides where one
-                                         student's run of rows ends - so it has to
-                                         stay the first cell in the row, with
-                                         StudentCell reading its answer. --%>
-                                    <td class="vs-sn vs-num"><%# SerialCell(Eval("StudentId")) %></td>
-                                    <td><%# StudentCell(Eval("StudentName")) %></td>
+                                    <%-- Two cells, or none. The number and the name
+                                         are one cell reaching down over every row
+                                         that is this student's, so the rows under
+                                         the first write nothing here at all - an
+                                         empty pair would push them two columns
+                                         right, under a span that already covers
+                                         those columns. --%>
+                                    <%# HeadCells(Eval("Serial"), Eval("RowSpan"), Eval("StudentName")) %>
                                     <td>
                                         <%-- The whole block is the toggle, the way the
                                              provider table on Voucher Status has it.
