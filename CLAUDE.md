@@ -406,9 +406,38 @@ those are two piles of work — with the same `All` / `Checked` / `Pending` /
 **"Total Provider" is a band above the table, not a row of it.** It was the
 first row and read as one more student until the eye stopped on it. Out on its
 own — dark, so it cannot be mistaken for the list — it is the headline the
-screen is opened for and the table under it is a list again. The rule inside it
-separates the three held figures from the two history ones, because those are
-two different questions and nobody should be able to add the wrong pair up.
+screen is opened for and the table under it is a list again.
+
+**It totals three columns, and each figure stands in the column it totals.**
+Weekly and Monthly are not totalled: they count work got through over a rolling
+week and a rolling month, the two windows overlap, and one number across every
+student for each of them answers nothing anybody asked. The band stops two
+columns short of the table's right edge rather than filling them.
+
+Standing in the column is four numbers agreeing, and nothing in the code makes
+them agree:
+
+- the `<colgroup>` on `student-performance.aspx` pins the widths, and
+  `.vs-page table.sp-table` is `table-layout: fixed` so the browser uses them
+  rather than sharing the slack out by content — **both selectors**, because
+  `.vs-page table` sets a `min-width` of its own and a bare `.sp-table` loses
+  to it;
+- `.sp-sum-figs .fig` is `flex: 0 0` that same column width, and
+  `.sp-sum-figs` has `padding-right` of exactly two of them — it is measured
+  from the right, which is the end the columns are fixed from;
+- `.sp-sum` has no horizontal padding and a **transparent 1px border** in place
+  of the panel's, so its inside is the table's box, and a `min-width` two
+  pixels larger than the table's for the same reason (`box-sizing` is
+  `border-box`);
+- `.sp-sumwrap` gives the band its own `overflow-x`, so under the table's
+  min-width the two scroll together instead of the band sitting still while
+  its columns slide out from under it.
+
+Change any one of those and the band drifts. `Test-PerfTable` asserts the
+relationships between them — not the numbers themselves, so a deliberate change
+still has to be a consistent one — and `Measure-Band.ps1` renders the page at
+six widths in headless Chrome and measures chip centre against column centre,
+which is the only thing that can say what the browser actually did.
 
 The held figures come from the same call the student's own screen makes, with
 the student left off: `GetVoucherDetail(… assignedTo: "", isMoved: "0",

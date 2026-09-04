@@ -31,43 +31,58 @@
              was different. Out here it is the headline the screen is opened for,
              and the table underneath is a list again.
 
-             The divider is not decoration. The first three are what is in the
-             students' hands this minute and the last two are what they have got
-             through over a week and a month - two different questions, and the
-             gap says so before anybody adds the wrong pair together. --%>
-        <div class="sp-sum">
-            <div class="sp-sum-lab">
-                <span class="ic">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                         stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
-                        <path d="M3 6h18M3 12h18M3 18h12" /></svg>
-                </span>
-                <span class="tx">
-                    <b>Total Provider</b>
-                    <small>every student, every provider</small>
-                </span>
-            </div>
-            <div class="sp-sum-figs">
-                <div class="fig">
-                    <span class="v vs-num"><asp:Literal ID="litTotalAll" runat="server" Text="0" /></span>
-                    <span class="k">Today All</span>
+             Each figure stands in the width of the column it totals, so the
+             eye reads it straight down instead of matching it up by its label.
+             That only holds because the columns below are pinned - the colgroup
+             and table-layout: fixed. Change a width there and the same width
+             has to change in .sp-sum-figs, or the band drifts off its column.
+
+             Weekly and Monthly are not totalled. They are the other question -
+             work got through over a week and a month, not what is in hand this
+             minute - and one number over every student for two overlapping
+             windows answers nothing anybody asked. The band stops two columns
+             short of the table's right edge rather than filling them, which is
+             what the padding on .sp-sum-figs is for.
+
+             The wrapper is not a spare div. Below the table's min-width the
+             columns scroll, and a band that cannot scroll would sit still
+             while the thing it is lined up with slid out from under it. Same
+             min-width, same starting edge, its own scroller. --%>
+        <div class="sp-sumwrap">
+            <div class="sp-sum">
+                <div class="sp-sum-lab">
+                    <span class="ic">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                            <path d="M3 6h18M3 12h18M3 18h12" /></svg>
+                    </span>
+                    <span class="tx">
+                        <b>Total Provider</b>
+                        <small>Every Student, Every Provider</small>
+                    </span>
                 </div>
-                <div class="fig done">
-                    <span class="v vs-num"><asp:Literal ID="litTotalChecked" runat="server" Text="0" /></span>
-                    <span class="k">Checked</span>
-                </div>
-                <div class="fig todo">
-                    <span class="v vs-num"><asp:Literal ID="litTotalPending" runat="server" Text="0" /></span>
-                    <span class="k">Pending</span>
-                </div>
-                <span class="sp-sum-cut"></span>
-                <div class="fig quiet">
-                    <span class="v vs-num"><asp:Literal ID="litTotalWeekly" runat="server" Text="0" /></span>
-                    <span class="k">Weekly</span>
-                </div>
-                <div class="fig quiet">
-                    <span class="v vs-num"><asp:Literal ID="litTotalMonthly" runat="server" Text="0" /></span>
-                    <span class="k">Monthly</span>
+                <%-- .fig is the column and .box is the chip inside it: the column
+                     has to be exactly the table's width, and a chip that wide would
+                     leave the three of them touching. --%>
+                <div class="sp-sum-figs">
+                    <div class="fig">
+                        <span class="box">
+                            <span class="v vs-num"><asp:Literal ID="litTotalAll" runat="server" Text="0" /></span>
+                            <span class="k">Today All</span>
+                        </span>
+                    </div>
+                    <div class="fig done">
+                        <span class="box">
+                            <span class="v vs-num"><asp:Literal ID="litTotalChecked" runat="server" Text="0" /></span>
+                            <span class="k">Checked</span>
+                        </span>
+                    </div>
+                    <div class="fig todo">
+                        <span class="box">
+                            <span class="v vs-num"><asp:Literal ID="litTotalPending" runat="server" Text="0" /></span>
+                            <span class="k">Pending</span>
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -84,40 +99,58 @@
                          swallows that text into its own Text property while the
                          page is parsed, and the heading then comes back empty on
                          the first postback. --%>
+                    <%-- The geometry lives here rather than on the headings,
+                         and it is fixed rather than left to the content,
+                         because the band above lines its figures up with these
+                         columns. Auto layout hands the slack to whichever
+                         column asks loudest, so a long provider name moves the
+                         numbers - and the band cannot follow that.
+
+                         Change a width here and change .sp-sum-figs with it. --%>
+                    <colgroup>
+                        <col style="width: 64px;" />
+                        <col style="width: 180px;" />
+                        <col />
+                        <col style="width: 126px;" />
+                        <col style="width: 126px;" />
+                        <col style="width: 126px;" />
+                        <col style="width: 126px;" />
+                        <col style="width: 126px;" />
+                    </colgroup>
                     <thead>
                         <tr>
-                            <th style="width: 64px;">S.No</th>
-                            <th style="min-width: 190px;">
+                            <th>S.No</th>
+                            <th>
                                 <asp:LinkButton ID="lnkSortStudent" runat="server" CssClass="vs-sortcol"
                                     OnCommand="sort_Command" CommandArgument="StudentName"
                                     CausesValidation="false"><asp:Literal runat="server" Text="Student Name" /><asp:Literal ID="litSortStudent" runat="server" /></asp:LinkButton>
                             </th>
-                            <th style="min-width: 250px;">
+                            <th>
                                 <asp:LinkButton ID="lnkSortProvider" runat="server" CssClass="vs-sortcol"
                                     OnCommand="sort_Command" CommandArgument="ProviderName"
                                     CausesValidation="false"><asp:Literal runat="server" Text="Provider" /><asp:Literal ID="litSortProvider" runat="server" /></asp:LinkButton>
                             </th>
-                            <th class="c" style="width: 120px;">
+                            <th class="c">
                                 <asp:LinkButton ID="lnkSortAll" runat="server" CssClass="vs-sortcol"
                                     OnCommand="sort_Command" CommandArgument="AllCount"
                                     CausesValidation="false"><asp:Literal runat="server" Text="Today All" /><asp:Literal ID="litSortAll" runat="server" /></asp:LinkButton>
                             </th>
-                            <th class="c" style="width: 120px;">
+                            <th class="c">
                                 <asp:LinkButton ID="lnkSortChecked" runat="server" CssClass="vs-sortcol"
                                     OnCommand="sort_Command" CommandArgument="CheckedCount"
                                     CausesValidation="false"><asp:Literal runat="server" Text="Checked" /><asp:Literal ID="litSortChecked" runat="server" /></asp:LinkButton>
                             </th>
-                            <th class="c" style="width: 120px;">
+                            <th class="c">
                                 <asp:LinkButton ID="lnkSortPending" runat="server" CssClass="vs-sortcol"
                                     OnCommand="sort_Command" CommandArgument="PendingCount"
                                     CausesValidation="false"><asp:Literal runat="server" Text="Pending" /><asp:Literal ID="litSortPending" runat="server" /></asp:LinkButton>
                             </th>
-                            <th class="c" style="width: 120px;">
+                            <th class="c">
                                 <asp:LinkButton ID="lnkSortWeekly" runat="server" CssClass="vs-sortcol"
                                     OnCommand="sort_Command" CommandArgument="Weekly"
                                     CausesValidation="false"><asp:Literal runat="server" Text="Weekly" /><asp:Literal ID="litSortWeekly" runat="server" /></asp:LinkButton>
                             </th>
-                            <th class="c" style="width: 120px;">
+                            <th class="c">
                                 <asp:LinkButton ID="lnkSortMonthly" runat="server" CssClass="vs-sortcol"
                                     OnCommand="sort_Command" CommandArgument="Monthly"
                                     CausesValidation="false"><asp:Literal runat="server" Text="Monthly" /><asp:Literal ID="litSortMonthly" runat="server" /></asp:LinkButton>

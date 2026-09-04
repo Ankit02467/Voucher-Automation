@@ -48,8 +48,7 @@ namespace DSL_CMS
                              lnkSortChecked, lnkSortPending, lnkSortWeekly, lnkSortMonthly;
         protected Literal litSortStudent, litSortProvider, litSortAll,
                           litSortChecked, litSortPending, litSortWeekly, litSortMonthly,
-                          litTotalAll, litTotalChecked, litTotalPending,
-                          litTotalWeekly, litTotalMonthly;
+                          litTotalAll, litTotalChecked, litTotalPending;
 
         private const string RoleAdmin = "Voucher Admin";
         private const string RoleSubAdmin = "Voucher Sub Admin";
@@ -368,14 +367,21 @@ namespace DSL_CMS
         #region Totals
 
         /// <summary>
-        /// The line above the list: everything on the screen added up, so the
+        /// The band above the list: everything on the screen added up, so the
         /// question "how much is out with the students altogether" is answered
         /// without adding the column up by eye. Every row is on the screen, so
         /// it needs no caveat beside it saying which ones it counted.
+        ///
+        /// Three of the five columns, not all five. Weekly and Monthly count
+        /// work got through over a rolling week and a rolling month, and the
+        /// same check falls in both - so one figure over every student for
+        /// each of two overlapping windows is a number with no question behind
+        /// it. The three that are added up are a count of rows held right now,
+        /// and adding those is the same act as counting them.
         /// </summary>
         private void ApplyTotals(DataTable dt)
         {
-            int all = 0, done = 0, pending = 0, weekly = 0, monthly = 0;
+            int all = 0, done = 0, pending = 0;
 
             if (dt != null)
                 foreach (DataRow r in dt.Rows)
@@ -383,15 +389,11 @@ namespace DSL_CMS
                     all += Num(r, ByAll);
                     done += Num(r, ByChecked);
                     pending += Num(r, ByPending);
-                    weekly += Num(r, ByWeekly);
-                    monthly += Num(r, ByMonthly);
                 }
 
             litTotalAll.Text = all.ToString();
             litTotalChecked.Text = done.ToString();
             litTotalPending.Text = pending.ToString();
-            litTotalWeekly.Text = weekly.ToString();
-            litTotalMonthly.Text = monthly.ToString();
         }
 
         #endregion
