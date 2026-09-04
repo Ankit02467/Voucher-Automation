@@ -78,7 +78,25 @@ FROM sys.sql_modules m JOIN sys.objects o ON o.object_id = m.object_id
 WHERE o.name LIKE 'Sp_Voucher%';   -- all should read 1
 ```
 
-### 8. Voucher codes and names are ciphertext, and duplicates hang off a hash
+### 8. Assigning a voucher must clear `AutoMoveAfter`
+
+A sub-admin can set a status on a voucher **nobody holds**. That stamps
+`AutoMoveAfter` with the coming midnight, and the sweep leaves it alone —
+`AutoMove` only moves vouchers with a student on them. `Assign` then put a
+student on it *without clearing the stamp*, so the next View Data page load
+carried it straight to the done list. The student never saw the voucher, and on
+their own screen it counted as work somebody else had done.
+
+`Reassign` and `ReassignMany` always cleared it. `Assign` does now too. Anything
+new that hands a voucher to a student has to, or it inherits the same bug — and
+it is silent: nothing errors, a row simply is not there any more.
+
+[Database/11_AssignStamp/01_Clear_Stale_AutoMove.sql](Database/11_AssignStamp/01_Clear_Stale_AutoMove.sql)
+clears the ones already stamped. It only touches held vouchers whose stamp is no
+later than the moment they were assigned — a stamp made *during* a hold is always
+later than the assignment, so it cannot take away a check somebody really did.
+
+### 9. Voucher codes and names are ciphertext, and duplicates hang off a hash
 
 `VoucherCode`, `CandidateName`, `Remarks` and both `DealerName` columns are
 `VARBINARY` under `VoucherDataKey` (AES-256, protected by `VoucherDataCert`).
@@ -332,26 +350,53 @@ because Enter in that box would otherwise fire the first button on the form,
 which in this dialog is Select — or Assign.
 
 **A student sees only what they are holding.** Their Voucher Status screen shows
-their own performance instead of the provider summary, and both that table and
-the sidebar list the providers — and the products under them — where they hold
-a voucher that has not moved on. Two filters, one rule: `OnlyTheirProviders` on
-`voucher-status.aspx.cs` and `OnlyHeld` / the count check in `NavProducts` on
-`MasterPage.master.cs`, both reading the held count `Sp_VoucherProvider_Table`
-already returns when `@AssignedTo` is set.
+their own table instead of the provider summary, and both that table and the
+sidebar list the providers — and the products under them — where they hold a
+voucher that has not moved on. One rule in two places: `BuildStudentTable` on
+`voucher-status.aspx.cs` counts the student's own voucher rows, and `OnlyHeld` /
+the count check in `NavProducts` on `MasterPage.master.cs` read the held count
+`Sp_VoucherProvider_Table` returns when `@AssignedTo` is set.
 
 The two are kept identical on purpose. They are read side by side, and a
 provider in one and not the other is worse than either being a row shorter; it
-also keeps every "View Data" on that screen pointing at rows that exist, since
-the student's grid is scoped the same way. The cost is that a provider whose
+also keeps every link on that screen pointing at rows that exist, since the
+student's grid is scoped the same way. The cost is that a provider whose
 vouchers have all moved on to the sub-admin drops off, figures and all — the
 history rows still stand, and Student-wise Performance still counts them.
 
 Only the student. For every other role the tree is the catalogue, and a
 provider holding no stock is still a provider.
 
+**Five figures, and they are two different questions.** `All` / `Checked` /
+`Pending` are what is in the student's hands right now; `Weekly` / `Monthly` are
+how much work they have done, over the last 7 and 30 days. A voucher checked
+yesterday is gone from the first three and still counted in the last two, which
+is the whole reason for having both on a row.
+
+The first three come from the student's own voucher rows — the same fetch, under
+the same filters, that their View Data grid lists, so a figure here cannot
+promise rows that screen will not show. `Checked` is `AutoMoveAfter IS NOT NULL`:
+the stamp goes on when a status is saved and comes off again on an assign or a
+reassign, so it is the one field that says "done, and leaving tonight" without
+asking who did it. It is also what the sweep reads, so `Checked` is exactly the
+set that will move. `All = Checked + Pending` therefore holds always — it is a
+fact about the rows, not a subtraction the page performs and hopes about.
+
+`Weekly` and `Monthly` still come from `Sp_VoucherPerformance_Table`, which
+counts the history log per **provider**. Product sub-rows show a dash for those
+two rather than a number: splitting them per product needs a proc that does not
+exist, and a figure that looked right and was not would be worse than a dash.
+
+**The student's table has no Actions column.** The provider name is the link to
+its vouchers and the chevron beside it opens the products, each product name
+linking to its own slice — two targets, and neither is a button in a column at
+the far end of the row. The other roles keep their Actions column because they
+have somewhere else to go from it (Manage Product), which this role has not.
+
 Every column of that table sorts, on its own key (`PerfSortKey`) rather than the
 provider table's — the two are never on screen together, and neither should be
-left ordered by a column the other owns.
+left ordered by a column the other owns. `ExpandedProviders` *is* shared with the
+provider table, which costs nothing for the same reason.
 
 **The student edits the status in the cell that shows it.** `CanEdit` no longer
 includes them, so they have no row action at all and `ShowActions` drops the

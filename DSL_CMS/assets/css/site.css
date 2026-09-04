@@ -534,6 +534,28 @@ button.navitem.wide { padding-right: 66px; }
 .vs-subnone { padding-left: 55px; color: var(--tx-3); font-size: 13px; font-style: italic; }
 .vs-subrow .vs-mini { padding: 6px 12px; font-size: 12px; }
 
+/* ---- the student's table ----
+   The same rows, split in two: the chevron opens the products, the name opens
+   the vouchers. That table has no Actions column to travel from, so the name
+   has to be the way through - and it has to look like one, which is what the
+   underline on hover is for. */
+.vs-carettoggle { display: flex; align-items: center; padding-right: 7px; color: inherit; }
+.vs-carettoggle:hover { text-decoration: none; }
+.vs-carettoggle:hover .vs-caret { color: var(--brand); }
+.vs-golink:hover b, .vs-golink:hover { text-decoration: none; color: var(--brand); }
+.vs-golink:hover b { text-decoration: underline; }
+.vs-subrow .vs-golink .dot { transition: transform .15s ease; }
+.vs-subrow .vs-golink:hover .dot { transform: scale(1.5); }
+
+/* Done and still to do, told apart at a glance. Deliberately quieter than the
+   All beside them: the total is the headline and these two explain it. */
+.vs-done { font-weight: 800; font-size: 15px; color: var(--ok); }
+.vs-todo { font-weight: 800; font-size: 15px; color: var(--warn); }
+
+/* Weekly and monthly are counted per provider, so a product row has nothing
+   honest to put here. The dash says "not this row" rather than nought. */
+.vs-subdash { color: var(--tx-3); font-weight: 700; }
+
 .vs-rowacts { display: flex; gap: 8px; justify-content: flex-end; }
 .vs-mini {
     border: 1px solid var(--line-2); background: var(--panel); color: var(--tx);

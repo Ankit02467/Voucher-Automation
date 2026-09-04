@@ -17,12 +17,14 @@ namespace DSL_CMS
         protected LinkButton lnkPrev, lnkNext, lnkEarlyExpiry;
         protected LinkButton kpiTotal, kpiUsed, kpiUnused, kpiExpiring, kpiInvalid, kpiNotSet;
         protected LinkButton lnkSortName, lnkSortCount;
-        protected LinkButton lnkPerfName, lnkPerfToday, lnkPerfWeekly, lnkPerfMonthly;
+        protected LinkButton lnkPerfName, lnkPerfAll, lnkPerfChecked, lnkPerfPending,
+                             lnkPerfWeekly, lnkPerfMonthly;
         protected Literal litCountHead, litPageInfo, litCategoryNote,
                           litKpiTotal, litKpiTrend, litKpiUsed, litKpiUsedPct,
                           litKpiUnused, litKpiUnusedPct, litKpiExpiring, litKpiInvalid,
                           litKpiNotSet, litSortName, litSortCount,
-                          litPerfName, litPerfToday, litPerfWeekly, litPerfMonthly;
+                          litPerfName, litPerfAll, litPerfChecked, litPerfPending,
+                          litPerfWeekly, litPerfMonthly;
 
         private const int PageSize = 10;
         private const string StatusAll = "All";
@@ -31,9 +33,18 @@ namespace DSL_CMS
         private const string SortByName = "Name";
         private const string SortByCount = "StatusCount";
 
-        /// <summary>And of the student's own table, which has its own columns.</summary>
+        /// <summary>
+        /// And of the student's own table, which has its own columns.
+        ///
+        /// Named here rather than taken from the proc, because three of the five
+        /// figures are counted on this page from the student's own rows and only
+        /// two come back from the performance proc. BuildStudentTable says which
+        /// is which, and why they are two different questions.
+        /// </summary>
         private const string PerfByName = "ProviderName";
-        private const string PerfByToday = "Today";
+        private const string PerfByAll = "AllCount";
+        private const string PerfByChecked = "CheckedCount";
+        private const string PerfByPending = "PendingCount";
         private const string PerfByWeekly = "Weekly";
         private const string PerfByMonthly = "Monthly";
 
@@ -381,15 +392,13 @@ namespace DSL_CMS
         }
 
         /// <summary>
-        /// The signed-in student's own checked-voucher counts, one row per
-        /// provider. View Data stays reachable from each row so the student can
-        /// still get to their work from here.
+        /// The student's own screen: one row per provider they are holding stock
+        /// of, opening into the products underneath it.
         /// </summary>
         private void BindPerformance()
         {
-            DataTable dt = VoucherBAL.GetPerformanceByProvider(Convert.ToString(Session["UserId"]));
+            DataTable dt = BuildStudentTable();
 
-            dt = OnlyTheirProviders(dt);
             dt = ApplyPerfSort(dt);
             ApplyPerfHeads();
 
@@ -400,60 +409,210 @@ namespace DSL_CMS
         }
 
         /// <summary>
-        /// Drops the providers this student has nothing to do with.
+        /// Five figures per provider, and they answer two different questions.
+        /// Worth knowing which is which, because they do not move together.
         ///
-        /// The proc lists every provider and left-joins the counts, so a student
-        /// holding AWS and CompTIA read seven rows, five of them nought across -
-        /// the two that meant anything had to be found among them.
+        ///   All / Checked / Pending - what is in the student's hands right now.
+        ///       All is every voucher assigned to them that has not moved on,
+        ///       Checked is the ones they have already set a status on - which
+        ///       leave for the sub-admin at midnight - and Pending is the rest.
+        ///       All is exactly Checked + Pending and always will be: those are
+        ///       the only two states a held voucher can be in. The arithmetic on
+        ///       the row is a fact about the rows, not a subtraction this page
+        ///       performs and hopes about.
         ///
-        /// The rule is what they are holding, counted exactly the way the menu
-        /// beside it counts: assigned to them and not yet moved on. The same
-        /// rule on both, deliberately - the two are read together, and a
-        /// provider in one and not the other is worse than either list being a
-        /// row shorter. It also keeps every "View Data" here pointing at rows
-        /// that exist, since the student's grid is scoped the same way.
+        ///   Weekly / Monthly - how much work they have done, counted from the
+        ///       history log over the last 7 and 30 days. A voucher checked
+        ///       yesterday has gone from the first three and is still counted in
+        ///       these two, which is the whole reason for having both on a row.
         ///
-        /// The cost is that a provider whose vouchers have all moved on to the
-        /// sub-admin drops off, taking its figures with it. The work itself is
-        /// not lost - the history rows stand, and Student-wise Performance still
-        /// counts them for the admin and the sub-admin.
+        /// The first three are counted from the student's own voucher rows - the
+        /// same fetch, under the same filters, that their View Data grid lists.
+        /// One read, so a figure here cannot promise rows that screen will not
+        /// show. It replaces a count proc and a whitelist that had to be kept in
+        /// step with each other by hand.
+        ///
+        /// Which providers appear follows from that: the ones they are holding
+        /// something of. That is the rule the menu beside it uses too, and the
+        /// two are deliberately identical - they are read together, and a
+        /// provider in one and not the other is worse than either being a row
+        /// shorter. The cost is that a provider whose vouchers have all moved on
+        /// drops off, figures and all; the work is not lost, the history rows
+        /// stand and Student-wise Performance still counts them for the admin.
         /// </summary>
-        private DataTable OnlyTheirProviders(DataTable dt)
+        private DataTable BuildStudentTable()
         {
-            if (dt == null || dt.Rows.Count == 0) return dt;
+            DataTable table = EmptyStudentTable();
 
-            var held = new List<string>();
+            string userId = Convert.ToString(Session["UserId"]);
+            if (userId.Length == 0) return table;
+
+            DataTable held;
             try
             {
-                // Their own holdings, counted the way the menu counts them.
-                // Category is deliberately not passed: a provider must not drop
-                // off because a chip is set, when the rows below it are not
-                // narrowed by that chip either.
-                DataTable mine = VoucherBAL.GetProviderSummary("All", string.Empty, string.Empty,
-                    string.Empty, string.Empty, Convert.ToString(Session["UserId"]), "0");
-
-                if (mine != null && mine.Columns.Contains("StatusCount"))
-                {
-                    foreach (DataRow r in mine.Rows)
-                    {
-                        int n;
-                        if (int.TryParse(Convert.ToString(r["StatusCount"]), out n) && n > 0)
-                            held.Add(Convert.ToString(r["Id"]));
-                    }
-                }
+                // Every voucher they are holding, across every provider. The
+                // blank provider and product mean "no restriction"; assignedTo
+                // and isMoved are the two that matter, and they are the pair
+                // voucher-data.aspx.cs hands the same proc for this role.
+                held = VoucherBAL.GetVoucherDetail(string.Empty, string.Empty, string.Empty,
+                    string.Empty, string.Empty, string.Empty, string.Empty,
+                    userId, "0", string.Empty, "SelectAll");
             }
             catch
             {
-                // If that lookup fails, show the table as it came rather than an
-                // empty one - a broken filter must not read as "you hold nothing".
-                return dt;
+                // An empty table reads as "you are holding nothing", which is at
+                // least true of what this page can see. Invented rows would not be.
+                return table;
             }
 
-            DataTable kept = dt.Clone();
-            foreach (DataRow r in dt.Rows)
-                if (held.Contains(Convert.ToString(r["Id"]))) kept.ImportRow(r);
+            if (held == null || held.Rows.Count == 0) return table;
 
-            return kept;
+            var weekly = new Dictionary<string, int>();
+            var monthly = new Dictionary<string, int>();
+            try
+            {
+                DataTable perf = VoucherBAL.GetPerformanceByProvider(userId);
+                if (perf != null)
+                    foreach (DataRow r in perf.Rows)
+                    {
+                        string key = Convert.ToString(r["Id"]);
+                        weekly[key] = Num(r, PerfByWeekly);
+                        monthly[key] = Num(r, PerfByMonthly);
+                    }
+            }
+            catch
+            {
+                // The history counts are the softer half of the row. Losing them
+                // must not take the held figures - the ones the student acts on -
+                // off the screen with them; they read nought instead.
+            }
+
+            var order = new List<string>();
+            var names = new Dictionary<string, string>();
+            var all = new Dictionary<string, int>();
+            var done = new Dictionary<string, int>();
+
+            var prodOrder = new Dictionary<string, List<string>>();
+            var prodName = new Dictionary<string, string>();
+            var prodAll = new Dictionary<string, int>();
+            var prodDone = new Dictionary<string, int>();
+
+            foreach (DataRow v in held.Rows)
+            {
+                string pid = Convert.ToString(v["ProviderId"]);
+                if (pid.Length == 0) continue;
+
+                if (!all.ContainsKey(pid))
+                {
+                    order.Add(pid);
+                    names[pid] = Convert.ToString(v["ProviderName"]);
+                    all[pid] = 0;
+                    done[pid] = 0;
+                    prodOrder[pid] = new List<string>();
+                }
+
+                // A held voucher carrying AutoMoveAfter is one that has been
+                // checked: the stamp goes on when a status is saved and comes off
+                // again on a reassign, so it is the one field that says "done,
+                // and leaving tonight" without having to ask who did it or read a
+                // date. It is also what the overnight sweep reads, so Checked
+                // here is exactly the set that will move.
+                bool ticked = v["AutoMoveAfter"] != DBNull.Value;
+
+                all[pid]++;
+                if (ticked) done[pid]++;
+
+                string prod = Convert.ToString(v["ProductId"]);
+                if (prod.Length == 0) continue;
+
+                string key = pid + "|" + prod;
+                if (!prodAll.ContainsKey(key))
+                {
+                    prodOrder[pid].Add(prod);
+                    prodName[key] = Convert.ToString(v["ProductName"]);
+                    prodAll[key] = 0;
+                    prodDone[key] = 0;
+                }
+
+                prodAll[key]++;
+                if (ticked) prodDone[key]++;
+            }
+
+            foreach (string pid in order)
+            {
+                List<string> prods = prodOrder[pid];
+                string owner = pid;
+                prods.Sort(delegate(string a, string b)
+                {
+                    return string.Compare(prodName[owner + "|" + a], prodName[owner + "|" + b],
+                        StringComparison.OrdinalIgnoreCase);
+                });
+
+                var pn = new List<string>();
+                var pi = new List<string>();
+                var pa = new List<string>();
+                var pc = new List<string>();
+                var pp = new List<string>();
+
+                foreach (string prod in prods)
+                {
+                    string key = pid + "|" + prod;
+                    pn.Add(prodName[key]);
+                    pi.Add(prod);
+                    pa.Add(prodAll[key].ToString());
+                    pc.Add(prodDone[key].ToString());
+                    pp.Add((prodAll[key] - prodDone[key]).ToString());
+                }
+
+                DataRow row = table.NewRow();
+                row["Id"] = pid;
+                row[PerfByName] = names[pid];
+                row[PerfByAll] = all[pid];
+                row[PerfByChecked] = done[pid];
+                row[PerfByPending] = all[pid] - done[pid];
+                row[PerfByWeekly] = weekly.ContainsKey(pid) ? weekly[pid] : 0;
+                row[PerfByMonthly] = monthly.ContainsKey(pid) ? monthly[pid] : 0;
+                row["ProductCount"] = pn.Count;
+                row["ProductNames"] = string.Join("|", pn.ToArray());
+                row["ProductIds"] = string.Join("|", pi.ToArray());
+                row["ProductAll"] = string.Join("|", pa.ToArray());
+                row["ProductChecked"] = string.Join("|", pc.ToArray());
+                row["ProductPending"] = string.Join("|", pp.ToArray());
+                table.Rows.Add(row);
+            }
+
+            return table;
+        }
+
+        /// <summary>
+        /// The shape of that table, on its own so that every early return hands
+        /// back something the repeater and the sorter can both read. A null, or a
+        /// differently shaped table, would take the screen down instead of
+        /// showing an empty one.
+        ///
+        /// The product columns are pipe separated strings sharing one order, the
+        /// way the provider table above already carries its products - index N of
+        /// each is the same product. A nested Repeater cannot break out of its
+        /// parent's cell to line up with these columns, so the sub-rows are
+        /// emitted whole by PerfProductRows.
+        /// </summary>
+        private DataTable EmptyStudentTable()
+        {
+            var t = new DataTable();
+            t.Columns.Add("Id", typeof(string));
+            t.Columns.Add(PerfByName, typeof(string));
+            t.Columns.Add(PerfByAll, typeof(int));
+            t.Columns.Add(PerfByChecked, typeof(int));
+            t.Columns.Add(PerfByPending, typeof(int));
+            t.Columns.Add(PerfByWeekly, typeof(int));
+            t.Columns.Add(PerfByMonthly, typeof(int));
+            t.Columns.Add("ProductCount", typeof(int));
+            t.Columns.Add("ProductNames", typeof(string));
+            t.Columns.Add("ProductIds", typeof(string));
+            t.Columns.Add("ProductAll", typeof(string));
+            t.Columns.Add("ProductChecked", typeof(string));
+            t.Columns.Add("ProductPending", typeof(string));
+            return t;
         }
 
         /// <summary>
@@ -774,8 +933,8 @@ namespace DSL_CMS
         protected void perfSort_Command(object sender, CommandEventArgs e)
         {
             string key = Convert.ToString(e.CommandArgument);
-            if (key != PerfByName && key != PerfByToday
-             && key != PerfByWeekly && key != PerfByMonthly) return;
+            if (key != PerfByName && key != PerfByAll && key != PerfByChecked
+             && key != PerfByPending && key != PerfByWeekly && key != PerfByMonthly) return;
 
             if (string.Equals(key, PerfSortKey, StringComparison.Ordinal))
             {
@@ -832,12 +991,16 @@ namespace DSL_CMS
         private void ApplyPerfHeads()
         {
             litPerfName.Text = PerfArrow(PerfByName);
-            litPerfToday.Text = PerfArrow(PerfByToday);
+            litPerfAll.Text = PerfArrow(PerfByAll);
+            litPerfChecked.Text = PerfArrow(PerfByChecked);
+            litPerfPending.Text = PerfArrow(PerfByPending);
             litPerfWeekly.Text = PerfArrow(PerfByWeekly);
             litPerfMonthly.Text = PerfArrow(PerfByMonthly);
 
             lnkPerfName.ToolTip = PerfTip(PerfByName);
-            lnkPerfToday.ToolTip = PerfTip(PerfByToday);
+            lnkPerfAll.ToolTip = PerfTip(PerfByAll);
+            lnkPerfChecked.ToolTip = PerfTip(PerfByChecked);
+            lnkPerfPending.ToolTip = PerfTip(PerfByPending);
             lnkPerfWeekly.ToolTip = PerfTip(PerfByWeekly);
             lnkPerfMonthly.ToolTip = PerfTip(PerfByMonthly);
         }
@@ -859,7 +1022,110 @@ namespace DSL_CMS
             if (key == PerfByName)
                 return nextDesc ? "Sort Z to A" : "Sort A to Z";
 
-            return nextDesc ? "Sort highest first" : "Sort lowest first";
+            // Five headings, two meanings. The tooltip is where a student finds
+            // out which one they are reading, because "Checked" and "Weekly"
+            // look like the same kind of number and are not.
+            return PerfMeaning(key) + (nextDesc ? " - sort highest first"
+                                                : " - sort lowest first");
+        }
+
+        private static string PerfMeaning(string key)
+        {
+            if (key == PerfByAll) return "Vouchers you are holding now";
+            if (key == PerfByChecked) return "Of those, the ones you have checked - they move to the sub admin tonight";
+            if (key == PerfByPending) return "Of those, the ones still to check";
+            if (key == PerfByWeekly) return "Vouchers you checked in the last 7 days";
+            if (key == PerfByMonthly) return "Vouchers you checked in the last 30 days";
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Opens or shuts one provider on the student's table. It shares
+        /// ExpandedProviders with the table the other roles see, which costs
+        /// nothing: the two are never on screen together, and a student who is
+        /// only ever shown one of them cannot notice the state being reused.
+        /// </summary>
+        protected void rptPerformance_ItemCommand(object source, RepeaterCommandEventArgs e)
+        {
+            if (e.CommandName != "ToggleProducts") return;
+
+            string id = Convert.ToString(e.CommandArgument);
+            SetProviderOpen(id, !IsProviderOpen(id));
+
+            BindPerformance();
+        }
+
+        /// <summary>
+        /// The products of an opened provider, as rows of the student's table.
+        /// Same reasoning as ProductRows above - a product is a row of stock like
+        /// its parent and reads as one when the columns line up, and a nested
+        /// Repeater cannot break out of its parent's cell to manage that.
+        ///
+        /// Weekly and monthly are left as a dash rather than filled in. They are
+        /// counted from the history log, which this screen reads per provider;
+        /// splitting them per product needs a proc that does not exist yet, and
+        /// a number that looked right and was not would be worse than a dash.
+        /// The three held figures beside them are per product and exact.
+        /// </summary>
+        protected string PerfProductRows(object providerId, object names, object ids,
+            object all, object done, object pending)
+        {
+            if (!IsExpanded(providerId)) return string.Empty;
+
+            string rawNames = Convert.ToString(names);
+            if (rawNames.Trim().Length == 0)
+                return "<tr class=\"vs-subrow\"><td></td><td colspan=\"6\" class=\"vs-subnone\">"
+                     + "No products under this provider.</td></tr>";
+
+            string[] nm = rawNames.Split('|');
+            string[] id = Convert.ToString(ids).Split('|');
+            string[] na = Convert.ToString(all).Split('|');
+            string[] nc = Convert.ToString(done).Split('|');
+            string[] np = Convert.ToString(pending).Split('|');
+
+            var sb = new StringBuilder();
+            for (int i = 0; i < nm.Length; i++)
+            {
+                string name = nm[i].Trim();
+                if (name.Length == 0) continue;
+
+                sb.Append("<tr class=\"vs-subrow\"><td></td><td><a class=\"vs-prodname vs-golink\" href=\"")
+                  .Append(Server.HtmlEncode(ViewDataUrl(providerId, Slot(id, i))))
+                  .Append("\" title=\"Open this product\"><span class=\"dot\"></span>")
+                  .Append(Server.HtmlEncode(name))
+                  .Append("</a></td>")
+                  .Append(SubCell(Slot(na, i)))
+                  .Append(SubCell(Slot(nc, i)))
+                  .Append(SubCell(Slot(np, i)))
+                  .Append("<td class=\"c vs-subdash\" title=\"Weekly is counted per provider\">&mdash;</td>")
+                  .Append("<td class=\"c vs-subdash\" title=\"Monthly is counted per provider\">&mdash;</td>")
+                  .Append("</tr>");
+            }
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// "1 product", not "1 products". The student holds few enough of them
+        /// for the singular to come up on most rows.
+        /// </summary>
+        protected static string ProductLabel(object count)
+        {
+            int n;
+            if (!int.TryParse(Convert.ToString(count), out n)) return string.Empty;
+            return n.ToString() + (n == 1 ? " product" : " products");
+        }
+
+        /// <summary>Index N of a pipe-split column, or blank where the lists are ragged.</summary>
+        private static string Slot(string[] parts, int i)
+        {
+            return (parts != null && i < parts.Length) ? parts[i].Trim() : string.Empty;
+        }
+
+        private string SubCell(string value)
+        {
+            return "<td class=\"c\"><span class=\"vs-subcount vs-num\">"
+                 + Server.HtmlEncode(value.Length == 0 ? "0" : value) + "</span></td>";
         }
 
         protected void rptPager_ItemCommand(object source, RepeaterCommandEventArgs e)

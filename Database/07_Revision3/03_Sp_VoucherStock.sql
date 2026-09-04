@@ -770,9 +770,21 @@ BEGIN
 
         SET @NewStudent = (SELECT FullName FROM dbo.User_Table WHERE Id = @AssignInt);
 
+        /* AutoMoveAfter goes back to NULL, for the reason Reassign already
+           does it: the sweep takes any held voucher whose stamp has come due,
+           and a stamp left over from before this student held it has nothing
+           to do with them.
+
+           It happens. A sub-admin can set a status on a voucher nobody holds -
+           that stamps the voucher and the sweep leaves it alone, because it
+           only moves vouchers with a student on them. Assign then put a student
+           on it, and the next View Data page load carried it straight off to
+           the done list. The student never saw it, and it counted as work
+           somebody else had done. */
         UPDATE v
            SET AssignedTo = @AssignInt, AssignedBy = @UserInt, AssignedDate = GETDATE(),
-               IsMoved = 0, ModifiedBy = @UserInt, ModifiedDate = GETDATE()
+               IsMoved = 0, AutoMoveAfter = NULL,
+               ModifiedBy = @UserInt, ModifiedDate = GETDATE()
         FROM dbo.VoucherStock_Table v
         INNER JOIN STRING_SPLIT(@Ids, ',') s ON v.Id = TRY_CONVERT(INT, s.value);
 

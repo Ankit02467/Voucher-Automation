@@ -255,60 +255,106 @@
 
 </asp:Panel>
 
-    <%-- ---------------- Student's own performance ---------------- --%>
+    <%-- ---------------- Student's own screen ----------------
+         What they are holding, what they have done with it, and how much work
+         the last week and month came to. There is no Actions column: the
+         provider and the product are themselves the way through to the
+         vouchers, which is one thing to aim at instead of two, and this is the
+         one role whose rows all lead to the same place. --%>
     <asp:Panel ID="pnlPerformance" runat="server" Visible="false">
         <div class="vs-panel">
             <div class="vs-tablewrap">
                 <table>
                     <%-- Every column sorts, the same way the provider table
-                         above does. S.No is a row number rather than a field
-                         and Actions holds a link, so neither offers one - the
-                         same rule the View Data grid follows. --%>
+                         above does. S.No is a row number rather than a field, so
+                         it does not - the same rule the View Data grid follows.
+
+                         Each heading's label is a Literal rather than loose
+                         text: a LinkButton handed text alongside a child control
+                         swallows that text into its own Text property while the
+                         page is parsed, and the heading then comes back empty on
+                         the first postback. --%>
                     <thead>
                         <tr>
                             <th style="width: 64px;">S.No</th>
-                            <th>
+                            <th style="min-width: 320px;">
                                 <asp:LinkButton ID="lnkPerfName" runat="server" CssClass="vs-sortcol"
                                     OnCommand="perfSort_Command" CommandArgument="ProviderName"
                                     CausesValidation="false"><asp:Literal runat="server" Text="Provider" /><asp:Literal ID="litPerfName" runat="server" /></asp:LinkButton>
                             </th>
-                            <th class="c" style="width: 130px;">
-                                <asp:LinkButton ID="lnkPerfToday" runat="server" CssClass="vs-sortcol"
-                                    OnCommand="perfSort_Command" CommandArgument="Today"
-                                    CausesValidation="false"><asp:Literal runat="server" Text="Today" /><asp:Literal ID="litPerfToday" runat="server" /></asp:LinkButton>
+                            <th class="c" style="width: 120px;">
+                                <asp:LinkButton ID="lnkPerfAll" runat="server" CssClass="vs-sortcol"
+                                    OnCommand="perfSort_Command" CommandArgument="AllCount"
+                                    CausesValidation="false"><asp:Literal runat="server" Text="Today All" /><asp:Literal ID="litPerfAll" runat="server" /></asp:LinkButton>
                             </th>
-                            <th class="c" style="width: 130px;">
+                            <th class="c" style="width: 120px;">
+                                <asp:LinkButton ID="lnkPerfChecked" runat="server" CssClass="vs-sortcol"
+                                    OnCommand="perfSort_Command" CommandArgument="CheckedCount"
+                                    CausesValidation="false"><asp:Literal runat="server" Text="Checked" /><asp:Literal ID="litPerfChecked" runat="server" /></asp:LinkButton>
+                            </th>
+                            <th class="c" style="width: 120px;">
+                                <asp:LinkButton ID="lnkPerfPending" runat="server" CssClass="vs-sortcol"
+                                    OnCommand="perfSort_Command" CommandArgument="PendingCount"
+                                    CausesValidation="false"><asp:Literal runat="server" Text="Pending" /><asp:Literal ID="litPerfPending" runat="server" /></asp:LinkButton>
+                            </th>
+                            <th class="c" style="width: 120px;">
                                 <asp:LinkButton ID="lnkPerfWeekly" runat="server" CssClass="vs-sortcol"
                                     OnCommand="perfSort_Command" CommandArgument="Weekly"
                                     CausesValidation="false"><asp:Literal runat="server" Text="Weekly" /><asp:Literal ID="litPerfWeekly" runat="server" /></asp:LinkButton>
                             </th>
-                            <th class="c" style="width: 130px;">
+                            <th class="c" style="width: 120px;">
                                 <asp:LinkButton ID="lnkPerfMonthly" runat="server" CssClass="vs-sortcol"
                                     OnCommand="perfSort_Command" CommandArgument="Monthly"
                                     CausesValidation="false"><asp:Literal runat="server" Text="Monthly" /><asp:Literal ID="litPerfMonthly" runat="server" /></asp:LinkButton>
                             </th>
-                            <th class="r" style="width: 160px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <asp:Repeater ID="rptPerformance" runat="server">
+                        <asp:Repeater ID="rptPerformance" runat="server" OnItemCommand="rptPerformance_ItemCommand">
                             <ItemTemplate>
-                                <tr>
+                                <tr class='<%# RowClass(Eval("Id")) %>'>
                                     <td class="vs-sn vs-num"><%# string.Format("{0:00}", Container.ItemIndex + 1) %></td>
-                                    <td><b><%# Server.HtmlEncode(Convert.ToString(Eval("ProviderName"))) %></b></td>
-                                    <td class="c vs-num"><%# Eval("Today") %></td>
-                                    <td class="c vs-num"><%# Eval("Weekly") %></td>
-                                    <td class="c vs-num"><%# Eval("Monthly") %></td>
                                     <td>
-                                        <div class="vs-rowacts">
-                                            <a class="vs-mini solid" href='<%# ViewDataUrl(Eval("Id")) %>'>View Data</a>
+                                        <%-- Two targets, not one. The chevron opens the
+                                             products; the name opens the vouchers. The
+                                             other table makes the whole thing a toggle
+                                             because it has an Actions column to travel
+                                             from, and this one does not. --%>
+                                        <div class="vs-prov">
+                                            <asp:LinkButton runat="server" CommandName="ToggleProducts"
+                                                CommandArgument='<%# Eval("Id") %>' CausesValidation="false"
+                                                CssClass="vs-carettoggle" ToolTip="Show products">
+                                                <span class='<%# CaretClass(Eval("Id")) %>'>
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                         stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"
+                                                         width="15" height="15"><path d="M9 6l6 6-6 6" /></svg>
+                                                </span>
+                                            </asp:LinkButton>
+                                            <a class="vs-provtoggle vs-golink" title="Open these vouchers"
+                                               href='<%# ViewDataUrl(Eval("Id")) %>'>
+                                                <%# ProviderTile(Eval("Id"), Eval("ProviderName")) %>
+                                                <span class="nm">
+                                                    <b><%# Server.HtmlEncode(Convert.ToString(Eval("ProviderName"))) %></b>
+                                                    <small><%# ProductLabel(Eval("ProductCount")) %></small>
+                                                </span>
+                                            </a>
                                         </div>
                                     </td>
+                                    <td class="c"><span class="vs-total vs-num"><%# Eval("AllCount") %></span></td>
+                                    <td class="c"><span class="vs-num vs-done"><%# Eval("CheckedCount") %></span></td>
+                                    <td class="c"><span class="vs-num vs-todo"><%# Eval("PendingCount") %></span></td>
+                                    <td class="c vs-num"><%# Eval("Weekly") %></td>
+                                    <td class="c vs-num"><%# Eval("Monthly") %></td>
                                 </tr>
+                                <%# PerfProductRows(Eval("Id"), Eval("ProductNames"), Eval("ProductIds"),
+                                                    Eval("ProductAll"), Eval("ProductChecked"), Eval("ProductPending")) %>
                             </ItemTemplate>
                         </asp:Repeater>
+                        <%-- Says which slice is empty rather than "no data": this
+                             table only ever lists providers the student is holding
+                             something of, so an empty one has a plain meaning. --%>
                         <asp:PlaceHolder ID="phPerfEmpty" runat="server" Visible="false">
-                            <tr><td colspan="6" class="vs-empty">No data to show yet.</td></tr>
+                            <tr><td colspan="7" class="vs-empty">You are not holding any vouchers just now.</td></tr>
                         </asp:PlaceHolder>
                     </tbody>
                 </table>
