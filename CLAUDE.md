@@ -142,6 +142,11 @@ input safe instead of throwing.
 **Migrations are re-runnable** — guarded with `IF OBJECT_ID(...) IS NULL`,
 `CREATE OR ALTER`, `IF NOT EXISTS`. Run folders in numeric order.
 
+**Counts in the sidebar are white and heavy**, not the muted grey around them.
+The count is the reason the row is there — a provider holding seventeen read
+like one holding none when it was set in `--sb-mut`, and the product names below
+had already been corrected for exactly this. Nothing in the tree is muted now.
+
 **Retire, never delete.** Products no longer wanted get `Status = 'I'`.
 Existing vouchers still point at them; deleting breaks the FK and loses which
 product those vouchers belonged to.
@@ -416,6 +421,18 @@ asked about because they have no row to fill.
 through to anywhere: the chevron is the only control on the table, and the row
 commands are all it has. Deliberate — the admin's route to a provider's vouchers
 is Voucher Status, and a second one here would be a second place to keep right.
+
+It carries **no provider filter and no paragraph** either. The filter was a pill
+row from when the table had no Provider column; now that every row names its
+provider and the column sorts, it narrowed a list that can already be read. What
+is left is a heading and the table, which is what the screen beside it is.
+
+It is built out of the `vs-*` classes rather than the blue `table.data` family —
+the same panel, head row, provider block and count badge the student's own
+screen uses. The two are read against each other, an admin checking a figure a
+student has queried, and two tables answering one question should not look like
+two products. `.sp-table` exists only to pull the product indent back, because
+the provider is the third column here and the second there.
 
 The student's name is written **once per run of their own rows**, not repeated
 down the column. A sort that scatters those rows turns every run into one row,

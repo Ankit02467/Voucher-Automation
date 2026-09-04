@@ -41,14 +41,14 @@ namespace DSL_CMS
     /// </summary>
     public partial class student_performance : System.Web.UI.Page
     {
-        protected Repeater rptProvider, rptPerformance;
+        protected Repeater rptPerformance;
         protected PlaceHolder phEmpty;
         protected Panel pnlBody, pnlDenied;
         protected LinkButton lnkSortStudent, lnkSortProvider, lnkSortAll,
                              lnkSortChecked, lnkSortPending, lnkSortWeekly, lnkSortMonthly;
         protected Literal litSortStudent, litSortProvider, litSortAll,
                           litSortChecked, litSortPending, litSortWeekly, litSortMonthly,
-                          litTotalLabel, litTotalAll, litTotalChecked, litTotalPending,
+                          litTotalAll, litTotalChecked, litTotalPending,
                           litTotalWeekly, litTotalMonthly;
 
         private const string RoleAdmin = "Voucher Admin";
@@ -62,24 +62,6 @@ namespace DSL_CMS
         private const string ByPending = "PendingCount";
         private const string ByWeekly = "Weekly";
         private const string ByMonthly = "Monthly";
-
-        /// <summary>Blank means every provider.</summary>
-        private string SelectedProvider
-        {
-            get { return (string)(ViewState["Provider"] ?? string.Empty); }
-            set { ViewState["Provider"] = value; }
-        }
-
-        /// <summary>
-        /// The pill's own label, kept rather than looked up. The pill that was
-        /// pressed is holding the name already, so asking the database for it
-        /// again would be a query to learn something the click carried.
-        /// </summary>
-        private string SelectedProviderName
-        {
-            get { return (string)(ViewState["ProviderName"] ?? string.Empty); }
-            set { ViewState["ProviderName"] = value; }
-        }
 
         private string Role
         {
@@ -125,7 +107,6 @@ namespace DSL_CMS
             pnlDenied.Visible = !allowed;
             if (!allowed) return;
 
-            BindProviders();
             BindGrid();
         }
 
@@ -137,20 +118,6 @@ namespace DSL_CMS
         {
             bool unmapped;
             Role = VoucherAccess.Effective(Session["UserId"], out unmapped);
-        }
-
-        private void BindProviders()
-        {
-            var items = new List<ListItem>();
-            items.Add(new ListItem("All", string.Empty));
-
-            DataTable dt = VoucherBAL.GetAllProvider();
-            if (dt != null)
-                foreach (DataRow r in dt.Rows)
-                    items.Add(new ListItem(Convert.ToString(r["Name"]), Convert.ToString(r["Id"])));
-
-            rptProvider.DataSource = items;
-            rptProvider.DataBind();
         }
 
         private void BindGrid()
@@ -217,7 +184,7 @@ namespace DSL_CMS
             DataTable held;
             try
             {
-                held = VoucherBAL.GetVoucherDetail(SelectedProvider, string.Empty, string.Empty,
+                held = VoucherBAL.GetVoucherDetail(string.Empty, string.Empty, string.Empty,
                     string.Empty, string.Empty, string.Empty, string.Empty,
                     string.Empty, "0", string.Empty, "SelectAll");
             }
@@ -403,9 +370,8 @@ namespace DSL_CMS
         /// <summary>
         /// The line above the list: everything on the screen added up, so the
         /// question "how much is out with the students altogether" is answered
-        /// without adding the column up by eye. It follows the provider filter,
-        /// because a total of rows that are not being shown would be answering
-        /// a question nobody asked.
+        /// without adding the column up by eye. Every row is on the screen, so
+        /// it needs no caveat beside it saying which ones it counted.
         /// </summary>
         private void ApplyTotals(DataTable dt)
         {
@@ -426,12 +392,6 @@ namespace DSL_CMS
             litTotalPending.Text = pending.ToString();
             litTotalWeekly.Text = weekly.ToString();
             litTotalMonthly.Text = monthly.ToString();
-
-            // Naming the slice matters here: the same figure means two different
-            // things with a provider picked and without one.
-            litTotalLabel.Text = (SelectedProvider.Length == 0)
-                ? "All providers"
-                : Server.HtmlEncode(SelectedProviderName);
         }
 
         #endregion
@@ -563,23 +523,6 @@ namespace DSL_CMS
 
         #region Rows
 
-        protected void rptProvider_ItemCommand(object source, RepeaterCommandEventArgs e)
-        {
-            if (e.CommandName != "PickProvider") return;
-
-            SelectedProvider = Convert.ToString(e.CommandArgument);
-
-            var pill = e.CommandSource as LinkButton;
-            SelectedProviderName = (pill == null) ? string.Empty : pill.Text;
-
-            // Rows that were open belong to the old list; keeping the keys would
-            // reopen whichever rows happened to share them.
-            Expanded = string.Empty;
-
-            BindProviders();
-            BindGrid();
-        }
-
         protected void rptPerformance_ItemCommand(object source, RepeaterCommandEventArgs e)
         {
             if (e.CommandName != "ToggleProducts") return;
@@ -620,12 +563,12 @@ namespace DSL_CMS
 
         protected string CaretClass(object key)
         {
-            return IsOpen(key) ? "sp-caret open" : "sp-caret";
+            return IsOpen(key) ? "vs-caret open" : "vs-caret";
         }
 
         protected string RowClass(object key)
         {
-            return IsOpen(key) ? "sp-row open" : "sp-row";
+            return IsOpen(key) ? "vs-prow open" : "vs-prow";
         }
 
         /// <summary>
@@ -671,7 +614,7 @@ namespace DSL_CMS
 
             string raw = Convert.ToString(names);
             if (raw.Trim().Length == 0)
-                return "<tr class=\"sp-subrow\"><td></td><td></td><td class=\"left sp-subnone\" colspan=\"6\">"
+                return "<tr class=\"vs-subrow\"><td></td><td></td><td colspan=\"6\" class=\"vs-subnone\">"
                      + "No products held under this provider.</td></tr>";
 
             string[] nm = raw.Split('|');
@@ -685,12 +628,14 @@ namespace DSL_CMS
                 string name = nm[i].Trim();
                 if (name.Length == 0) continue;
 
-                sb.Append("<tr class=\"sp-subrow\"><td></td><td></td><td class=\"left\">")
-                  .Append("<span class=\"sp-prod\"><span class=\"dot\"></span>")
+                sb.Append("<tr class=\"vs-subrow\"><td></td><td></td><td>")
+                  .Append("<span class=\"vs-prodname\"><span class=\"dot\"></span>")
                   .Append(Server.HtmlEncode(name)).Append("</span></td>")
-                  .Append(Cell(Slot(na, i))).Append(Cell(Slot(nc, i))).Append(Cell(Slot(np, i)))
-                  .Append("<td class=\"sp-dash\" title=\"Weekly is counted per provider\">&mdash;</td>")
-                  .Append("<td class=\"sp-dash\" title=\"Monthly is counted per provider\">&mdash;</td>")
+                  .Append(Cell(Slot(na, i), string.Empty))
+                  .Append(Cell(Slot(nc, i), " vs-done"))
+                  .Append(Cell(Slot(np, i), " vs-todo"))
+                  .Append("<td class=\"c vs-subdash\" title=\"Weekly is counted per provider\">&mdash;</td>")
+                  .Append("<td class=\"c vs-subdash\" title=\"Monthly is counted per provider\">&mdash;</td>")
                   .Append("</tr>");
             }
 
@@ -702,9 +647,10 @@ namespace DSL_CMS
             return (parts != null && i < parts.Length) ? parts[i].Trim() : string.Empty;
         }
 
-        private string Cell(string value)
+        private string Cell(string value, string tone)
         {
-            return "<td>" + Server.HtmlEncode(value.Length == 0 ? "0" : value) + "</td>";
+            return "<td class=\"c\"><span class=\"vs-subcount vs-num" + tone + "\">"
+                 + Server.HtmlEncode(value.Length == 0 ? "0" : value) + "</span></td>";
         }
 
         protected string ProductLabel(object count)
@@ -716,11 +662,13 @@ namespace DSL_CMS
 
         #endregion
 
-        protected string ProviderPillClass(object providerId)
+        /// <summary>
+        /// The provider's badge, the same one the Voucher Status tables carry.
+        /// Helpers/ProviderBrand.cs picks the logo or falls back to initials.
+        /// </summary>
+        protected string ProviderTile(object providerId, object name)
         {
-            return string.Equals(Convert.ToString(providerId), SelectedProvider, StringComparison.Ordinal)
-                ? "pill-btn on"
-                : "pill-btn";
+            return ProviderBrand.Tile(providerId, name, "logo");
         }
     }
 }

@@ -228,9 +228,12 @@ button.navitem.wide { padding-right: 66px; }
 .navprov .lg.has-img { background: #fff; overflow: hidden; padding: 2px; }
 .navprov .lg.has-img img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .navprov .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.navprov .cnt { margin-left: auto; font-size: 12.5px; color: var(--sb-mut); font-weight: 700; }
+/* White and heavy, standing still rather than only under the pointer - the same
+   correction the product names below already carry. The count is the reason the
+   row is there; in the sidebar's muted grey it read as a footnote to the name
+   beside it, and a provider holding seventeen looked like one holding none. */
+.navprov .cnt { margin-left: auto; font-size: 13px; color: #fff; font-weight: 800; }
 .navgroup.open > .navprov { background: rgba(59,138,230,.14); color: #fff; }
-.navgroup.open > .navprov .cnt { color: var(--brand-2); }
 
 /* ---- a product, or a category, at the last level ----
    White standing still, not only under the pointer. These were the sidebar's
@@ -246,7 +249,7 @@ button.navitem.wide { padding-right: 66px; }
 .navprod.on { color: #fff; background: rgba(59,138,230,.16); font-weight: 600; }
 .navprod .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--brand-2); flex: 0 0 auto; }
 .navprod .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.navprod .cnt { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--sb-mut); }
+.navprod .cnt { margin-left: auto; font-size: 12px; font-weight: 800; color: #fff; }
 .navnone { display: block; padding: 7px 12px 7px 48px; font-size: 12px; color: #5d729a; font-style: italic; }
 
 /* ---- category chips ----
@@ -994,33 +997,22 @@ table.data tbody tr:nth-child(even) td { background: var(--row-alt); }
 table.data td.empty { padding: 34px; color: var(--muted); }
 
 /* ---- student wise performance ----
-   A row per student and provider, opening into the products underneath. The
-   zebra above would stripe the sub-rows out of step with their parent once a
-   provider is open, so this table paints its own rows instead. */
-table.sp-table tbody tr:nth-child(even) td { background: transparent; }
-table.sp-table tbody tr.sp-row:hover td { background: #f4f8ff; }
+   The same table the student sees of their own vouchers, read from above, so it
+   is the same panel and the same head row rather than a second look for one
+   screen. What is different is the extra column and the line across the top. */
+.vs-headline { display: flex; align-items: center; gap: 14px; }
 
-.sp-total td { background: var(--blue-soft); font-weight: 800; font-size: 15.5px; }
-.sp-total .sp-scope { font-weight: 600; font-size: 13px; color: var(--muted); margin-left: 8px; }
+.vs-sumrow td {
+    background: var(--panel-2); border-bottom: 1px solid var(--line);
+    font-weight: 800; font-size: 15px; color: var(--tx);
+}
+.vs-sumrow .vs-total { background: #fff; }
 
-.sp-toggle { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-align: left; }
-.sp-toggle:hover { text-decoration: none; }
-.sp-toggle:hover b { color: var(--blue); }
-.sp-toggle .nm b { display: block; font-weight: 700; }
-.sp-toggle .nm small { display: block; font-size: 11.5px; color: var(--muted); font-weight: 600; }
-.sp-caret { display: grid; place-items: center; color: var(--muted); transition: transform .15s ease; }
-.sp-caret.open { transform: rotate(90deg); color: var(--blue); }
-
-table.sp-table tbody tr.sp-subrow td { background: var(--row-alt); }
-.sp-prod { display: inline-flex; align-items: center; gap: 9px; padding-left: 26px; font-size: 13.5px; }
-.sp-prod .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex: 0 0 auto; }
-.sp-subnone { color: var(--muted); font-style: italic; padding-left: 26px; }
-
-/* Done and still to do, told apart at a glance - the same two colours the
-   student's own screen uses for the same two numbers. */
-table.sp-table td.sp-done { color: var(--ok); font-weight: 700; }
-table.sp-table td.sp-todo { color: var(--warn); font-weight: 700; }
-table.sp-table td.sp-dash { color: var(--muted); font-weight: 700; }
+/* The provider column is the third here rather than the second, and the two
+   cells to its left already indent the row - the student screen's deeper inset
+   would have pushed a product halfway across the table. */
+.sp-table .vs-prodname { padding-left: 22px; }
+.sp-table .vs-subnone { padding-left: 22px; }
 
 .act { display: inline-flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .act .btn-fill, .act .btn-out {
