@@ -37,12 +37,10 @@
              and table-layout: fixed. Change a width there and the same width
              has to change in .sp-sum-figs, or the band drifts off its column.
 
-             Weekly and Monthly are not totalled. They are the other question -
-             work got through over a week and a month, not what is in hand this
-             minute - and one number over every student for two overlapping
-             windows answers nothing anybody asked. The band stops two columns
-             short of the table's right edge rather than filling them, which is
-             what the padding on .sp-sum-figs is for.
+             All five columns, so the band reaches the table's right edge and
+             .sp-sum-figs steps back over nothing. If a figure ever comes off
+             again the padding there has to step back over its column, or the
+             three left behind slide right by one each.
 
              The wrapper is not a spare div. Below the table's min-width the
              columns scroll, and a band that cannot scroll would sit still
@@ -57,13 +55,12 @@
                             <path d="M3 6h18M3 12h18M3 18h12" /></svg>
                     </span>
                     <span class="tx">
-                        <b>Total Provider</b>
-                        <small>Every Student, Every Provider</small>
+                        <b>Today Assign Data</b>
                     </span>
                 </div>
                 <%-- .fig is the column and .box is the chip inside it: the column
-                     has to be exactly the table's width, and a chip that wide would
-                     leave the three of them touching. --%>
+                     has to be exactly the table's width, and chips that wide
+                     would sit touching each other. --%>
                 <div class="sp-sum-figs">
                     <div class="fig">
                         <span class="box">
@@ -81,6 +78,21 @@
                         <span class="box">
                             <span class="v vs-num"><asp:Literal ID="litTotalPending" runat="server" Text="0" /></span>
                             <span class="k">Pending</span>
+                        </span>
+                    </div>
+                    <%-- No colour on these two. The rows below carry Weekly and
+                         Monthly in plain text, and the band should not tell the
+                         eye something the column under it does not. --%>
+                    <div class="fig">
+                        <span class="box">
+                            <span class="v vs-num"><asp:Literal ID="litTotalWeekly" runat="server" Text="0" /></span>
+                            <span class="k">Weekly</span>
+                        </span>
+                    </div>
+                    <div class="fig">
+                        <span class="box">
+                            <span class="v vs-num"><asp:Literal ID="litTotalMonthly" runat="server" Text="0" /></span>
+                            <span class="k">Monthly</span>
                         </span>
                     </div>
                 </div>
@@ -161,8 +173,13 @@
                         <asp:Repeater ID="rptPerformance" runat="server" OnItemCommand="rptPerformance_ItemCommand">
                             <ItemTemplate>
                                 <tr class='<%# RowClass(Eval("Key")) %>'>
-                                    <td class="vs-sn vs-num"><%# Container.ItemIndex + 1 %></td>
-                                    <td><%# StudentCell(Eval("StudentId"), Eval("StudentName")) %></td>
+                                    <%-- The number counts students, not rows, and
+                                         SerialCell is what decides where one
+                                         student's run of rows ends - so it has to
+                                         stay the first cell in the row, with
+                                         StudentCell reading its answer. --%>
+                                    <td class="vs-sn vs-num"><%# SerialCell(Eval("StudentId")) %></td>
+                                    <td><%# StudentCell(Eval("StudentName")) %></td>
                                     <td>
                                         <%-- The whole block is the toggle, the way the
                                              provider table on Voucher Status has it.

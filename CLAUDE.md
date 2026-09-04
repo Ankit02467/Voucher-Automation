@@ -403,16 +403,21 @@ student *and provider* — a student holding two providers is two rows, because
 those are two piles of work — with the same `All` / `Checked` / `Pending` /
 `Weekly` / `Monthly` and the same products behind a chevron.
 
-**"Total Provider" is a band above the table, not a row of it.** It was the
+**"Today Assign Data" is a band above the table, not a row of it.** It was the
 first row and read as one more student until the eye stopped on it. Out on its
 own — dark, so it cannot be mistaken for the list — it is the headline the
-screen is opened for and the table under it is a list again.
+screen is opened for and the table under it is a list again. It carries no line
+of explanation under its name: that was describing the table, which describes
+itself.
 
-**It totals three columns, and each figure stands in the column it totals.**
-Weekly and Monthly are not totalled: they count work got through over a rolling
-week and a rolling month, the two windows overlap, and one number across every
-student for each of them answers nothing anybody asked. The band stops two
-columns short of the table's right edge rather than filling them.
+**It totals all five count columns, and each figure stands in the column it
+totals.** Adding a column up is safe in both halves — a row is one student and
+one provider, and the history counts behind Weekly and Monthly are already
+`DISTINCT` per voucher inside that pair, so no voucher is counted twice however
+many times it was touched. `.sp-sum-figs` still carries the `padding-right` that
+steps back over any count column the band does not fill; it is nought now, and
+one column's width for each figure ever taken off again — miss that and the
+figures left slide right by a column each.
 
 Standing in the column is four numbers agreeing, and nothing in the code makes
 them agree:
@@ -423,8 +428,9 @@ them agree:
   `.vs-page table` sets a `min-width` of its own and a bare `.sp-table` loses
   to it;
 - `.sp-sum-figs .fig` is `flex: 0 0` that same column width, and
-  `.sp-sum-figs` has `padding-right` of exactly two of them — it is measured
-  from the right, which is the end the columns are fixed from;
+  `.sp-sum-figs` is measured from the right — the end the columns are fixed
+  from — with `padding-right` stepping back over the count columns it does not
+  fill;
 - `.sp-sum` has no horizontal padding and a **transparent 1px border** in place
   of the panel's, so its inside is the table's box, and a `min-width` two
   pixels larger than the table's for the same reason (`box-sizing` is
@@ -469,11 +475,18 @@ student has queried, and two tables answering one question should not look like
 two products. `.sp-table` exists only to pull the product indent back, because
 the provider is the third column here and the second there.
 
-The student's name is written **once per run of their own rows**, not repeated
-down the column. A sort that scatters those rows turns every run into one row,
-so every row gets its name back without the code having to know a sort happened
-— `_lastStudent` is simply the last student asked about, and a Repeater binds in
-order. The two text columns are also the tie-breakers on every numeric sort, so
+The student's name is written **once per run of their own rows**, and so is the
+number beside it. A student holding two providers is two rows because those are
+two piles of work, but they are one person's piles — numbering them 2 and 3 said
+there were two people, so `SerialCell` counts students and the rows under a name
+carry no number. A sort that scatters those rows turns every run into one row, so
+every run gets its number and its name back without the code having to know a
+sort happened — `_lastStudent` is simply the last student asked about, and a
+Repeater binds in order.
+
+`SerialCell` is also where a run is *decided*, because it is the first cell in
+the row; `StudentCell` only reads the answer. Move the number out of column one
+and the name stops knowing where a run begins. The two text columns are also the tie-breakers on every numeric sort, so
 a student's providers stay together underneath their name.
 
 Every column of that table sorts, on its own key (`PerfSortKey`) rather than the

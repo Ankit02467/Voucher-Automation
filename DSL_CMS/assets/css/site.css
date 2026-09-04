@@ -1057,11 +1057,12 @@ table.data td.empty { padding: 34px; color: var(--muted); }
 .sp-sum-lab .tx b { display: block; font-size: 15.5px; font-weight: 800; letter-spacing: -.01em; }
 .sp-sum-lab .tx small { display: block; font-size: 11.5px; font-weight: 600; color: rgba(255,255,255,.62); }
 
-/* Measured from the right, because that is where the table's columns are fixed
-   from: margin-left auto puts this against the table's right edge, and the
-   padding steps back over Monthly and Weekly - the two columns with nothing to
-   put in them - so Pending lands on Pending. 2 x 126px. */
-.sp-sum-figs { display: flex; align-items: center; margin-left: auto; padding-right: 252px; }
+/* Measured from the right, because that is the end the table's columns are
+   fixed from: margin-left auto puts this against the table's right edge and
+   every figure then falls in its own column. The padding is what steps back
+   over any count column the band does not fill - nought of them now that all
+   five are totalled, and 126px for each one that ever comes off again. */
+.sp-sum-figs { display: flex; align-items: center; margin-left: auto; padding-right: 0; }
 /* the column, exactly the width of the one below it */
 .sp-sum-figs .fig { flex: 0 0 126px; min-width: 0; padding: 0 7px; }
 /* the chip, drawn inside it - three 126px chips would touch */

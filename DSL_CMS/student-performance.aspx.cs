@@ -48,7 +48,8 @@ namespace DSL_CMS
                              lnkSortChecked, lnkSortPending, lnkSortWeekly, lnkSortMonthly;
         protected Literal litSortStudent, litSortProvider, litSortAll,
                           litSortChecked, litSortPending, litSortWeekly, litSortMonthly,
-                          litTotalAll, litTotalChecked, litTotalPending;
+                          litTotalAll, litTotalChecked, litTotalPending,
+                          litTotalWeekly, litTotalMonthly;
 
         private const string RoleAdmin = "Voucher Admin";
         private const string RoleSubAdmin = "Voucher Sub Admin";
@@ -128,6 +129,7 @@ namespace DSL_CMS
             ApplyHeads();
 
             _lastStudent = null;
+            _serial = 0;
             rptPerformance.DataSource = dt;
             rptPerformance.DataBind();
 
@@ -372,16 +374,16 @@ namespace DSL_CMS
         /// without adding the column up by eye. Every row is on the screen, so
         /// it needs no caveat beside it saying which ones it counted.
         ///
-        /// Three of the five columns, not all five. Weekly and Monthly count
-        /// work got through over a rolling week and a rolling month, and the
-        /// same check falls in both - so one figure over every student for
-        /// each of two overlapping windows is a number with no question behind
-        /// it. The three that are added up are a count of rows held right now,
-        /// and adding those is the same act as counting them.
+        /// All five columns, and the first three and the last two still mean
+        /// different things - held right now against worked through over a
+        /// week and a month. Adding a column up is safe either way: a row is
+        /// one student and one provider, and the history counts behind Weekly
+        /// and Monthly are already DISTINCT per voucher within that pair, so
+        /// no voucher is counted twice however many times it was touched.
         /// </summary>
         private void ApplyTotals(DataTable dt)
         {
-            int all = 0, done = 0, pending = 0;
+            int all = 0, done = 0, pending = 0, weekly = 0, monthly = 0;
 
             if (dt != null)
                 foreach (DataRow r in dt.Rows)
@@ -389,11 +391,15 @@ namespace DSL_CMS
                     all += Num(r, ByAll);
                     done += Num(r, ByChecked);
                     pending += Num(r, ByPending);
+                    weekly += Num(r, ByWeekly);
+                    monthly += Num(r, ByMonthly);
                 }
 
             litTotalAll.Text = all.ToString();
             litTotalChecked.Text = done.ToString();
             litTotalPending.Text = pending.ToString();
+            litTotalWeekly.Text = weekly.ToString();
+            litTotalMonthly.Text = monthly.ToString();
         }
 
         #endregion
@@ -574,31 +580,51 @@ namespace DSL_CMS
         }
 
         /// <summary>
+        /// The row number - and it numbers students, not rows. A student
+        /// holding two providers is two rows because those are two piles of
+        /// work, but they are one person's piles: numbering them 2 and 3 said
+        /// there were two people. The number is written once above the run and
+        /// the rows under it carry none, so the eye reads one entry with two
+        /// providers in it.
+        ///
+        /// This is also where a run is decided, because it is the first cell in
+        /// the row - StudentCell only reads the answer. A sort that scatters a
+        /// student's rows turns every run into one row, and every run gets its
+        /// own number and its own name back without either of them having to
+        /// know a sort happened.
+        /// </summary>
+        protected string SerialCell(object studentId)
+        {
+            string id = Convert.ToString(studentId);
+
+            _newRun = (id.Length == 0 || id != _lastStudent);
+            if (!_newRun) return string.Empty;
+
+            _lastStudent = id;
+            return (++_serial).ToString();
+        }
+
+        /// <summary>
         /// The student's name, written once above its own run of rows. When the
         /// row above belongs to the same student the cell is left empty, which
         /// is what makes two providers read as one person's work rather than as
         /// two people who happen to share a name.
-        ///
-        /// A sort that scatters a student's rows turns every run into one row,
-        /// so every row gets its name back without this having to know that a
-        /// sort happened.
         /// </summary>
-        protected string StudentCell(object studentId, object name)
+        protected string StudentCell(object name)
         {
-            string id = Convert.ToString(studentId);
-
-            if (id.Length > 0 && id == _lastStudent) return string.Empty;
-            _lastStudent = id;
-
+            if (!_newRun) return string.Empty;
             return "<b>" + Server.HtmlEncode(Convert.ToString(name)) + "</b>";
         }
 
         /// <summary>
-        /// The student the row above belonged to. A field rather than a look
-        /// back into the data source: a Repeater binds its rows in order, so
-        /// "the one before this" is simply the last one asked about.
+        /// The student the row above belonged to, and whether this row is the
+        /// first of theirs. Fields rather than a look back into the data
+        /// source: a Repeater binds its rows in order and its cells in order,
+        /// so "the one before this" is simply the last one asked about.
         /// </summary>
         private string _lastStudent;
+        private bool _newRun;
+        private int _serial;
 
         /// <summary>
         /// The products of an opened row, as rows of the same table. Emitted
