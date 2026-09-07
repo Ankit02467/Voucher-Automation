@@ -362,12 +362,23 @@ voucher that has not moved on. One rule in two places: `BuildStudentTable` on
 the count check in `NavProducts` on `MasterPage.master.cs` read the held count
 `Sp_VoucherProvider_Table` returns when `@AssignedTo` is set.
 
-The two are kept identical on purpose. They are read side by side, and a
-provider in one and not the other is worse than either being a row shorter; it
-also keeps every link on that screen pointing at rows that exist, since the
-student's grid is scoped the same way. The cost is that a provider whose
-vouchers have all moved on to the sub-admin drops off, figures and all — the
-history rows still stand, and Student-wise Performance still counts them.
+The sidebar is exactly that. **The table is that plus every provider they have
+worked on inside the last 30 days and are holding none of**, at nought held with
+the two history figures beside it and "none in hand" where the product count
+goes.
+
+The two used to be identical, and that was the bug. A voucher checked on Friday
+leaves for the sub-admin at midnight, so on Monday a student who had finished
+their stock held nothing, had no row, and their week's work — which `Weekly` and
+`Monthly` exist to go on reporting after the vouchers have gone — read as nought.
+Both screens went blank in production on 7 Sep 2026 for exactly this. The
+emptiness was correct and the noughts beside it were not.
+
+So they now answer two questions rather than one. The sidebar answers "where is
+there work to do", and there is none where nothing is held; the table also
+answers "what has been done", which outlives the vouchers. A row for a provider
+they hold nothing of does still carry a link to a grid with nothing in it — that
+is the cost, and "none in hand" beside the name is what pays it.
 
 Only the student. For every other role the tree is the catalogue, and a
 provider holding no stock is still a provider.
@@ -454,9 +465,26 @@ way. `Test-PerfTable` reads both screens and compares them.
 
 `Weekly` / `Monthly` come from `Sp_VoucherPerformance_Table @Action =
 'SelectByStudent'`, which answers "every student, for one provider" — so
-`HistoryCounts` asks it once per provider that actually appears. A handful of
-calls, not one per student, and providers nobody holds anything of are never
-asked about because they have no row to fill.
+`HistoryCounts` asks it once per provider.
+
+**Which providers is the whole of it.** Asking only about providers somebody is
+holding something of meant a pair with nothing left in hand had no row, so
+nobody asked about them, so their fortnight of work read as nought. It asks
+about the held ones **plus every provider anybody has checked in the last 30
+days**, which `GetProviderChecks` names in a single call — so the per-provider
+calls stay in proportion to what has been worked on rather than to the size of
+the catalogue, and a provider nobody has touched and nobody holds is still never
+asked about.
+
+`HistoryCounts` hands back those pairs through its `pairs` parameter and
+`BuildTable` gives each one a row at nought held. Only a pair with `Weekly` or
+`Monthly` above nought: `SelectByStudent` lists **every** student against the
+provider it was asked about, so without that guard every student would get a row
+against every provider, all of them nought.
+
+Neither screen returns early on an empty read any more. Nought held is a fact
+about today and not a fact about the last 30 days, and a day on which nobody is
+holding anything is a normal Monday.
 
 **Nothing on that screen is a link.** It answers "who has what" and is not a way
 through to anywhere: the chevron is the only control on the table, and the row

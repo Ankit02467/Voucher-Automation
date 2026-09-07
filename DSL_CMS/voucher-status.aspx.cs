@@ -460,15 +460,23 @@ namespace DSL_CMS
             }
             catch
             {
-                // An empty table reads as "you are holding nothing", which is at
-                // least true of what this page can see. Invented rows would not be.
-                return table;
+                // Losing this costs the held three. It must not cost Weekly and
+                // Monthly with them: those are a separate question answered by a
+                // separate call, and that call is made either way.
+                held = null;
             }
 
-            if (held == null || held.Rows.Count == 0) return table;
+            // No early return on an empty read. Holding nothing this morning is
+            // not the same as having done nothing this week, and the two figures
+            // that say so are fetched below.
+            if (held == null) held = new DataTable();
 
             var weekly = new Dictionary<string, int>();
             var monthly = new Dictionary<string, int>();
+            // Providers they have worked on, whether or not any of it is still in
+            // their hands. The proc reads outwards from VoucherProvider_Table and
+            // fills in noughts, so this is every provider, not only the held ones.
+            var worked = new Dictionary<string, string>();
             try
             {
                 DataTable perf = VoucherBAL.GetPerformanceByProvider(userId);
@@ -478,6 +486,9 @@ namespace DSL_CMS
                         string key = Convert.ToString(r["Id"]);
                         weekly[key] = Num(r, PerfByWeekly);
                         monthly[key] = Num(r, PerfByMonthly);
+
+                        if (weekly[key] > 0 || monthly[key] > 0)
+                            worked[key] = Convert.ToString(r[PerfByName]);
                     }
             }
             catch
@@ -536,6 +547,26 @@ namespace DSL_CMS
 
                 prodAll[key]++;
                 if (ticked) prodDone[key]++;
+            }
+
+            // A provider they have worked on and are holding nothing of. Those
+            // vouchers went to the sub-admin at midnight, which is the design -
+            // but the week's work went off the screen with them, and these two
+            // columns are the one place it was meant to go on showing.
+            //
+            // This is where the table stops being identical to the menu beside
+            // it. The menu answers "where is there work to do", and here there is
+            // none; the row answers "what has been done", and says nought in hand
+            // beside it so the two cannot be read as the same thing.
+            foreach (KeyValuePair<string, string> p in worked)
+            {
+                if (all.ContainsKey(p.Key)) continue;
+
+                order.Add(p.Key);
+                names[p.Key] = p.Value;
+                all[p.Key] = 0;
+                done[p.Key] = 0;
+                prodOrder[p.Key] = new List<string>();
             }
 
             foreach (string pid in order)
@@ -1113,6 +1144,12 @@ namespace DSL_CMS
         {
             int n;
             if (!int.TryParse(Convert.ToString(count), out n)) return string.Empty;
+
+            // Nought products means nought vouchers: the row is here for what the
+            // history says was done, not because anything is in hand. "0 products"
+            // would be true and would read as a figure that failed to load.
+            if (n < 1) return "none in hand";
+
             return n.ToString() + (n == 1 ? " product" : " products");
         }
 

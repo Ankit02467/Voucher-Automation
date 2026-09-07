@@ -197,10 +197,17 @@ namespace DSL_CMS
             }
             catch
             {
-                return table;
+                // Losing this costs the held three. It must not cost Weekly and
+                // Monthly with them: those are a separate question answered by a
+                // separate call, and that call is made either way.
+                held = null;
             }
 
-            if (held == null || held.Rows.Count == 0) return table;
+            // No early return on an empty read. A Monday after a Friday on which
+            // every student checked the last of their stock is a day when nobody
+            // is holding anything and a great deal of work was done. Nought held
+            // is a fact about today; it is not a fact about the last 30 days.
+            if (held == null) held = new DataTable();
 
             var order = new List<string>();
             var row = new Dictionary<string, string[]>();     // key -> student id, name, provider id, name
@@ -264,7 +271,23 @@ namespace DSL_CMS
                 if (ticked) prodDone[pkey]++;
             }
 
-            Dictionary<string, int[]> history = HistoryCounts(row);
+            var pairs = new Dictionary<string, string[]>();
+            Dictionary<string, int[]> history = HistoryCounts(row, pairs);
+
+            // Pairs the history knows about that nothing is held against. Their
+            // vouchers moved on, which is the design; the row went with them,
+            // which was not. Nought in hand, and the two figures that say what
+            // was got through.
+            foreach (KeyValuePair<string, string[]> pair in pairs)
+            {
+                if (all.ContainsKey(pair.Key)) continue;
+
+                order.Add(pair.Key);
+                row[pair.Key] = pair.Value;
+                all[pair.Key] = 0;
+                done[pair.Key] = 0;
+                prodOrder[pair.Key] = new List<string>();
+            }
 
             foreach (string key in order)
             {
@@ -317,20 +340,63 @@ namespace DSL_CMS
         }
 
         /// <summary>
-        /// Weekly and monthly for every student:provider pair on the screen.
+        /// Weekly and monthly per student and provider, and - through
+        /// <paramref name="pairs"/> - who the pairs are that the held rows do
+        /// not already name.
         ///
         /// The performance proc answers "every student, for one provider", so
-        /// this asks it once per provider that actually appears - a handful of
-        /// calls, not one per student. Providers nobody is holding anything of
-        /// are never asked about, because they have no row to fill.
+        /// this asks it once per provider, not once per student.
+        ///
+        /// Which providers: the ones somebody is holding something of, plus
+        /// every provider anybody has checked inside the window. That second
+        /// half is the fix. Asking only about the first meant a student who
+        /// checked their last voucher on Friday was holding nothing by Monday,
+        /// so they had no row, so nobody asked about them, so the work they had
+        /// done read as nought - which is the one thing these two columns exist
+        /// to go on saying after the vouchers have gone.
+        ///
+        /// GetProviderChecks is a single call naming every provider with any
+        /// check in the last 30 days, so the per-provider calls stay in
+        /// proportion to what has been worked on rather than to the size of the
+        /// catalogue. A provider nobody has touched and nobody is holding is
+        /// still never asked about.
         /// </summary>
-        private Dictionary<string, int[]> HistoryCounts(Dictionary<string, string[]> rows)
+        private Dictionary<string, int[]> HistoryCounts(
+            Dictionary<string, string[]> rows, Dictionary<string, string[]> pairs)
         {
             var found = new Dictionary<string, int[]>();
 
             var providers = new List<string>();
+            var names = new Dictionary<string, string>();
             foreach (string[] who in rows.Values)
-                if (!providers.Contains(who[2])) providers.Add(who[2]);
+                if (!providers.Contains(who[2]))
+                {
+                    providers.Add(who[2]);
+                    names[who[2]] = who[3];
+                }
+
+            try
+            {
+                DataTable checks = VoucherBAL.GetProviderChecks();
+                if (checks != null)
+                    foreach (DataRow c in checks.Rows)
+                    {
+                        // Monthly is the wider of the two windows, so a provider
+                        // with none of it has none of either.
+                        if (Num(c, ByMonthly) < 1) continue;
+
+                        string id = Convert.ToString(c["Id"]);
+                        if (id.Length == 0 || providers.Contains(id)) continue;
+
+                        providers.Add(id);
+                        names[id] = Convert.ToString(c["ProviderName"]);
+                    }
+            }
+            catch
+            {
+                // The held providers are still asked about below, so the screen
+                // falls back to what it showed before rather than to nothing.
+            }
 
             foreach (string provider in providers)
             {
@@ -351,8 +417,23 @@ namespace DSL_CMS
 
                 foreach (DataRow r in dt.Rows)
                 {
-                    string key = Convert.ToString(r["Id"]) + ":" + provider;
-                    found[key] = new int[] { Num(r, ByWeekly), Num(r, ByMonthly) };
+                    string student = Convert.ToString(r["Id"]);
+                    string key = student + ":" + provider;
+
+                    int week = Num(r, ByWeekly);
+                    int month = Num(r, ByMonthly);
+                    found[key] = new int[] { week, month };
+
+                    // Only a pair that actually did something earns a row of its
+                    // own. SelectByStudent lists every student against the
+                    // provider it was asked about, so without this every student
+                    // would get a row against every provider, all of them nought.
+                    if (week > 0 || month > 0)
+                        pairs[key] = new string[]
+                        {
+                            student, Convert.ToString(r["StudentName"]),
+                            provider, names.ContainsKey(provider) ? names[provider] : string.Empty
+                        };
                 }
             }
 
@@ -740,6 +821,12 @@ namespace DSL_CMS
         {
             int n;
             if (!int.TryParse(Convert.ToString(count), out n)) return string.Empty;
+
+            // Nought products means nought vouchers: the row is here for what the
+            // history says was done, not because anything is in hand. "0 products"
+            // would be true and would read as a figure that failed to load.
+            if (n < 1) return "none in hand";
+
             return n.ToString() + (n == 1 ? " product" : " products");
         }
 
