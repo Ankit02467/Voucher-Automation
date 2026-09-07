@@ -705,9 +705,22 @@ BEGIN
 
         SET @Old = (SELECT Status FROM dbo.VoucherStock_Table WHERE Id = @IdInt);
 
+        /* The used date is never filled in for them. This branch used to read
+           ISNULL(@Used, @Today), so a student picking "Used" in the cell - which
+           offers a status and nothing else - had today's date written into a
+           column they were never shown and had not been asked about. It looked
+           like a date somebody had entered.
+
+           ISNULL(@Used, UsedDate) instead: a date sent is written, a date
+           already on the row is left alone, and nothing is invented. The ELSE
+           still clears it, so moving off "Used" cannot leave a stale one.
+
+           The admin's and the sub-admin's branches never did this - they read
+           @Used straight - which is why the date only appeared on the student's
+           save and only under "Used". */
         UPDATE dbo.VoucherStock_Table
            SET Status           = ISNULL(@Status, Status),
-               UsedDate         = CASE WHEN @Status = 'Used' THEN ISNULL(@Used, @Today) ELSE NULL END,
+               UsedDate         = CASE WHEN @Status = 'Used' THEN ISNULL(@Used, UsedDate) ELSE NULL END,
                VoucherCheckDate = GETDATE(),
                CheckedBy        = @CheckedBy,
                AutoMoveAfter    = @NextMidnight,

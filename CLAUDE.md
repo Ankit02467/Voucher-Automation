@@ -539,9 +539,26 @@ that is open — a grid of open dropdowns is a form, not a list.
 
 The save is `UpdateStatusOnly`, the very call the dialog made, so the check
 date, the name against it and the overnight move are stamped exactly as before,
-and the proc still refuses (-3) a voucher that is not theirs. No used date is
-asked for: the proc already defaults it to today under "Used", which is the same
-answer the dialog's required field was collecting.
+and the proc still refuses (-3) a voucher that is not theirs.
+
+**And it writes no used date.** The cell offers a status and nothing else, so
+the save writes a status and nothing else — a date the student was never shown
+and never asked about is not "nothing else". The branch used to read
+`ISNULL(@Used, @Today)`, so picking "Used" put today into the Voucher Used Date
+column where it read as a date somebody had entered; under Unused or Invalid
+nothing appeared, which made it look like a rule rather than an accident. It
+reads `ISNULL(@Used, UsedDate)` now: a date sent is written, a date already on
+the row is left alone, and nothing is invented. The `ELSE NULL` still clears it,
+so moving off "Used" cannot leave a stale one.
+
+The admin's and the sub-admin's branches never did this — they read `@Used`
+straight — which is why the date only ever appeared on the student's save and
+only under "Used". `Test-UsedDate` asserts all of it, including that exactly two
+branches still take the date as given, so a later edit here cannot hand them the
+same behaviour.
+
+Note what did **not** change: the check date, `CheckedBy` and `AutoMoveAfter`
+are stamped on every one of the three statuses, as they always were.
 
 `rptVoucher_ItemCommand` re-checks `CanInlineStatus`, so another role firing the
 command changes nothing — and ASP.NET's event validation refuses the postback
