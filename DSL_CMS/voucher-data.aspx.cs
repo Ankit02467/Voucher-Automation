@@ -1,3 +1,4 @@
+using ClosedXML.Excel;
 using DSL_CMS.BAL;
 using DSL_CMS.Helpers;
 using System;
@@ -18,14 +19,15 @@ namespace DSL_CMS
                           litAssignTitle, litAssignBox, litAssignEmpty,
                           litGridTitle, litReassignMsg, litReassignCode,
                           litHistCode, litHistSummary, litSearchChip,
-                          litRemarkCode, litEditRemarkCount, litUsedReq;
+                          litRemarkCode, litEditRemarkCount, litUsedReq, litImportMsg;
         protected Panel pnlBody, pnlDenied,
                         pnlMsg, pnlRoleNote, pnlRoleSwitch, pnlEdit, pnlEditDealer, pnlEditStatus, pnlEditAdmin,
                         pnlUsedDate, pnlUpload, pnlUploadMsg, pnlHistory, pnlAssign, pnlAssignMsg,
                         pnlAssignFilters,
                         pnlSearchChip, pnlWindows, pnlReassign, pnlReassignMsg,
                         pnlStatusButtons, pnlStatusDropdown, pnlStatusExtras,
-                        pnlRemarks, pnlEditRemarks;
+                        pnlRemarks, pnlEditRemarks,
+                        pnlDealerFilter, pnlImport, pnlImportMsg;
         protected LinkButton lnkStatusUsed, lnkStatusUnused, lnkStatusInvalid;
         protected DropDownList ddlRoleSwitch,
                                ddlEditStatus, ddlExamMode, ddlAssignProduct, ddlReassignStudent,
@@ -36,7 +38,7 @@ namespace DSL_CMS
                           txtAdminAddedBy, txtAdminCandidate, txtAdminExamDate, txtRemark;
         protected HiddenField hfId, hfReassignId;
         protected LinkButton lnkUpload, lnkAssign, lnkDone, lnkAddDealer, lnkPrev, lnkNext,
-                             lnkRemarksClose;
+                             lnkRemarksClose, lnkExport, lnkImport, lnkImportClose, lnkNoDealer;
         protected Repeater rptHead, rptVoucher, rptPager, rptUploadProduct, rptHistory,
                            rptAssignVouchers, rptStudents, rptDealerEdit, rptAdminDealers,
                            rptStatusPills, rptCards, rptWindows,
@@ -44,7 +46,9 @@ namespace DSL_CMS
         protected PlaceHolder phEmpty, phPager, phHistoryEmpty, phAssignEmpty, phStudentsEmpty,
                               phRemarksEmpty, phEditRemarks;
         protected Button btnSaveEdit, btnCancelEdit,
-                         btnUploadSave, btnAssignPick, btnAssignSearch, btnAssignSave, btnReassignSave;
+                         btnUploadSave, btnAssignPick, btnAssignSearch, btnAssignSave, btnReassignSave,
+                         btnImportSave;
+        protected FileUpload fuDealers;
         protected System.Web.UI.HtmlControls.HtmlGenericControl divEditModal, divStatusFields;
 
         #endregion
@@ -271,6 +275,20 @@ namespace DSL_CMS
             set { ViewState["DealerCols"] = value < 1 ? 1 : value; }
         }
 
+        /// <summary>
+        /// "No dealer": show only the vouchers nobody has put a dealer against.
+        ///
+        /// It narrows the fetch before the cards are counted rather than the
+        /// grid afterwards, so a card, the pill beside it and the list under it
+        /// go on describing the same rows. That promise is older than this
+        /// filter and is not worth breaking for it.
+        /// </summary>
+        private bool NoDealerFilter
+        {
+            get { return (bool)(ViewState["NoDealer"] ?? false); }
+            set { ViewState["NoDealer"] = value; }
+        }
+
         /// <summary>Sub-admin toggle: true shows the entries students have moved on.</summary>
         private bool DoneMode
         {
@@ -431,6 +449,25 @@ namespace DSL_CMS
         /// </summary>
         protected bool ShowRemarks { get { return Role == RoleAdmin || Role == RoleTeam; } }
 
+        /// <summary>
+        /// The "No dealer" pill. The admin gets it to see what is still waiting
+        /// on the team; the team gets it to work through. Written out rather
+        /// than reusing ShowDealers for the reason ShowRemarks gives - the two
+        /// cover the same pair of roles today and are not the same decision.
+        /// </summary>
+        protected bool ShowDealerFilter { get { return Role == RoleAdmin || Role == RoleTeam; } }
+
+        /// <summary>
+        /// Export and import are the voucher team's alone. The admin can see
+        /// which vouchers are waiting - that is the pill above - but filling the
+        /// dealer in is the team's job, and a spreadsheet that writes back to
+        /// fifty rows at once is not something to hand round.
+        ///
+        /// This is the gate, not the markup: both handlers check it again,
+        /// because a hidden button is only hidden.
+        /// </summary>
+        protected bool CanTradeDealers { get { return Role == RoleTeam; } }
+
         /// <summary>A student sees neither Added By nor Checked By.</summary>
         protected bool ShowAddedBy { get { return Role != RoleStudent; } }
         protected bool ShowCheckedBy { get { return Role != RoleStudent; } }
@@ -554,6 +591,8 @@ namespace DSL_CMS
             if (RoleUnmapped) SelectIfPresent(ddlRoleSwitch, Role);
 
             lnkUpload.Visible = CanUpload;
+            lnkExport.Visible = CanTradeDealers;
+            lnkImport.Visible = CanTradeDealers;
             lnkAssign.Visible = CanAssign;
             lnkAssign.Text = ReassignMode ? "Reassign" : "+ Assign";
             lnkDone.Visible = (Role == RoleSubAdmin);
@@ -681,6 +720,34 @@ namespace DSL_CMS
         }
 
         /// <summary>
+        /// The dealer row: one pill, on its own line under the statuses.
+        ///
+        /// A line of its own because it is a different question. Status asks
+        /// what became of a voucher; this asks whether anybody has written down
+        /// who sold it. Sitting among the status pills it would have read as a
+        /// seventh status, and the two do not exclude one another - "Unused with
+        /// no dealer" is a perfectly ordinary thing to want.
+        /// </summary>
+        private void BindDealerFilter()
+        {
+            pnlDealerFilter.Visible = ShowDealerFilter;
+            if (!pnlDealerFilter.Visible) return;
+
+            lnkNoDealer.CssClass = NoDealerFilter ? "vd-pill vd-nodealer on" : "vd-pill vd-nodealer";
+            lnkNoDealer.Text = "No dealer";
+        }
+
+        protected void lnkNoDealer_Click(object sender, EventArgs e)
+        {
+            // re-checked: a hidden button is only hidden
+            if (!ShowDealerFilter) return;
+
+            NoDealerFilter = !NoDealerFilter;
+            PageIndex = 0;
+            BindGrid();
+        }
+
+        /// <summary>
         /// The window buttons, shown only while the early-expiry view is the one
         /// running. Under any other status there is nothing for them to change,
         /// and a row of days that did nothing would say otherwise.
@@ -803,23 +870,12 @@ namespace DSL_CMS
             // applied below, in memory, so a card and the button beside it are
             // always counting the same rows. The grid already reads the whole
             // table to page it, so this is not an extra pass over anything.
-            DataTable all = VoucherBAL.GetVoucherDetail(
-                ProviderId,
-                LockedProductId,
-                SearchCode,
-                string.Empty,   // dealer name        - filter bar removed
-                string.Empty,   // voucher check date - filter bar removed
-                string.Empty,   // checked by         - filter bar removed
-                string.Empty,   // status: applied below
-                AssignedToFilter,
-                MovedFilter,
-                DaysFilter,
-                string.Empty,   // expiry date        - filter bar removed
-                "Select");
+            DataTable all = FetchScope();
 
             BindCards(all);
             BindStatusFilter();
             BindWindows();
+            BindDealerFilter();
             ApplyHeading(all);
 
             pnlSearchChip.Visible = (SearchCode.Length > 0);
@@ -859,6 +915,66 @@ namespace DSL_CMS
             litCount.Text = count.ToString();
             phEmpty.Visible = (count == 0);
             BindPager(count, pageCount);
+        }
+
+        /// <summary>
+        /// Everything this screen is looking at, before the status is applied:
+        /// the provider or product it was opened on, any code searched from the
+        /// topbar, the role's own scope, and the "No dealer" pill.
+        ///
+        /// Fetched WITHOUT the status, because the cards have to be able to see
+        /// past whichever button is pressed - otherwise picking Used would leave
+        /// every other card reading zero. The status is applied in memory by the
+        /// caller, so a card and the button beside it always count the same rows.
+        /// The grid already reads the whole table to page it, so this is not an
+        /// extra pass over anything.
+        ///
+        /// Factored out because Export sends the same rows. A file assembled a
+        /// second way would sooner or later disagree with the grid it came from,
+        /// and a spreadsheet that quietly holds different vouchers than the
+        /// screen that produced it is worse than no spreadsheet.
+        /// </summary>
+        private DataTable FetchScope()
+        {
+            DataTable all = VoucherBAL.GetVoucherDetail(
+                ProviderId,
+                LockedProductId,
+                SearchCode,
+                string.Empty,   // dealer name        - filter bar removed
+                string.Empty,   // voucher check date - filter bar removed
+                string.Empty,   // checked by         - filter bar removed
+                string.Empty,   // status: applied by the caller
+                AssignedToFilter,
+                MovedFilter,
+                DaysFilter,
+                string.Empty,   // expiry date        - filter bar removed
+                "Select");
+
+            return FilterByNoDealer(all);
+        }
+
+        /// <summary>The rows the grid is showing, unsorted and unpaged.</summary>
+        private DataTable CurrentRows()
+        {
+            return FilterByStatus(FetchScope(), StatusFilter);
+        }
+
+        /// <summary>
+        /// The vouchers with no dealer against them at all.
+        ///
+        /// DealerCount is the number of rows in VoucherDealer_Table, and
+        /// SaveDealers writes one only where a name or a date was given - so
+        /// nought means nothing has been entered, not something half entered.
+        /// </summary>
+        private DataTable FilterByNoDealer(DataTable source)
+        {
+            if (source == null || !NoDealerFilter) return source;
+
+            DataTable slice = source.Clone();
+            foreach (DataRow r in source.Rows)
+                if (Convert.ToInt32(r["DealerCount"]) == 0) slice.ImportRow(r);
+
+            return slice;
         }
 
         /// <summary>
@@ -2504,6 +2620,410 @@ namespace DSL_CMS
         {
             pnlUpload.Visible = false;
         }
+
+        #region Dealer export and import
+
+        /// <summary>
+        /// How many "Dealer Name / Sale Date" pairs the sheet carries: what the
+        /// widest voucher already uses, and three empty ones after it.
+        ///
+        /// The spares are the point. A voucher may gain a second and a third
+        /// dealer, and a sheet with only the columns already in use would give
+        /// the team nowhere to put them - they would add columns of their own,
+        /// spelled their own way, and the import would not know them.
+        /// </summary>
+        private const int SpareDealerPairs = 3;
+
+        private static string DealerNameHeader(int n) { return "Dealer Name " + n; }
+        private static string SaleDateHeader(int n) { return "Sale Date " + n; }
+
+        /// <summary>
+        /// The screen, as a spreadsheet. Exactly the rows the grid is showing -
+        /// every filter, the searched code, the "No dealer" pill - and all of
+        /// them, not the page on screen: the whole point is to take away the two
+        /// thousand that are missing a dealer rather than the ten on this page.
+        ///
+        /// Identification and the dealer pairs, and nothing else. Remarks, the
+        /// status and the check dates are not the team's to set here and a column
+        /// that was read back would be a way to overwrite them by accident.
+        /// </summary>
+        protected void lnkExport_Click(object sender, EventArgs e)
+        {
+            if (!CanTradeDealers) return;
+
+            DataTable rows = CurrentRows();
+            if (rows == null || rows.Rows.Count == 0)
+            {
+                ShowMessage("There is nothing on this screen to export.", false);
+                BindGrid();
+                return;
+            }
+
+            int pairs = DealerColumns + SpareDealerPairs;
+
+            using (var book = new XLWorkbook())
+            {
+                IXLWorksheet sheet = book.Worksheets.Add("Vouchers");
+
+                int col = 1;
+                sheet.Cell(1, col++).Value = "S.No";
+                sheet.Cell(1, col++).Value = "Product Name";
+                sheet.Cell(1, col++).Value = "Voucher Code";
+                sheet.Cell(1, col++).Value = "Expiry Date";
+                sheet.Cell(1, col++).Value = "Added By";
+
+                int firstPairColumn = col;
+                for (int i = 1; i <= pairs; i++)
+                {
+                    sheet.Cell(1, col++).Value = DealerNameHeader(i);
+                    sheet.Cell(1, col++).Value = SaleDateHeader(i);
+                }
+
+                int last = col - 1;
+                sheet.Range(1, 1, 1, last).Style.Font.Bold = true;
+                sheet.SheetView.FreezeRows(1);
+
+                for (int i = 0; i < rows.Rows.Count; i++)
+                {
+                    DataRow r = rows.Rows[i];
+                    string[] names = Split(r["DealerNames"]);
+                    string[] dates = Split(r["SaleDates"]);
+
+                    int line = i + 2;
+                    col = 1;
+                    sheet.Cell(line, col++).Value = i + 1;
+                    sheet.Cell(line, col++).Value = Convert.ToString(r["ProductName"]);
+
+                    // as text, always: a code is a name, not a number, and Excel
+                    // would otherwise eat the leading zeros off one that is all
+                    // digits and hand it back a different voucher
+                    IXLCell code = sheet.Cell(line, col++);
+                    code.Style.NumberFormat.Format = "@";
+                    code.Value = Convert.ToString(r["VoucherCode"]);
+
+                    sheet.Cell(line, col++).Value = DateText(r["ExpiryDate"]);
+                    sheet.Cell(line, col++).Value = Convert.ToString(r["AddedByName"]);
+
+                    for (int p = 0; p < pairs; p++)
+                    {
+                        sheet.Cell(line, col++).Value = (p < names.Length) ? names[p] : string.Empty;
+                        sheet.Cell(line, col++).Value = (p < dates.Length) ? DateText(dates[p]) : string.Empty;
+                    }
+                }
+
+                // Every dealer column left as text. A sale date typed into a
+                // General cell becomes whatever the machine's locale makes of
+                // it, and 08/12 is two different days on two desks; read back as
+                // text it goes through NormaliseDate, which is day first and is
+                // the same reader the paste box uses.
+                sheet.Range(2, firstPairColumn, rows.Rows.Count + 1, last)
+                     .Style.NumberFormat.Format = "@";
+                sheet.Columns(1, last).AdjustToContents();
+
+                using (var buffer = new System.IO.MemoryStream())
+                {
+                    book.SaveAs(buffer);
+                    SendFile(buffer.ToArray(), ExportFileName());
+                }
+            }
+        }
+
+        private string ExportFileName()
+        {
+            // The provider's own name, not ProviderName() - that one is the
+            // page heading and ends "- Voucher Data", which a file called
+            // vouchers-AWS---Voucher-Data does not need to say twice.
+            string name = string.Empty;
+            if (ProviderId.Length > 0)
+            {
+                DataTable p = VoucherBAL.GetProvider(ProviderId);
+                if (p != null && p.Rows.Count > 0) name = Convert.ToString(p.Rows[0]["Name"]);
+            }
+            if (name.Length == 0) name = "all";
+            var clean = new StringBuilder();
+            foreach (char c in name)
+                clean.Append(char.IsLetterOrDigit(c) ? c : '-');
+
+            return "vouchers-" + clean.ToString().Trim('-') + "-"
+                 + DateTime.Now.ToString("yyyy-MM-dd") + ".xlsx";
+        }
+
+        /// <summary>
+        /// Hands the file over and stops, without Response.End - which raises a
+        /// ThreadAbortException that the page would otherwise carry on into.
+        /// </summary>
+        private void SendFile(byte[] body, string fileName)
+        {
+            Response.Clear();
+            Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            Response.AddHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
+            Response.AddHeader("Content-Length", body.Length.ToString());
+            Response.BinaryWrite(body);
+            Response.Flush();
+            Response.SuppressContent = true;
+            Context.ApplicationInstance.CompleteRequest();
+        }
+
+        protected void lnkImport_Click(object sender, EventArgs e)
+        {
+            if (!CanTradeDealers) return;
+
+            pnlImportMsg.Visible = false;
+            pnlImport.Visible = true;
+        }
+
+        protected void lnkImportClose_Click(object sender, EventArgs e)
+        {
+            pnlImport.Visible = false;
+        }
+
+        /// <summary>
+        /// The sheet back again. Every row is matched on its voucher code, and
+        /// its dealer pairs replace whatever that voucher had - the same call the
+        /// Edit dialog makes, so there is one way in and it is already tested.
+        ///
+        /// Two rules worth knowing:
+        ///
+        /// A row with every dealer cell empty is skipped, not applied. The team
+        /// exports the whole screen and fills in the ones they know; applying the
+        /// blanks would wipe the dealer off every voucher they had not got to
+        /// yet, in one click, with nothing on screen to say it had happened.
+        /// Clearing a dealer stays a job for the Edit dialog, one voucher at a
+        /// time, which is the only place it is ever meant.
+        ///
+        /// A code that is not on this screen is skipped and counted. The sheet
+        /// came from here; a code that did not is either a typo or somebody
+        /// else's provider, and neither is something to write on trust.
+        /// </summary>
+        protected void btnImportSave_Click(object sender, EventArgs e)
+        {
+            if (!CanTradeDealers) return;
+
+            if (!fuDealers.HasFile)
+            {
+                ShowImportError("Choose the filled-in spreadsheet first.");
+                return;
+            }
+
+            DataTable scope = FetchScopeForImport();
+            var byCode = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (scope != null)
+                foreach (DataRow r in scope.Rows)
+                {
+                    string code = Convert.ToString(r["VoucherCode"]).Trim();
+                    if (code.Length > 0 && !byCode.ContainsKey(code))
+                        byCode[code] = Convert.ToString(r["Id"]);
+                }
+
+            int saved = 0, blank = 0, unknown = 0, undated = 0;
+            var strangers = new List<string>();
+
+            try
+            {
+                using (var book = new XLWorkbook(fuDealers.FileContent))
+                {
+                    IXLWorksheet sheet = book.Worksheet(1);
+                    IXLRow head = sheet.FirstRowUsed();
+                    if (head == null)
+                    {
+                        ShowImportError("That file has nothing in it.");
+                        return;
+                    }
+
+                    Dictionary<string, int> columns = HeaderColumns(head);
+                    if (!columns.ContainsKey("voucher code"))
+                    {
+                        ShowImportError("That file has no \"Voucher Code\" column. "
+                            + "Export the screen first and fill the dealer columns in on that sheet.");
+                        return;
+                    }
+
+                    int codeColumn = columns["voucher code"];
+                    List<int[]> pairs = PairColumns(columns);
+                    if (pairs.Count == 0)
+                    {
+                        ShowImportError("That file has no \"Dealer Name 1\" and \"Sale Date 1\" columns.");
+                        return;
+                    }
+
+                    string userId = Convert.ToString(Session["UserId"]);
+
+                    foreach (IXLRow row in sheet.RowsUsed())
+                    {
+                        if (row.RowNumber() <= head.RowNumber()) continue;
+
+                        string code = Convert.ToString(row.Cell(codeColumn).GetString()).Trim();
+                        if (code.Length == 0) continue;
+
+                        var data = new StringBuilder();
+                        bool anything = false;
+                        bool lostDate = false;
+
+                        foreach (int[] pair in pairs)
+                        {
+                            string name = row.Cell(pair[0]).GetString().Trim();
+                            string raw = CellDate(row.Cell(pair[1]));
+                            string date = NormaliseDate(raw);
+
+                            if (raw.Length > 0 && date.Length == 0) lostDate = true;
+                            if (name.Length == 0 && date.Length == 0) continue;
+
+                            anything = true;
+                            if (data.Length > 0) data.Append('~');
+                            data.Append(name).Append('|').Append(date);
+                        }
+
+                        if (!anything) { blank++; continue; }
+
+                        if (!byCode.ContainsKey(code))
+                        {
+                            unknown++;
+                            if (strangers.Count < 5) strangers.Add(code);
+                            continue;
+                        }
+
+                        if (lostDate) undated++;
+
+                        VoucherBAL.SaveDealers(byCode[code], data.ToString(), userId);
+                        saved++;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowImportError("That file could not be read as a spreadsheet ("
+                    + ex.Message + "). Export the screen again and fill in that sheet.");
+                return;
+            }
+
+            var said = new StringBuilder();
+            said.Append(saved).Append(saved == 1 ? " voucher updated." : " vouchers updated.");
+            if (blank > 0)
+                said.Append(" ").Append(blank).Append(blank == 1 ? " row" : " rows")
+                    .Append(" left alone - no dealer filled in.");
+            if (undated > 0)
+                said.Append(" ").Append(undated)
+                    .Append(undated == 1 ? " row had a sale date" : " rows had sale dates")
+                    .Append(" that could not be read, and saved without one.");
+            if (unknown > 0)
+                said.Append(" ").Append(unknown).Append(unknown == 1 ? " code is" : " codes are")
+                    .Append(" not on this screen and was skipped: ")
+                    .Append(string.Join(", ", strangers.ToArray()))
+                    .Append(unknown > strangers.Count ? ", ..." : string.Empty);
+
+            pnlImport.Visible = false;
+            ShowMessage(said.ToString(), saved > 0);
+            BindGrid();
+        }
+
+        /// <summary>
+        /// The vouchers a code in the sheet may name: this screen's provider and
+        /// product, without the "No dealer" pill. The pill is what produced the
+        /// sheet, and by the time it comes back the rows on it have dealers - so
+        /// filtering by it here would reject the file it just made.
+        /// </summary>
+        private DataTable FetchScopeForImport()
+        {
+            return VoucherBAL.GetVoucherDetail(
+                ProviderId, LockedProductId, string.Empty,
+                string.Empty, string.Empty, string.Empty, string.Empty,
+                AssignedToFilter, MovedFilter, string.Empty, string.Empty, "Select");
+        }
+
+        /// <summary>Header text, lowercased and squeezed, to the column it sits in.</summary>
+        private static Dictionary<string, int> HeaderColumns(IXLRow head)
+        {
+            var found = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (IXLCell cell in head.CellsUsed())
+            {
+                string text = Squeeze(cell.GetString());
+                if (text.Length > 0 && !found.ContainsKey(text)) found[text] = cell.Address.ColumnNumber;
+            }
+
+            return found;
+        }
+
+        /// <summary>
+        /// The dealer pairs the sheet actually carries, in order. Counted up from
+        /// 1 and stopping at the first gap, so a pair the team deleted cannot
+        /// silently shift every dealer after it into the wrong slot.
+        /// </summary>
+        private static List<int[]> PairColumns(Dictionary<string, int> columns)
+        {
+            var pairs = new List<int[]>();
+
+            for (int i = 1; ; i++)
+            {
+                string name = Squeeze(DealerNameHeader(i));
+                string date = Squeeze(SaleDateHeader(i));
+                if (!columns.ContainsKey(name) || !columns.ContainsKey(date)) break;
+
+                pairs.Add(new int[] { columns[name], columns[date] });
+            }
+
+            return pairs;
+        }
+
+        /// <summary>
+        /// A sale date out of a cell. Excel may hold it as a real date or as the
+        /// text somebody typed; a real one is already the day the team saw on
+        /// screen, and text goes to NormaliseDate, which reads day first.
+        /// </summary>
+        private static string CellDate(IXLCell cell)
+        {
+            if (cell == null) return string.Empty;
+
+            if (cell.DataType == XLDataType.DateTime)
+            {
+                DateTime when;
+                if (cell.TryGetValue(out when)) return when.ToString("yyyy-MM-dd");
+            }
+
+            return cell.GetString().Trim();
+        }
+
+        private static string Squeeze(string text)
+        {
+            var clean = new StringBuilder();
+            bool space = false;
+
+            foreach (char c in (text ?? string.Empty).Trim())
+            {
+                if (char.IsWhiteSpace(c)) { space = true; continue; }
+                if (space && clean.Length > 0) clean.Append(' ');
+                space = false;
+                clean.Append(char.ToLowerInvariant(c));
+            }
+
+            return clean.ToString();
+        }
+
+        /// <summary>
+        /// A date as the grid shows it, or blank. Not FormatIsoDate, which
+        /// answers "-" when it cannot read one: a dash is right in a table cell
+        /// and wrong in a spreadsheet, where it would come back as a sale date
+        /// nobody typed.
+        /// </summary>
+        private static string DateText(object value)
+        {
+            if (value == null || value == DBNull.Value) return string.Empty;
+
+            DateTime when;
+            if (value is DateTime) return ((DateTime)value).ToString("dd-MMM-yyyy");
+            if (DateTime.TryParse(Convert.ToString(value), out when)) return when.ToString("dd-MMM-yyyy");
+
+            return Convert.ToString(value);
+        }
+
+        private void ShowImportError(string text)
+        {
+            litImportMsg.Text = Server.HtmlEncode(text);
+            pnlImportMsg.Visible = true;
+            pnlImport.Visible = true;
+        }
+
+        #endregion
 
         protected string UploadProductClass(object productId)
         {

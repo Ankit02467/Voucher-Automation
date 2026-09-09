@@ -210,6 +210,8 @@ Passwords are stored **Base64, not hashed** — matching the existing site.
 | Edit (row action) | ✓ | ✓ | ✓ | |
 | Edit status in the cell | | | | ✓ |
 | Dealer name / sale date columns | ✓ | | ✓ | |
+| "No dealer" filter | ✓ | | ✓ | |
+| Export / Import dealers | | | ✓ | |
 | Added By / Checked By columns | ✓ | ✓ | ✓ | |
 | Student-wise performance | ✓ | ✓ | | |
 
@@ -323,6 +325,57 @@ a code skipped as a duplicate already belongs to somebody.
 
 The paste is split with `StringSplitOptions.None` for the same reason. Dropping
 empties would shift every column left of a blank cell.
+
+**The dealer round trip is the team's, and the filter is what makes it
+bearable.** The admin uploads the codes; the dealer name and the sale date are
+the team's to fill in, and fifty at a time through the Edit dialog is not a job
+anybody would do. **Export** sends the screen as an `.xlsx` and **Import** takes
+it back — `CanTradeDealers`, which is `Voucher Team` alone.
+
+The **"No dealer"** pill is `ShowDealerFilter`, which is the admin as well: the
+team to work through, the admin to see what is still waiting on them. It sits on
+a line of its own under the statuses because it is a different question — status
+asks what became of a voucher, this asks whether anybody has written down who
+sold it, and "Unused with no dealer" is an ordinary thing to want. Among the
+status pills it would have read as a seventh status. It is drawn dashed and
+amber rather than in the status blue for the same reason.
+
+It narrows `FetchScope`, the fetch, and **not the grid afterwards**, so the
+cards, the pills and the list go on counting the same rows — the promise
+`BindCards` is built on, which is older than this filter. `DealerCount = 0` is
+the whole predicate: `SaveDealers` writes a dealer row only where a name or a
+date was given, so nought means nothing has been entered rather than something
+half entered.
+
+Export sends **the rows on screen, all of them** — `CurrentRows()`, the same
+fetch under the same filters, not the page. Taking away the two thousand that
+are missing a dealer rather than all ten thousand is the entire point of the
+pill. Identification and the dealer pairs and nothing else: Remarks, the status
+and the check dates are not the team's to set here, and a column that was read
+back would be a way to overwrite them by accident. The pairs run to
+`DealerColumns + 3`, and the spares matter — without somewhere to put a second
+dealer the team would add a column of their own, spelled their own way, and the
+import would not know it.
+
+Import matches on **Voucher Code** (`UQ_VoucherStock_CodeHash` makes it unique)
+and calls the same `SaveDealers` the Edit dialog does, so there is one way in.
+Two rules worth knowing, both of them refusals:
+
+- **A row with no dealer filled in is left alone, not applied.** The team exports
+  the whole screen and works through the ones they know; applying the blanks
+  would clear the dealer off every voucher they had not reached yet, in one
+  click, with nothing on screen to say so. Clearing a dealer stays an Edit-dialog
+  job, one voucher at a time, which is the only place it is ever meant.
+- **A code that is not on this screen is skipped and counted back.** The sheet
+  came from here; a code that did not is a typo or somebody else's provider.
+
+Dates come back either as a real Excel date or as text. A real one is already the
+day the team saw on screen and is taken as it is; text goes through
+`NormaliseDate`, day first, the same reader the paste box uses — so the export
+writes the dealer columns as **text** rather than leaving them General, where
+`08/12` is two different days on two desks. `Test-DealerExport` builds its own
+minimal workbook with inline strings rather than re-sending ours, because a file
+that has been through Excel is not the file we wrote.
 
 Assign and reassign are **one button and one modal**, not two features. On the
 open list it reads "+ Assign" and offers `SelectForAssign` — vouchers nobody

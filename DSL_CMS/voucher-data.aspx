@@ -37,6 +37,14 @@
             OnClick="lnkDone_Click" CausesValidation="false">View Done Entries</asp:LinkButton>
         <asp:LinkButton ID="lnkUpload" runat="server" CssClass="pill-btn" Visible="false"
             OnClick="lnkUpload_Click" CausesValidation="false">Upload Entry</asp:LinkButton>
+        <%-- The team's pair. The admin uploads the codes; the dealer name and
+             sale date are the team's to fill in, and fifty at a time through the
+             Edit dialog is not a job anybody would do. Export takes the screen
+             away as a spreadsheet and Import brings it back. --%>
+        <asp:LinkButton ID="lnkExport" runat="server" CssClass="pill-btn" Visible="false"
+            OnClick="lnkExport_Click" CausesValidation="false">Export</asp:LinkButton>
+        <asp:LinkButton ID="lnkImport" runat="server" CssClass="pill-btn" Visible="false"
+            OnClick="lnkImport_Click" CausesValidation="false">Import Dealers</asp:LinkButton>
         <%-- View History used to sit here and list every change the provider had
              ever seen. It is a per-row action now, beside Edit. --%>
         <%-- Same button either way: it assigns unheld vouchers on the open list
@@ -120,6 +128,20 @@
                     CausesValidation="false" ToolTip="Clear this search">&#10005;</asp:LinkButton>
             </asp:Panel>
         </div>
+
+        <%-- A line of its own, because it is a different question. Status asks
+             what became of a voucher; this asks whether anybody has written down
+             who sold it, and the two do not exclude one another - "Unused with no
+             dealer" is an ordinary thing to want. Among the status pills it would
+             have read as a seventh status.
+
+             Admin and team only: the team to work through, the admin to see what
+             is still waiting on them. --%>
+        <asp:Panel ID="pnlDealerFilter" runat="server" Visible="false" CssClass="vd-pills">
+            <span class="vd-plab">Dealer</span>
+            <asp:LinkButton ID="lnkNoDealer" runat="server" CssClass="vd-pill vd-nodealer"
+                OnClick="lnkNoDealer_Click" CausesValidation="false" ToolTip="Only the vouchers with no dealer against them" />
+        </asp:Panel>
 
         <%-- "Expiring soon" is a question about a span of days as much as a
              status, so picking it asks which span - the same 1 / 3 / 7 / 1 Month
@@ -615,6 +637,53 @@
                 <span class="spacer"><asp:Literal ID="litUploadHint" runat="server" /></span>
                 <asp:Button ID="btnUploadSave" runat="server" CssClass="btn" Text="Save"
                     OnClick="btnUploadSave_Click" />
+            </div>
+        </div>
+    </asp:Panel>
+
+    <%-- ================= Import Dealers modal =================
+         The sheet Export produced, filled in and handed back. Matched on the
+         voucher code, and the dealer pairs replace what that voucher had - the
+         same SaveDealers the Edit dialog calls, so there is one way in.
+
+         A row with no dealer filled in is left alone rather than applied. The
+         team exports the whole screen and works through the ones they know;
+         applying the blanks would clear the dealer off every voucher they had
+         not reached yet, in one click, with nothing on screen to say so. --%>
+    <asp:Panel ID="pnlImport" runat="server" Visible="false" CssClass="modal-back">
+        <div class="modal sm">
+            <div class="modal-head">
+                <h2>Import dealer details</h2>
+                <asp:LinkButton ID="lnkImportClose" runat="server" CssClass="btn btn-light btn-sm"
+                    OnClick="lnkImportClose_Click" CausesValidation="false">Close</asp:LinkButton>
+            </div>
+            <div class="modal-body">
+                <asp:Panel ID="pnlImportMsg" runat="server" Visible="false" CssClass="msg msg-bad">
+                    <asp:Literal ID="litImportMsg" runat="server" />
+                </asp:Panel>
+
+                <div class="paste-help">
+                    Press <strong>Export</strong> first, fill the
+                    <code>Dealer Name</code> and <code>Sale Date</code> columns in on that
+                    sheet, then choose it here.<br />
+                    Vouchers are matched on <code>Voucher Code</code>, so keep that column
+                    as it came. Rows may be sorted or deleted; the ones left are the ones
+                    that save.<br />
+                    A row with no dealer filled in is <strong>left as it is</strong> &ndash;
+                    importing cannot clear a dealer. Use Edit on the row for that.<br />
+                    Add a <code>Dealer Name 4</code> / <code>Sale Date 4</code> pair if a
+                    voucher needs more, numbered on from the last one.<br />
+                    Dates are read <strong>day first</strong>:
+                    <code>14-08-2026</code>, <code>14/08/2026</code> and
+                    <code>14-Aug-2026</code> all mean 14 August 2026.
+                </div>
+
+                <asp:FileUpload ID="fuDealers" runat="server" CssClass="filepick" />
+            </div>
+            <div class="modal-foot">
+                <span class="spacer"></span>
+                <asp:Button ID="btnImportSave" runat="server" CssClass="btn" Text="Import"
+                    OnClick="btnImportSave_Click" />
             </div>
         </div>
     </asp:Panel>

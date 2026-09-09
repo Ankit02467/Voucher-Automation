@@ -1310,6 +1310,26 @@ td.rem-cell { white-space: nowrap; min-width: 210px; }
 .vd-pill.s-expired      { --cc: var(--st-expired); }
 .vd-pill.s-invalid      { --cc: var(--st-invalid); }
 .vd-pill.s-expiringsoon { --cc: var(--st-expired); }
+/* Not a status, and drawn so it cannot be taken for one: dashed and amber
+   while it is off, filled amber when it is on, rather than the blue every
+   status pill lights up in. It narrows a different axis and says so. */
+.vd-pill.vd-nodealer {
+    border-style: dashed; border-color: var(--gold-2); color: var(--gold-2);
+}
+.vd-pill.vd-nodealer:hover { background: #fffbf0; border-color: var(--gold-2); color: var(--gold-2); }
+.vd-pill.vd-nodealer.on {
+    background: var(--gold); border-style: solid; border-color: var(--gold);
+    color: #4a3407; box-shadow: 0 6px 16px rgba(224,166,58,.3);
+}
+.vd-pill.vd-nodealer.on:hover { color: #4a3407; }
+
+/* The file box in the import dialog. */
+.filepick {
+    display: block; width: 100%; margin-top: 12px; padding: 12px;
+    border: 1px dashed var(--line-2); border-radius: var(--radius);
+    background: var(--panel-2); font: inherit; font-size: 13px; color: var(--tx-2);
+}
+
 /* The window row: 1 Day / 3 Days / 7 Days / 1 Month. Set to one width so four
    spans of different name lengths read as one scale rather than four buttons. */
 .vd-win { min-width: 78px; justify-content: center; }
