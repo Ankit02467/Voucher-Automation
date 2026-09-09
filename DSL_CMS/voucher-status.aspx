@@ -143,8 +143,18 @@
 
     <%-- ---------------- Provider table ---------------- --%>
     <div class="vs-panel">
+        <asp:Panel ID="pnlDragMsg" runat="server" Visible="false" CssClass="msg msg-bad">
+            <asp:Literal ID="litDragMsg" runat="server" />
+        </asp:Panel>
+        <%-- Where a dragged list is posted from. The hidden field carries
+             "providerId|id:place~..." and the button is what makes it a
+             postback; neither is anything to look at, and only the admin's
+             page renders rows that can fill them in. --%>
+        <asp:HiddenField ID="hidOrder" runat="server" />
+        <asp:LinkButton ID="lnkReorder" runat="server" OnClick="lnkReorder_Click"
+            CausesValidation="false" CssClass="vs-hidden" />
         <div class="vs-tablewrap">
-            <table>
+            <table id="provTable">
                 <thead>
                     <tr>
                         <th style="width: 64px;">S.No</th>
@@ -363,5 +373,90 @@
     </asp:Panel>
 
 </div>
+
+<%-- Dragging a product up or down its provider's list.
+
+     Rows move in the page as the pointer passes them, so the list shows what
+     it will become rather than only what it was; the postback happens once, on
+     drop, and only if the order actually changed - a click that began a drag
+     and went nowhere must not reload the screen.
+
+     A drop into another provider's list is refused rather than corrected: the
+     two lists are different questions and a product has no place in the wrong
+     one. Moving a product between providers is Manage Product's job. --%>
+<script type="text/javascript">
+(function () {
+    var table = document.getElementById('provTable');
+    var field = document.getElementById('<%= hidOrder.ClientID %>');
+    if (!table || !field) return;
+
+    var dragged = null, wasBefore = '';
+
+    // No closest(): this page is old enough to meet a browser without it, and
+    // walking three parents costs nothing.
+    function rowOf(node) {
+        while (node && node !== table) {
+            if (node.nodeType === 1 && node.getAttribute &&
+                node.getAttribute('data-pid')) return node;
+            node = node.parentNode;
+        }
+        return null;
+    }
+
+    function orderOf(provider) {
+        var rows = table.querySelectorAll('tr.vs-drag[data-prov="' + provider + '"]');
+        var parts = [];
+        for (var i = 0; i < rows.length; i++)
+            parts.push(rows[i].getAttribute('data-pid') + ':' + (i + 1));
+        return parts.join('~');
+    }
+
+    table.addEventListener('dragstart', function (e) {
+        var row = rowOf(e.target);
+        if (!row) return;
+
+        dragged = row;
+        wasBefore = orderOf(row.getAttribute('data-prov'));
+        row.className += ' dragging';
+        if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = 'move';
+            // Firefox will not start a drag without something on the clipboard.
+            try { e.dataTransfer.setData('text/plain', row.getAttribute('data-pid')); } catch (x) { }
+        }
+    });
+
+    table.addEventListener('dragover', function (e) {
+        if (!dragged) return;
+
+        var over = rowOf(e.target);
+        if (!over || over === dragged) return;
+        if (over.getAttribute('data-prov') !== dragged.getAttribute('data-prov')) return;
+
+        e.preventDefault();
+
+        // Past the halfway line means below it - so a row can be dropped at the
+        // very end of the list and not only above the last one.
+        var box = over.getBoundingClientRect();
+        var below = (e.clientY - box.top) > (box.height / 2);
+        over.parentNode.insertBefore(dragged, below ? over.nextSibling : over);
+    });
+
+    table.addEventListener('drop', function (e) { e.preventDefault(); });
+
+    table.addEventListener('dragend', function () {
+        if (!dragged) return;
+
+        dragged.className = dragged.className.replace(/ *dragging/, '');
+        var provider = dragged.getAttribute('data-prov');
+        dragged = null;
+
+        var now = orderOf(provider);
+        if (now === wasBefore) return;
+
+        field.value = provider + '|' + now;
+        __doPostBack('<%= lnkReorder.UniqueID %>', '');
+    });
+})();
+</script>
 
 </asp:Content>

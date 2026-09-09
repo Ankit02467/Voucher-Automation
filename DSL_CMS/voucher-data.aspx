@@ -141,6 +141,19 @@
             <span class="vd-plab">Dealer</span>
             <asp:LinkButton ID="lnkNoDealer" runat="server" CssClass="vd-pill vd-nodealer"
                 OnClick="lnkNoDealer_Click" CausesValidation="false" ToolTip="Only the vouchers with no dealer against them" />
+            <%-- The other end of the same question: not "who is missing one" but
+                 "which are this dealer's". Every name entered against a voucher
+                 on this screen, once each - read off the rows themselves, so the
+                 list is scoped by whatever the screen is scoped by. --%>
+            <asp:Repeater ID="rptDealerPills" runat="server" OnItemCommand="dealer_Command">
+                <ItemTemplate>
+                    <asp:LinkButton runat="server" CommandName="PickDealer"
+                        CommandArgument='<%# Eval("Name") %>'
+                        CssClass='<%# DealerPillClass(Eval("Name")) %>'
+                        Text='<%# Server.HtmlEncode(Convert.ToString(Eval("Name"))) %>'
+                        CausesValidation="false" />
+                </ItemTemplate>
+            </asp:Repeater>
         </asp:Panel>
 
         <%-- "Expiring soon" is a question about a span of days as much as a
@@ -669,8 +682,11 @@
                     Vouchers are matched on <code>Voucher Code</code>, so keep that column
                     as it came. Rows may be sorted or deleted; the ones left are the ones
                     that save.<br />
-                    A row with no dealer filled in is <strong>left as it is</strong> &ndash;
+                    A row with nothing new filled in is <strong>left as it is</strong> &ndash;
                     importing cannot clear a dealer. Use Edit on the row for that.<br />
+                    <code>Remarks</code> comes back too. A remark is
+                    <strong>added</strong> to the voucher's log, so change the cell to
+                    say something new and leave it as it came to say nothing.<br />
                     Add a <code>Dealer Name 4</code> / <code>Sale Date 4</code> pair if a
                     voucher needs more, numbered on from the last one.<br />
                     Dates are read <strong>day first</strong>:

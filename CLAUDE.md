@@ -210,8 +210,9 @@ Passwords are stored **Base64, not hashed** — matching the existing site.
 | Edit (row action) | ✓ | ✓ | ✓ | |
 | Edit status in the cell | | | | ✓ |
 | Dealer name / sale date columns | ✓ | | ✓ | |
-| "No dealer" filter | ✓ | | ✓ | |
+| Dealer filters ("No dealer", and by name) | ✓ | | ✓ | |
 | Export / Import dealers | | | ✓ | |
+| Reorder a provider's products | ✓ | | | |
 | Added By / Checked By columns | ✓ | ✓ | ✓ | |
 | Student-wise performance | ✓ | ✓ | | |
 
@@ -297,6 +298,56 @@ grouped into rounds by `Sp_VoucherStock_Table @Action='SelectVoucherHistory'`,
 which counts hand-offs with a running `SUM() OVER`. The old toolbar button
 listed every change the whole provider had ever seen and answered nothing.
 
+**Products sit where somebody put them, not where the alphabet put them.**
+`VoucherProduct_Table.SortOrder` is that decision written down, and
+[Database/12_ProductOrder/01_Product_Sort_Order.sql](Database/12_ProductOrder/01_Product_Sort_Order.sql)
+adds it. Alphabetical was never a decision — it was what the `ORDER BY` happened
+to say — and it puts Associate above Foundation on a provider whose own ladder
+runs the other way.
+
+**NULL is the whole of the compatibility story.** A product nobody has dragged
+sorts after every product somebody has, then alphabetically among its own kind,
+which is exactly where it sat before the column existed. So the column can land
+on a live database and move nothing at all until somebody drags. Every read
+spells that out as `ISNULL(SortOrder, 2147483647)`.
+
+Three reads, and they have to agree or the screens disagree with each other:
+`Sp_VoucherProvider_Table @Action='SelectSummary'` carries `Place` through the
+`Shown` CTE and into **all three** `STRING_AGG`s — names, ids and counts share
+one `ORDER BY` and index N of each must still line up; `Sp_VoucherProduct_Table`
+orders its grid and its dropdown the same way. Both procs are edited **in place**
+rather than copied into `12_ProductOrder`, so there is one copy of each to keep
+right — trap 1 is what a second copy costs. The migration file names the two
+`sqlcmd -I` runs it needs after it.
+
+The order is saved by `@Action='Reorder'`, which takes `"id:place~id:place~..."`.
+The place travels **with** the id rather than being counted from its position in
+the string, because `STRING_SPLIT` does not promise to return rows in order and
+its `ordinal` argument wants a newer server than this has to run on. The parse
+uses `NULLIF(CHARINDEX(...), 0) - 1`, not a `WHERE`: a CTE's filter is not a
+barrier, so a token with no colon still reaches `LEFT(value, -1)` and raises 537,
+and one piece of rubbish would kill the whole reorder.
+
+**Dragging is the admin's**, `CanDragProducts`, which is `CanManageProduct`. The
+order is stored on the product, so it is the catalogue's order and not one
+reader's — dragging it moves it on the sidebar, on Manage Product and in every
+dropdown, for everybody, which is the same claim Manage Product already is.
+`ProductRows` gives those rows `draggable`, `data-pid` and `data-prov`; the
+script refuses a drop into another provider's list, `lnkReorder_Click` checks
+the role again, and the proc scopes its `UPDATE` by `@ProviderId` as well as
+matching on id. A `draggable` attribute is a hint to the browser, not a rule.
+
+The postback fires **once, on drop, and only if the order actually changed** — a
+click that began a drag and went nowhere must not reload the screen.
+
+**And the sidebar has to be told.** `MasterPage.BindNav` runs in the master's
+`Page_Load`, which is *before* a content page's own control events, so on the
+very postback that saved the drag the menu had already been built from the order
+before it: the table moved and the tree under the pointer did not. `RefreshNav()`
+exists for that, and anything else that changes what the tree lists owes it the
+same call. One render only, and the next page load was right — which is exactly
+the kind of wrong that gets called a browser problem and never reported.
+
 **Add Provider or Product** (`add-provider.aspx`, reached from the `+` beside
 Voucher Status in the menu) saves the provider first, then opens a products
 section against the new id. Two steps because a product needs a `ProviderId`;
@@ -340,6 +391,29 @@ sold it, and "Unused with no dealer" is an ordinary thing to want. Among the
 status pills it would have read as a seventh status. It is drawn dashed and
 amber rather than in the status blue for the same reason.
 
+**Beside it, every dealer by name** — the other end of that same question, and
+the same amber, but solid where "No dealer" is dashed: one asks for an absence
+and the other for a name. The two clear one another, because asking both can
+only return nothing and two lit pills over an empty grid say nothing about which
+emptied it.
+
+The names are read off the rows, not asked of the database. `DealerNames` comes
+back from the grid select already decrypted and pipe separated, so
+`DealerNames(DataTable)` is the whole of it — no proc change, no second query
+that could disagree with the fetch beside it, and the list scopes itself: the
+pills name the dealers of this provider, this product, this student, because
+those are the rows it is handed.
+
+Matched **whole, not as a substring**. The proc's own `@DealerName` is a `LIKE`
+and is still unused by this screen; filtering through it would gather "Rakesh"
+and "Rakesh Traders" under one pill and count them as one dealer.
+
+`BindGrid` fetches twice over — `FetchAll()` for the pill row and
+`FilterByDealer` for everything else — because a filter that narrowed its own
+options could be turned on and never off by any route but the pill it came from.
+A dealer picked and then filtered out of existence is named anyway, so there is
+always something to press again.
+
 It narrows `FetchScope`, the fetch, and **not the grid afterwards**, so the
 cards, the pills and the list go on counting the same rows — the promise
 `BindCards` is built on, which is older than this filter. `DealerCount = 0` is
@@ -350,12 +424,18 @@ half entered.
 Export sends **the rows on screen, all of them** — `CurrentRows()`, the same
 fetch under the same filters, not the page. Taking away the two thousand that
 are missing a dealer rather than all ten thousand is the entire point of the
-pill. Identification and the dealer pairs and nothing else: Remarks, the status
-and the check dates are not the team's to set here, and a column that was read
-back would be a way to overwrite them by accident. The pairs run to
-`DealerColumns + 3`, and the spares matter — without somewhere to put a second
-dealer the team would add a column of their own, spelled their own way, and the
-import would not know it.
+pill. Identification, the dealer pairs and the remark — the two columns on that
+screen that are the team's to write. The status and the check dates are not, and
+a column that was read back would be a way to overwrite them by accident. The
+pairs run to `DealerColumns + 3`, and the spares matter — without somewhere to
+put a second dealer the team would add a column of their own, spelled their own
+way, and the import would not know it.
+
+**Remarks is last, after the pairs**, so adding a dealer column never moves it,
+and it is gated by `ShowRemarks` — the same rule the grid column obeys. The cell
+carries `LastRemark`, which is what the grid cell shows; the rest of the log
+stays behind the "i", because a spreadsheet column is no more a place for a
+conversation than a grid cell is.
 
 Import matches on **Voucher Code** (`UQ_VoucherStock_CodeHash` makes it unique)
 and calls the same `SaveDealers` the Edit dialog does, so there is one way in.
@@ -368,6 +448,19 @@ Two rules worth knowing, both of them refusals:
   job, one voucher at a time, which is the only place it is ever meant.
 - **A code that is not on this screen is skipped and counted back.** The sheet
   came from here; a code that did not is a typo or somebody else's provider.
+- **A remark that comes back unchanged is not added again.** A remark is a log,
+  so the import *adds* rather than writes over — which means importing the same
+  sheet twice would otherwise leave two copies of every remark it carried out,
+  and importing it once would copy every remark somebody else had written. The
+  comparison is against `LastRemark`, trimmed and case-insensitive, which is the
+  cell the export filled in. A blank cell adds nothing: importing cannot delete
+  a remark any more than it can clear a dealer.
+
+A row is "left alone" when **neither** half has anything new — no dealer cells
+filled and no changed remark. A row with only a remark still saves, and one with
+only dealers still saves; the two halves are independent, and `AddRemark` is
+wrapped on its own so a proc without it costs the remark and not the dealer rows
+written a line above.
 
 Dates come back either as a real Excel date or as text. A real one is already the
 day the team saw on screen and is taken as it is; text goes through

@@ -246,6 +246,11 @@ namespace DSL_CMS.BAL
             return VoucherDAL.GetProductDetail(providerId, srch, actn);
         }
 
+        public static DataTable ReorderProducts(string providerId, string order)
+        {
+            return VoucherDAL.ReorderProducts(providerId, order);
+        }
+
         public static DataTable GetProductById(string Id)
         {
             return VoucherDAL.GetProductById(Id);

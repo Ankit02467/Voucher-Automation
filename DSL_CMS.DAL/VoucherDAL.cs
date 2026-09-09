@@ -494,6 +494,21 @@ namespace DSL_CMS.DAL
                 "@Search", srch);
         }
 
+        /// <summary>
+        /// The order a provider's products were dragged into: "id:place~id:place".
+        ///
+        /// The provider goes with it and the proc scopes the update by it, so a
+        /// list dragged under one provider cannot renumber another's however the
+        /// ids arrived.
+        /// </summary>
+        public static DataTable ReorderProducts(string providerId, string order)
+        {
+            return SqlHelper.ExecuteDataTable("Sp_VoucherProduct_Table", true,
+                "@Action", "Reorder",
+                "@ProviderId", providerId,
+                "@Order", order);
+        }
+
         public static DataTable GetProductById(string Id)
         {
             return SqlHelper.ExecuteDataTable("Sp_VoucherProduct_Table", true, "@Action", "SelectId", "@Id", Id);

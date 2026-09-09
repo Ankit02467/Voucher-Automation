@@ -39,6 +39,7 @@ namespace DSL_CMS
         protected HiddenField hfId, hfReassignId;
         protected LinkButton lnkUpload, lnkAssign, lnkDone, lnkAddDealer, lnkPrev, lnkNext,
                              lnkRemarksClose, lnkExport, lnkImport, lnkImportClose, lnkNoDealer;
+        protected Repeater rptDealerPills;
         protected Repeater rptHead, rptVoucher, rptPager, rptUploadProduct, rptHistory,
                            rptAssignVouchers, rptStudents, rptDealerEdit, rptAdminDealers,
                            rptStatusPills, rptCards, rptWindows,
@@ -287,6 +288,22 @@ namespace DSL_CMS
         {
             get { return (bool)(ViewState["NoDealer"] ?? false); }
             set { ViewState["NoDealer"] = value; }
+        }
+
+        /// <summary>
+        /// One dealer's name, or empty for all of them.
+        ///
+        /// Held as the name rather than an id because that is what the row
+        /// carries: DealerNames arrives from the grid select already decrypted
+        /// and pipe separated, and VoucherDealer_Table has no dealer table
+        /// behind it to hold ids of. Matched whole, not as a substring - the
+        /// proc's own @DealerName is a LIKE, which would gather "Rakesh" and
+        /// "Rakesh Traders" under one pill and count them as one dealer.
+        /// </summary>
+        private string DealerFilter
+        {
+            get { return Convert.ToString(ViewState["Dealer"] ?? string.Empty); }
+            set { ViewState["Dealer"] = value; }
         }
 
         /// <summary>Sub-admin toggle: true shows the entries students have moved on.</summary>
@@ -728,13 +745,42 @@ namespace DSL_CMS
         /// seventh status, and the two do not exclude one another - "Unused with
         /// no dealer" is a perfectly ordinary thing to want.
         /// </summary>
-        private void BindDealerFilter()
+        private void BindDealerFilter(DataTable everything)
         {
             pnlDealerFilter.Visible = ShowDealerFilter;
             if (!pnlDealerFilter.Visible) return;
 
             lnkNoDealer.CssClass = NoDealerFilter ? "vd-pill vd-nodealer on" : "vd-pill vd-nodealer";
             lnkNoDealer.Text = "No dealer";
+
+            var t = new DataTable();
+            t.Columns.Add("Name", typeof(string));
+            foreach (string name in DealerNames(everything)) t.Rows.Add(name);
+
+            // A dealer picked and then filtered out of existence - the last of
+            // their vouchers reassigned, say - would otherwise leave the screen
+            // empty with no lit pill to explain it. Name it anyway, so there is
+            // something to press again.
+            if (DealerFilter.Length > 0 && !HasName(t, DealerFilter)) t.Rows.Add(DealerFilter);
+
+            rptDealerPills.DataSource = t;
+            rptDealerPills.DataBind();
+        }
+
+        private static bool HasName(DataTable t, string name)
+        {
+            foreach (DataRow r in t.Rows)
+                if (string.Equals(Convert.ToString(r["Name"]), name, StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+            return false;
+        }
+
+        protected string DealerPillClass(object name)
+        {
+            bool on = string.Equals(Convert.ToString(name), DealerFilter,
+                                    StringComparison.OrdinalIgnoreCase);
+            return on ? "vd-pill vd-dealer on" : "vd-pill vd-dealer";
         }
 
         protected void lnkNoDealer_Click(object sender, EventArgs e)
@@ -743,6 +789,25 @@ namespace DSL_CMS
             if (!ShowDealerFilter) return;
 
             NoDealerFilter = !NoDealerFilter;
+            if (NoDealerFilter) DealerFilter = string.Empty;
+            PageIndex = 0;
+            BindGrid();
+        }
+
+        /// <summary>
+        /// One dealer's vouchers. Pressing the lit one clears it, the way the
+        /// status pills work - there is no "All dealers" pill because the row
+        /// showing everything is the row with nothing pressed.
+        /// </summary>
+        protected void dealer_Command(object source, RepeaterCommandEventArgs e)
+        {
+            if (!ShowDealerFilter || e.CommandName != "PickDealer") return;
+
+            string name = Convert.ToString(e.CommandArgument);
+            DealerFilter = string.Equals(name, DealerFilter, StringComparison.OrdinalIgnoreCase)
+                ? string.Empty : name;
+
+            if (DealerFilter.Length > 0) NoDealerFilter = false;
             PageIndex = 0;
             BindGrid();
         }
@@ -870,12 +935,18 @@ namespace DSL_CMS
             // applied below, in memory, so a card and the button beside it are
             // always counting the same rows. The grid already reads the whole
             // table to page it, so this is not an extra pass over anything.
-            DataTable all = FetchScope();
+            // Two steps rather than FetchScope(), because the pill row has to
+            // list every dealer this screen holds and not merely the one that
+            // is picked - a filter that narrows its own options can only ever
+            // be turned on once, and never off by any route but the pill it
+            // came from.
+            DataTable everything = FetchAll();
+            DataTable all = FilterByDealer(everything);
 
             BindCards(all);
             BindStatusFilter();
             BindWindows();
-            BindDealerFilter();
+            BindDealerFilter(everything);
             ApplyHeading(all);
 
             pnlSearchChip.Visible = (SearchCode.Length > 0);
@@ -936,6 +1007,16 @@ namespace DSL_CMS
         /// </summary>
         private DataTable FetchScope()
         {
+            return FilterByDealer(FetchAll());
+        }
+
+        /// <summary>
+        /// The same fetch with no dealer filtering at all - what the pill row is
+        /// built from, and the only thing that can name a dealer the screen is
+        /// not currently showing.
+        /// </summary>
+        private DataTable FetchAll()
+        {
             DataTable all = VoucherBAL.GetVoucherDetail(
                 ProviderId,
                 LockedProductId,
@@ -950,7 +1031,7 @@ namespace DSL_CMS
                 string.Empty,   // expiry date        - filter bar removed
                 "Select");
 
-            return FilterByNoDealer(all);
+            return all;
         }
 
         /// <summary>The rows the grid is showing, unsorted and unpaged.</summary>
@@ -960,21 +1041,75 @@ namespace DSL_CMS
         }
 
         /// <summary>
-        /// The vouchers with no dealer against them at all.
+        /// The dealer row applied: either the vouchers nobody is against, or the
+        /// ones a named dealer is against.
         ///
-        /// DealerCount is the number of rows in VoucherDealer_Table, and
-        /// SaveDealers writes one only where a name or a date was given - so
-        /// nought means nothing has been entered, not something half entered.
+        /// Never both. "No dealer" and a dealer's name are the two ends of one
+        /// question and asking them together can only return nothing, so the two
+        /// handlers clear one another rather than leaving the screen empty with
+        /// two pills lit and no way to tell which emptied it.
         /// </summary>
-        private DataTable FilterByNoDealer(DataTable source)
+        private DataTable FilterByDealer(DataTable source)
         {
-            if (source == null || !NoDealerFilter) return source;
+            if (source == null) return null;
+
+            string wanted = DealerFilter;
+            if (!NoDealerFilter && wanted.Length == 0) return source;
 
             DataTable slice = source.Clone();
             foreach (DataRow r in source.Rows)
-                if (Convert.ToInt32(r["DealerCount"]) == 0) slice.ImportRow(r);
+            {
+                // DealerCount is the number of rows in VoucherDealer_Table, and
+                // SaveDealers writes one only where a name or a date was given -
+                // so nought means nothing has been entered, not something half
+                // entered.
+                bool keep = NoDealerFilter
+                    ? Convert.ToInt32(r["DealerCount"]) == 0
+                    : HasDealer(r, wanted);
+
+                if (keep) slice.ImportRow(r);
+            }
 
             return slice;
+        }
+
+        /// <summary>Whether one of this voucher's dealers is the one named.</summary>
+        private static bool HasDealer(DataRow row, string wanted)
+        {
+            foreach (string name in Split(row["DealerNames"]))
+                if (string.Equals(name.Trim(), wanted, StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+            return false;
+        }
+
+        /// <summary>
+        /// Every dealer name on these rows, once each, in alphabetical order.
+        ///
+        /// Read off the rows rather than asked of the database: the names are
+        /// already there, decrypted, on the fetch the screen has just made, and
+        /// a second query could only disagree with it. It also scopes itself for
+        /// free - the pills name the dealers of this provider, this product and
+        /// this student, because those are the rows it is handed.
+        /// </summary>
+        private static List<string> DealerNames(DataTable source)
+        {
+            var seen = new List<string>();
+            var known = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+            if (source != null)
+                foreach (DataRow r in source.Rows)
+                    foreach (string raw in Split(r["DealerNames"]))
+                    {
+                        string name = raw.Trim();
+                        if (name.Length == 0 || known.ContainsKey(name)) continue;
+
+                        known[name] = true;
+                        seen.Add(name);
+                    }
+
+            seen.Sort(StringComparer.CurrentCultureIgnoreCase);
+            return seen;
         }
 
         /// <summary>
@@ -2643,9 +2778,10 @@ namespace DSL_CMS
         /// them, not the page on screen: the whole point is to take away the two
         /// thousand that are missing a dealer rather than the ten on this page.
         ///
-        /// Identification and the dealer pairs, and nothing else. Remarks, the
-        /// status and the check dates are not the team's to set here and a column
-        /// that was read back would be a way to overwrite them by accident.
+        /// Identification, the dealer pairs, and the remark - the two columns
+        /// on this screen that are the team's to write. The status and the check
+        /// dates are not, and are left off: a column that was read back would be
+        /// a way to overwrite them by accident.
         /// </summary>
         protected void lnkExport_Click(object sender, EventArgs e)
         {
@@ -2679,6 +2815,18 @@ namespace DSL_CMS
                     sheet.Cell(1, col++).Value = SaleDateHeader(i);
                 }
 
+                int lastPair = col - 1;
+
+                // Last, after the pairs, so that adding a dealer column never
+                // moves it and the import can go on finding it by name either
+                // way. ShowRemarks is the same rule the grid column obeys.
+                int remarkColumn = 0;
+                if (ShowRemarks)
+                {
+                    remarkColumn = col;
+                    sheet.Cell(1, col++).Value = "Remarks";
+                }
+
                 int last = col - 1;
                 sheet.Range(1, 1, 1, last).Style.Font.Bold = true;
                 sheet.SheetView.FreezeRows(1);
@@ -2709,6 +2857,16 @@ namespace DSL_CMS
                         sheet.Cell(line, col++).Value = (p < names.Length) ? names[p] : string.Empty;
                         sheet.Cell(line, col++).Value = (p < dates.Length) ? DateText(dates[p]) : string.Empty;
                     }
+
+                    // The last one, which is what the grid cell shows. The rest
+                    // of the log stays behind the "i" - a spreadsheet column is
+                    // no more a place for a conversation than a grid cell is.
+                    if (remarkColumn > 0)
+                    {
+                        IXLCell said = sheet.Cell(line, remarkColumn);
+                        said.Style.NumberFormat.Format = "@";
+                        said.Value = Convert.ToString(r["LastRemark"]);
+                    }
                 }
 
                 // Every dealer column left as text. A sale date typed into a
@@ -2716,7 +2874,7 @@ namespace DSL_CMS
                 // it, and 08/12 is two different days on two desks; read back as
                 // text it goes through NormaliseDate, which is day first and is
                 // the same reader the paste box uses.
-                sheet.Range(2, firstPairColumn, rows.Rows.Count + 1, last)
+                sheet.Range(2, firstPairColumn, rows.Rows.Count + 1, lastPair)
                      .Style.NumberFormat.Format = "@";
                 sheet.Columns(1, last).AdjustToContents();
 
@@ -2794,6 +2952,13 @@ namespace DSL_CMS
         /// A code that is not on this screen is skipped and counted. The sheet
         /// came from here; a code that did not is either a typo or somebody
         /// else's provider, and neither is something to write on trust.
+        ///
+        /// The remark is the third rule, and it is the log's rather than this
+        /// screen's: a remark is added, never written over, so one that comes
+        /// back unchanged is not added again. Without that, importing the sheet
+        /// twice would leave two copies of every remark it carried out, and
+        /// importing it once would leave a copy of every remark somebody else
+        /// had written.
         /// </summary>
         protected void btnImportSave_Click(object sender, EventArgs e)
         {
@@ -2806,16 +2971,18 @@ namespace DSL_CMS
             }
 
             DataTable scope = FetchScopeForImport();
-            var byCode = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var byCode = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
             if (scope != null)
                 foreach (DataRow r in scope.Rows)
                 {
                     string code = Convert.ToString(r["VoucherCode"]).Trim();
                     if (code.Length > 0 && !byCode.ContainsKey(code))
-                        byCode[code] = Convert.ToString(r["Id"]);
+                        byCode[code] = new string[] {
+                            Convert.ToString(r["Id"]),
+                            Convert.ToString(r["LastRemark"]).Trim() };
                 }
 
-            int saved = 0, blank = 0, unknown = 0, undated = 0;
+            int saved = 0, blank = 0, unknown = 0, undated = 0, remarked = 0, lostRemarks = 0;
             var strangers = new List<string>();
 
             try
@@ -2839,6 +3006,13 @@ namespace DSL_CMS
                     }
 
                     int codeColumn = columns["voucher code"];
+
+                    // Absent from a sheet made before this column existed, and
+                    // absent for anybody who may not write remarks. Neither is
+                    // an error - it means the sheet has nothing to say about
+                    // them, which is not the same as having nothing to say.
+                    int remarkColumn = (ShowRemarks && columns.ContainsKey("remarks"))
+                        ? columns["remarks"] : 0;
                     List<int[]> pairs = PairColumns(columns);
                     if (pairs.Count == 0)
                     {
@@ -2873,7 +3047,10 @@ namespace DSL_CMS
                             data.Append(name).Append('|').Append(date);
                         }
 
-                        if (!anything) { blank++; continue; }
+                        string remark = (remarkColumn > 0)
+                            ? row.Cell(remarkColumn).GetString().Trim() : string.Empty;
+
+                        if (!anything && remark.Length == 0) { blank++; continue; }
 
                         if (!byCode.ContainsKey(code))
                         {
@@ -2882,9 +3059,34 @@ namespace DSL_CMS
                             continue;
                         }
 
+                        string[] known = byCode[code];
+                        bool fresh = remark.Length > 0
+                            && !string.Equals(remark, known[1], StringComparison.CurrentCultureIgnoreCase);
+
+                        if (!anything && !fresh) { blank++; continue; }
+
                         if (lostDate) undated++;
 
-                        VoucherBAL.SaveDealers(byCode[code], data.ToString(), userId);
+                        if (anything) VoucherBAL.SaveDealers(known[0], data.ToString(), userId);
+
+                        if (fresh)
+                        {
+                            try
+                            {
+                                VoucherBAL.AddRemark(known[0], remark, Role, userId);
+                                remarked++;
+                            }
+                            catch (Exception)
+                            {
+                                // Same reason SaveRemarkIfAny swallows this one:
+                                // the pipeline deploys the site and never the
+                                // database, so this code can meet a proc with no
+                                // AddRemark in it. That must cost the remark and
+                                // not the dealer rows already written above.
+                                lostRemarks++;
+                            }
+                        }
+
                         saved++;
                     }
                 }
@@ -2897,10 +3099,18 @@ namespace DSL_CMS
             }
 
             var said = new StringBuilder();
-            said.Append(saved).Append(saved == 1 ? " voucher updated." : " vouchers updated.");
+            said.Append(saved).Append(saved == 1 ? " voucher updated" : " vouchers updated");
+            if (remarked > 0)
+                said.Append(", ").Append(remarked)
+                    .Append(remarked == 1 ? " remark added" : " remarks added");
+            said.Append(".");
+            if (lostRemarks > 0)
+                said.Append(" ").Append(lostRemarks)
+                    .Append(lostRemarks == 1 ? " remark" : " remarks")
+                    .Append(" could not be saved - the dealer details were.");
             if (blank > 0)
                 said.Append(" ").Append(blank).Append(blank == 1 ? " row" : " rows")
-                    .Append(" left alone - no dealer filled in.");
+                    .Append(" left alone - nothing new filled in.");
             if (undated > 0)
                 said.Append(" ").Append(undated)
                     .Append(undated == 1 ? " row had a sale date" : " rows had sale dates")

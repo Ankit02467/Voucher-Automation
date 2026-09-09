@@ -1323,6 +1323,37 @@ td.rem-cell { white-space: nowrap; min-width: 210px; }
 }
 .vd-pill.vd-nodealer.on:hover { color: #4a3407; }
 
+/* The drag handle, in the S.No column of a product row - the one cell on that
+   row that has nothing else to say.
+
+   Muted at rest and darker under the pointer. Not the line grey it started as:
+   a control nobody can see is a control nobody uses, and there is nothing else
+   on the screen to say the rows can be moved. --tx-3 is the grey the row's own
+   quiet text uses, so it reads as part of the row rather than as content. */
+.vs-grip {
+    color: var(--tx-3); cursor: grab; text-align: center;
+    vertical-align: middle; user-select: none;
+}
+.vs-subrow:hover .vs-grip { color: var(--tx-2); }
+.vs-subrow.vs-drag { cursor: default; }
+.vs-subrow.dragging { opacity: .45; background: var(--panel-2); }
+.vs-subrow.dragging .vs-grip { cursor: grabbing; }
+
+/* The button a dragged order posts through. Nothing to see - the gesture is
+   the control. */
+.vs-hidden { display: none !important; }
+
+/* A named dealer. The same amber as the pill beside it, because it is the
+   same question - but solid, where "No dealer" is dashed: one asks for an
+   absence and the other for a name, and the dashes are what says so. */
+.vd-pill.vd-dealer { border-color: var(--gold-2); color: var(--gold-2); }
+.vd-pill.vd-dealer:hover { background: #fffbf0; border-color: var(--gold-2); color: var(--gold-2); }
+.vd-pill.vd-dealer.on {
+    background: var(--gold); border-color: var(--gold); color: #4a3407;
+    box-shadow: 0 6px 16px rgba(224,166,58,.3);
+}
+.vd-pill.vd-dealer.on:hover { color: #4a3407; }
+
 /* The file box in the import dialog. */
 .filepick {
     display: block; width: 100%; margin-top: 12px; padding: 12px;

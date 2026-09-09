@@ -103,6 +103,21 @@ namespace DSL_CMS
 
         #region Sidebar menu
 
+        /// <summary>
+        /// Build the tree again, after a page has changed what it would say.
+        ///
+        /// BindNav runs in this master's Page_Load, and a content page's own
+        /// control events run after that - so anything that changes the menu
+        /// has to ask for this or spend a render contradicting the screen it
+        /// sits beside. Reordering a provider's products is the first such
+        /// thing; anything else that moves or renames what the tree lists has
+        /// the same duty.
+        /// </summary>
+        public void RefreshNav()
+        {
+            BindNav();
+        }
+
         private void BindNav()
         {
             string role = VoucherRole();

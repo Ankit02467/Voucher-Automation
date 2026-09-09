@@ -13,6 +13,10 @@ namespace DSL_CMS
     {
         protected Repeater rptStatus, rptWindows, rptSummary, rptPager, rptPerformance;
         protected PlaceHolder phEmpty, phPager, phPerfEmpty;
+        protected HiddenField hidOrder;
+        protected LinkButton lnkReorder;
+        protected Panel pnlDragMsg;
+        protected Literal litDragMsg;
         protected Panel pnlWindows, pnlFilters, pnlProviderGrid, pnlPerformance, pnlDenied;
         protected LinkButton lnkPrev, lnkNext, lnkEarlyExpiry;
         protected LinkButton kpiTotal, kpiUsed, kpiUnused, kpiExpiring, kpiInvalid, kpiNotSet;
@@ -215,6 +219,16 @@ namespace DSL_CMS
             get { return (bool)(ViewState["PerfSortDesc"] ?? false); }
             set { ViewState["PerfSortDesc"] = value; }
         }
+
+        /// <summary>
+        /// Who may drag a product into a different place.
+        ///
+        /// The same role as Manage Product, and for the same reason: the order
+        /// is stored on the product, so it is the catalogue's order and not one
+        /// reader's - dragging it moves it on the sidebar, on Manage Product and
+        /// in every product dropdown, for everybody.
+        /// </summary>
+        protected bool CanDragProducts { get { return CanManageProduct; } }
 
         /// <summary>Manage Product is an admin-only action.</summary>
         protected bool CanManageProduct
@@ -1288,6 +1302,9 @@ namespace DSL_CMS
             string[] ids = Convert.ToString(productIds).Split('|');
             string[] counts = Convert.ToString(productCounts).Split('|');
 
+            bool drag = CanDragProducts;
+            string provider = Convert.ToString(providerId);
+
             var sb = new StringBuilder();
             for (int i = 0; i < names.Length; i++)
             {
@@ -1297,7 +1314,21 @@ namespace DSL_CMS
                 string id = (i < ids.Length) ? ids[i].Trim() : string.Empty;
                 string count = (i < counts.Length) ? counts[i].Trim() : string.Empty;
 
-                sb.Append("<tr class=\"vs-subrow\"><td></td><td><span class=\"vs-prodname\">")
+                // The provider travels with the row as well as the product, so
+                // the script can refuse a drop into another provider's list
+                // without having to work out where one list ends.
+                if (drag && id.Length > 0)
+                    sb.Append("<tr class=\"vs-subrow vs-drag\" draggable=\"true\" data-pid=\"")
+                      .Append(Server.HtmlEncode(id)).Append("\" data-prov=\"")
+                      .Append(Server.HtmlEncode(provider)).Append("\"><td class=\"vs-grip\" title=\"Drag to reorder\">")
+                      .Append("<svg viewBox=\"0 0 24 24\" width=\"14\" height=\"14\" fill=\"currentColor\">")
+                      .Append("<circle cx=\"9\" cy=\"6\" r=\"1.6\"/><circle cx=\"15\" cy=\"6\" r=\"1.6\"/>")
+                      .Append("<circle cx=\"9\" cy=\"12\" r=\"1.6\"/><circle cx=\"15\" cy=\"12\" r=\"1.6\"/>")
+                      .Append("<circle cx=\"9\" cy=\"18\" r=\"1.6\"/><circle cx=\"15\" cy=\"18\" r=\"1.6\"/></svg></td>");
+                else
+                    sb.Append("<tr class=\"vs-subrow\"><td></td>");
+
+                sb.Append("<td><span class=\"vs-prodname\">")
                   .Append("<span class=\"dot\"></span>").Append(Server.HtmlEncode(name))
                   .Append("</span></td><td class=\"c\"><span class=\"vs-subcount vs-num\">")
                   .Append(Server.HtmlEncode(count))
@@ -1338,6 +1369,58 @@ namespace DSL_CMS
                 sb.Append("&days=").Append(Server.UrlEncode(SelectedDays));
 
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// A dragged list, saved. "providerId|id:place~id:place~..." - the
+        /// places are counted in the browser from the order the rows ended up
+        /// in, and the ids carry them, so nothing here depends on the string
+        /// arriving in order.
+        ///
+        /// The provider is sent with it and the proc scopes its update by it, so
+        /// a forged post naming another provider's products renumbers nothing.
+        /// The role is checked again here for the same reason: the rows are not
+        /// draggable for anybody else, and a draggable attribute is a hint to
+        /// the browser rather than a rule.
+        /// </summary>
+        protected void lnkReorder_Click(object sender, EventArgs e)
+        {
+            string raw = Convert.ToString(hidOrder.Value);
+            hidOrder.Value = string.Empty;
+
+            if (!CanDragProducts) return;
+
+            int bar = raw.IndexOf('|');
+            if (bar <= 0 || bar == raw.Length - 1) return;
+
+            string provider = raw.Substring(0, bar);
+            string order = raw.Substring(bar + 1);
+
+            try
+            {
+                VoucherBAL.ReorderProducts(provider, order);
+
+                // The menu reads the same column this just wrote, and the master
+                // built it before this handler ran. Without this the sidebar
+                // spends one render in the order the list was in before the
+                // drag, beside a table already showing the new one.
+                MasterPage menu = Master as MasterPage;
+                if (menu != null) menu.RefreshNav();
+            }
+            catch (Exception ex)
+            {
+                // The pipeline deploys the site and never the database, so this
+                // code can meet a proc with no Reorder branch and no @Order to
+                // hand it. Say so plainly rather than throwing an error page at
+                // somebody who only dragged a row: nothing else on this screen
+                // is harmed by the order not having been saved.
+                litDragMsg.Text = Server.HtmlEncode(
+                    "That order could not be saved (" + ex.Message
+                    + "). The database needs 12_ProductOrder running.");
+                pnlDragMsg.Visible = true;
+            }
+
+            BindGrid();
         }
 
         protected string ManageProductUrl(object providerId)

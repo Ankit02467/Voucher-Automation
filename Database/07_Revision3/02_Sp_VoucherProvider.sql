@@ -79,6 +79,9 @@ BEGIN
         ;WITH ProductRow AS
         (
             SELECT pr.Id, pr.ProviderId, pr.Name,
+                   /* NULL last, so a product nobody has placed keeps the
+                      alphabetical spot it had before the column existed */
+                   Place = ISNULL(pr.SortOrder, 2147483647),
                    Cnt = COUNT(v.Id)
             FROM dbo.VoucherProduct_Table pr
             LEFT JOIN dbo.VoucherStock_Table v
@@ -96,7 +99,7 @@ BEGIN
                   AND (@AssignInt IS NULL OR v.AssignedTo = @AssignInt)
                   AND (@MovedBit  IS NULL OR v.IsMoved    = @MovedBit)
             WHERE pr.Status = 'A'
-            GROUP BY pr.Id, pr.ProviderId, pr.Name
+            GROUP BY pr.Id, pr.ProviderId, pr.Name, pr.SortOrder
         ),
         Shown AS
         (
@@ -123,15 +126,18 @@ BEGIN
                                AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
                      THEN 1 ELSE 0 END),
             /* names, ids and counts share one ORDER BY, so index N of each
-               lines up with index N of the others */
+               lines up with index N of the others. All three carry the Place
+               tie-break too - the order a product was dragged into, then the
+               alphabetical for everything nobody has dragged. Change one of
+               these three and the names stop matching the ids under them. */
             ProductNames = ISNULL((
-                SELECT STRING_AGG(s.Name, '|') WITHIN GROUP (ORDER BY s.Name)
+                SELECT STRING_AGG(s.Name, '|') WITHIN GROUP (ORDER BY s.Place, s.Name)
                 FROM Shown s WHERE s.ProviderId = p.Id), ''),
             ProductIds = ISNULL((
-                SELECT STRING_AGG(CONVERT(VARCHAR(20), s.Id), '|') WITHIN GROUP (ORDER BY s.Name)
+                SELECT STRING_AGG(CONVERT(VARCHAR(20), s.Id), '|') WITHIN GROUP (ORDER BY s.Place, s.Name)
                 FROM Shown s WHERE s.ProviderId = p.Id), ''),
             ProductCounts = ISNULL((
-                SELECT STRING_AGG(CONVERT(VARCHAR(20), s.Cnt), '|') WITHIN GROUP (ORDER BY s.Name)
+                SELECT STRING_AGG(CONVERT(VARCHAR(20), s.Cnt), '|') WITHIN GROUP (ORDER BY s.Place, s.Name)
                 FROM Shown s WHERE s.ProviderId = p.Id), ''),
             /* the number beside the provider name must agree with what opens */
             ProductCount = (SELECT COUNT(*) FROM Shown s WHERE s.ProviderId = p.Id),

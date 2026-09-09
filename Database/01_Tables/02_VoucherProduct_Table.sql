@@ -13,6 +13,10 @@ BEGIN
         ProviderId   INT               NOT NULL,
         Name         NVARCHAR(150)     NOT NULL,
         ValidityDays INT               NULL,
+        /* Where this product sits in its provider's list. NULL means nobody has
+           said, and sorts after everything that has - so an untouched database
+           reads alphabetically exactly as it did before the column existed. */
+        SortOrder    INT               NULL,
         Status       CHAR(1)           NOT NULL CONSTRAINT DF_VoucherProduct_Status DEFAULT ('A'),
         AddedBy      INT               NULL,
         AddedDate    DATETIME          NOT NULL CONSTRAINT DF_VoucherProduct_AddedDate DEFAULT (GETDATE()),
