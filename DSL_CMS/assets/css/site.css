@@ -1343,9 +1343,9 @@ td.rem-cell { white-space: nowrap; min-width: 210px; }
    the control. */
 .vs-hidden { display: none !important; }
 
-/* A named dealer. The same amber as the pill beside it, because it is the
-   same question - but solid, where "No dealer" is dashed: one asks for an
-   absence and the other for a name, and the dashes are what says so. */
+/* "With dealer". The same amber as the pill beside it, because it is the same
+   question - but solid, where "No dealer" is dashed: one asks for an absence
+   and the other for a presence, and the dashes are what says so. */
 .vd-pill.vd-dealer { border-color: var(--gold-2); color: var(--gold-2); }
 .vd-pill.vd-dealer:hover { background: #fffbf0; border-color: var(--gold-2); color: var(--gold-2); }
 .vd-pill.vd-dealer.on {

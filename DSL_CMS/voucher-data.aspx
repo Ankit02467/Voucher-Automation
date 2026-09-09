@@ -141,19 +141,13 @@
             <span class="vd-plab">Dealer</span>
             <asp:LinkButton ID="lnkNoDealer" runat="server" CssClass="vd-pill vd-nodealer"
                 OnClick="lnkNoDealer_Click" CausesValidation="false" ToolTip="Only the vouchers with no dealer against them" />
-            <%-- The other end of the same question: not "who is missing one" but
-                 "which are this dealer's". Every name entered against a voucher
-                 on this screen, once each - read off the rows themselves, so the
-                 list is scoped by whatever the screen is scoped by. --%>
-            <asp:Repeater ID="rptDealerPills" runat="server" OnItemCommand="dealer_Command">
-                <ItemTemplate>
-                    <asp:LinkButton runat="server" CommandName="PickDealer"
-                        CommandArgument='<%# Eval("Name") %>'
-                        CssClass='<%# DealerPillClass(Eval("Name")) %>'
-                        Text='<%# Server.HtmlEncode(Convert.ToString(Eval("Name"))) %>'
-                        CausesValidation="false" />
-                </ItemTemplate>
-            </asp:Repeater>
+            <%-- The other end of the same question, and nothing more than that:
+                 the vouchers somebody HAS written a dealer against. One pill,
+                 not a name each - naming them answers "which are this dealer's",
+                 which is a different question from the one this row is for. --%>
+            <asp:LinkButton ID="lnkHasDealer" runat="server" CssClass="vd-pill vd-dealer"
+                OnClick="lnkHasDealer_Click" CausesValidation="false"
+                ToolTip="Only the vouchers that already have a dealer against them" />
         </asp:Panel>
 
         <%-- "Expiring soon" is a question about a span of days as much as a

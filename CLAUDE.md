@@ -210,7 +210,7 @@ Passwords are stored **Base64, not hashed** — matching the existing site.
 | Edit (row action) | ✓ | ✓ | ✓ | |
 | Edit status in the cell | | | | ✓ |
 | Dealer name / sale date columns | ✓ | | ✓ | |
-| Dealer filters ("No dealer", and by name) | ✓ | | ✓ | |
+| Dealer filters ("No dealer" / "With dealer") | ✓ | | ✓ | |
 | Export / Import dealers | | | ✓ | |
 | Reorder a provider's products | ✓ | | | |
 | Added By / Checked By columns | ✓ | ✓ | ✓ | |
@@ -391,28 +391,24 @@ sold it, and "Unused with no dealer" is an ordinary thing to want. Among the
 status pills it would have read as a seventh status. It is drawn dashed and
 amber rather than in the status blue for the same reason.
 
-**Beside it, every dealer by name** — the other end of that same question, and
-the same amber, but solid where "No dealer" is dashed: one asks for an absence
-and the other for a name. The two clear one another, because asking both can
-only return nothing and two lit pills over an empty grid say nothing about which
-emptied it.
+**Beside it, "With dealer"** — its exact opposite, and the other half of that
+one question. The same amber, but solid where "No dealer" is dashed: one asks
+for an absence and the other for a presence. The two clear one another, because
+asking both can only return nothing and two lit pills over an empty grid say
+nothing about which emptied it.
 
-The names are read off the rows, not asked of the database. `DealerNames` comes
-back from the grid select already decrypted and pipe separated, so
-`DealerNames(DataTable)` is the whole of it — no proc change, no second query
-that could disagree with the fetch beside it, and the list scopes itself: the
-pills name the dealers of this provider, this product, this student, because
-those are the rows it is handed.
+`DealerCount` is the whole predicate, read both ways round in the one place
+(`FilterByDealer`), so the two halves cannot drift apart: **nought and above
+nought partition the screen exactly**, and one dealer row is enough to count as
+filled in. `SaveDealers` writes a row only where a name or a date was given, so
+nought means nothing has been entered rather than something half entered.
 
-Matched **whole, not as a substring**. The proc's own `@DealerName` is a `LIKE`
-and is still unused by this screen; filtering through it would gather "Rakesh"
-and "Rakesh Traders" under one pill and count them as one dealer.
-
-`BindGrid` fetches twice over — `FetchAll()` for the pill row and
-`FilterByDealer` for everything else — because a filter that narrowed its own
-options could be turned on and never off by any route but the pill it came from.
-A dealer picked and then filtered out of existence is named anyway, so there is
-always something to press again.
+**A pill per dealer name was tried and taken back out.** It answered "which are
+this dealer's", which is a different and much longer question than the one this
+row is for — the row is for working out what is still waiting to be filled in
+and what is already done. It also cost `BindGrid` a second fetch, because a
+filter whose options are the values it filters by narrows its own list. Both are
+gone; there is one fetch again.
 
 It narrows `FetchScope`, the fetch, and **not the grid afterwards**, so the
 cards, the pills and the list go on counting the same rows — the promise

@@ -38,8 +38,8 @@ namespace DSL_CMS
                           txtAdminAddedBy, txtAdminCandidate, txtAdminExamDate, txtRemark;
         protected HiddenField hfId, hfReassignId;
         protected LinkButton lnkUpload, lnkAssign, lnkDone, lnkAddDealer, lnkPrev, lnkNext,
-                             lnkRemarksClose, lnkExport, lnkImport, lnkImportClose, lnkNoDealer;
-        protected Repeater rptDealerPills;
+                             lnkRemarksClose, lnkExport, lnkImport, lnkImportClose,
+                             lnkNoDealer, lnkHasDealer;
         protected Repeater rptHead, rptVoucher, rptPager, rptUploadProduct, rptHistory,
                            rptAssignVouchers, rptStudents, rptDealerEdit, rptAdminDealers,
                            rptStatusPills, rptCards, rptWindows,
@@ -291,19 +291,19 @@ namespace DSL_CMS
         }
 
         /// <summary>
-        /// One dealer's name, or empty for all of them.
+        /// "With dealer": the vouchers somebody HAS written a dealer against -
+        /// the exact opposite of the pill beside it, and the other half of the
+        /// one question that row asks.
         ///
-        /// Held as the name rather than an id because that is what the row
-        /// carries: DealerNames arrives from the grid select already decrypted
-        /// and pipe separated, and VoucherDealer_Table has no dealer table
-        /// behind it to hold ids of. Matched whole, not as a substring - the
-        /// proc's own @DealerName is a LIKE, which would gather "Rakesh" and
-        /// "Rakesh Traders" under one pill and count them as one dealer.
+        /// Not a dealer's name. Naming them was tried and is a different
+        /// question: "which are this dealer's" belongs to whoever is chasing one
+        /// dealer, while this row is for working out what is still waiting to be
+        /// filled in and what is already done.
         /// </summary>
-        private string DealerFilter
+        private bool HasDealerFilter
         {
-            get { return Convert.ToString(ViewState["Dealer"] ?? string.Empty); }
-            set { ViewState["Dealer"] = value; }
+            get { return (bool)(ViewState["HasDealer"] ?? false); }
+            set { ViewState["HasDealer"] = value; }
         }
 
         /// <summary>Sub-admin toggle: true shows the entries students have moved on.</summary>
@@ -745,7 +745,7 @@ namespace DSL_CMS
         /// seventh status, and the two do not exclude one another - "Unused with
         /// no dealer" is a perfectly ordinary thing to want.
         /// </summary>
-        private void BindDealerFilter(DataTable everything)
+        private void BindDealerFilter()
         {
             pnlDealerFilter.Visible = ShowDealerFilter;
             if (!pnlDealerFilter.Visible) return;
@@ -753,34 +753,8 @@ namespace DSL_CMS
             lnkNoDealer.CssClass = NoDealerFilter ? "vd-pill vd-nodealer on" : "vd-pill vd-nodealer";
             lnkNoDealer.Text = "No dealer";
 
-            var t = new DataTable();
-            t.Columns.Add("Name", typeof(string));
-            foreach (string name in DealerNames(everything)) t.Rows.Add(name);
-
-            // A dealer picked and then filtered out of existence - the last of
-            // their vouchers reassigned, say - would otherwise leave the screen
-            // empty with no lit pill to explain it. Name it anyway, so there is
-            // something to press again.
-            if (DealerFilter.Length > 0 && !HasName(t, DealerFilter)) t.Rows.Add(DealerFilter);
-
-            rptDealerPills.DataSource = t;
-            rptDealerPills.DataBind();
-        }
-
-        private static bool HasName(DataTable t, string name)
-        {
-            foreach (DataRow r in t.Rows)
-                if (string.Equals(Convert.ToString(r["Name"]), name, StringComparison.OrdinalIgnoreCase))
-                    return true;
-
-            return false;
-        }
-
-        protected string DealerPillClass(object name)
-        {
-            bool on = string.Equals(Convert.ToString(name), DealerFilter,
-                                    StringComparison.OrdinalIgnoreCase);
-            return on ? "vd-pill vd-dealer on" : "vd-pill vd-dealer";
+            lnkHasDealer.CssClass = HasDealerFilter ? "vd-pill vd-dealer on" : "vd-pill vd-dealer";
+            lnkHasDealer.Text = "With dealer";
         }
 
         protected void lnkNoDealer_Click(object sender, EventArgs e)
@@ -789,25 +763,23 @@ namespace DSL_CMS
             if (!ShowDealerFilter) return;
 
             NoDealerFilter = !NoDealerFilter;
-            if (NoDealerFilter) DealerFilter = string.Empty;
+            if (NoDealerFilter) HasDealerFilter = false;
             PageIndex = 0;
             BindGrid();
         }
 
         /// <summary>
-        /// One dealer's vouchers. Pressing the lit one clears it, the way the
-        /// status pills work - there is no "All dealers" pill because the row
-        /// showing everything is the row with nothing pressed.
+        /// The vouchers that already have a dealer against them. Pressing the
+        /// lit one clears it, the way the status pills work - there is no "All"
+        /// pill because the row showing everything is the row with nothing
+        /// pressed.
         /// </summary>
-        protected void dealer_Command(object source, RepeaterCommandEventArgs e)
+        protected void lnkHasDealer_Click(object sender, EventArgs e)
         {
-            if (!ShowDealerFilter || e.CommandName != "PickDealer") return;
+            if (!ShowDealerFilter) return;
 
-            string name = Convert.ToString(e.CommandArgument);
-            DealerFilter = string.Equals(name, DealerFilter, StringComparison.OrdinalIgnoreCase)
-                ? string.Empty : name;
-
-            if (DealerFilter.Length > 0) NoDealerFilter = false;
+            HasDealerFilter = !HasDealerFilter;
+            if (HasDealerFilter) NoDealerFilter = false;
             PageIndex = 0;
             BindGrid();
         }
@@ -935,18 +907,12 @@ namespace DSL_CMS
             // applied below, in memory, so a card and the button beside it are
             // always counting the same rows. The grid already reads the whole
             // table to page it, so this is not an extra pass over anything.
-            // Two steps rather than FetchScope(), because the pill row has to
-            // list every dealer this screen holds and not merely the one that
-            // is picked - a filter that narrows its own options can only ever
-            // be turned on once, and never off by any route but the pill it
-            // came from.
-            DataTable everything = FetchAll();
-            DataTable all = FilterByDealer(everything);
+            DataTable all = FetchScope();
 
             BindCards(all);
             BindStatusFilter();
             BindWindows();
-            BindDealerFilter(everything);
+            BindDealerFilter();
             ApplyHeading(all);
 
             pnlSearchChip.Visible = (SearchCode.Length > 0);
@@ -1007,16 +973,6 @@ namespace DSL_CMS
         /// </summary>
         private DataTable FetchScope()
         {
-            return FilterByDealer(FetchAll());
-        }
-
-        /// <summary>
-        /// The same fetch with no dealer filtering at all - what the pill row is
-        /// built from, and the only thing that can name a dealer the screen is
-        /// not currently showing.
-        /// </summary>
-        private DataTable FetchAll()
-        {
             DataTable all = VoucherBAL.GetVoucherDetail(
                 ProviderId,
                 LockedProductId,
@@ -1031,7 +987,7 @@ namespace DSL_CMS
                 string.Empty,   // expiry date        - filter bar removed
                 "Select");
 
-            return all;
+            return FilterByDealer(all);
         }
 
         /// <summary>The rows the grid is showing, unsorted and unpaged.</summary>
@@ -1041,75 +997,33 @@ namespace DSL_CMS
         }
 
         /// <summary>
-        /// The dealer row applied: either the vouchers nobody is against, or the
-        /// ones a named dealer is against.
+        /// The dealer row applied: either the vouchers nobody has written a
+        /// dealer against, or the ones somebody has.
         ///
-        /// Never both. "No dealer" and a dealer's name are the two ends of one
-        /// question and asking them together can only return nothing, so the two
-        /// handlers clear one another rather than leaving the screen empty with
-        /// two pills lit and no way to tell which emptied it.
+        /// Never both. They are the two ends of one question and asking them
+        /// together can only return nothing, so the two handlers clear one
+        /// another rather than leaving the screen empty with two pills lit and
+        /// no way to tell which emptied it.
+        ///
+        /// DealerCount is the number of rows in VoucherDealer_Table, and
+        /// SaveDealers writes one only where a name or a date was given - so
+        /// nought means nothing has been entered, not something half entered,
+        /// and one is enough to count as filled in. That is the whole predicate
+        /// either way round.
         /// </summary>
         private DataTable FilterByDealer(DataTable source)
         {
             if (source == null) return null;
-
-            string wanted = DealerFilter;
-            if (!NoDealerFilter && wanted.Length == 0) return source;
+            if (!NoDealerFilter && !HasDealerFilter) return source;
 
             DataTable slice = source.Clone();
             foreach (DataRow r in source.Rows)
             {
-                // DealerCount is the number of rows in VoucherDealer_Table, and
-                // SaveDealers writes one only where a name or a date was given -
-                // so nought means nothing has been entered, not something half
-                // entered.
-                bool keep = NoDealerFilter
-                    ? Convert.ToInt32(r["DealerCount"]) == 0
-                    : HasDealer(r, wanted);
-
-                if (keep) slice.ImportRow(r);
+                bool any = Convert.ToInt32(r["DealerCount"]) > 0;
+                if (NoDealerFilter ? !any : any) slice.ImportRow(r);
             }
 
             return slice;
-        }
-
-        /// <summary>Whether one of this voucher's dealers is the one named.</summary>
-        private static bool HasDealer(DataRow row, string wanted)
-        {
-            foreach (string name in Split(row["DealerNames"]))
-                if (string.Equals(name.Trim(), wanted, StringComparison.OrdinalIgnoreCase))
-                    return true;
-
-            return false;
-        }
-
-        /// <summary>
-        /// Every dealer name on these rows, once each, in alphabetical order.
-        ///
-        /// Read off the rows rather than asked of the database: the names are
-        /// already there, decrypted, on the fetch the screen has just made, and
-        /// a second query could only disagree with it. It also scopes itself for
-        /// free - the pills name the dealers of this provider, this product and
-        /// this student, because those are the rows it is handed.
-        /// </summary>
-        private static List<string> DealerNames(DataTable source)
-        {
-            var seen = new List<string>();
-            var known = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-
-            if (source != null)
-                foreach (DataRow r in source.Rows)
-                    foreach (string raw in Split(r["DealerNames"]))
-                    {
-                        string name = raw.Trim();
-                        if (name.Length == 0 || known.ContainsKey(name)) continue;
-
-                        known[name] = true;
-                        seen.Add(name);
-                    }
-
-            seen.Sort(StringComparer.CurrentCultureIgnoreCase);
-            return seen;
         }
 
         /// <summary>
