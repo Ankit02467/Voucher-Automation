@@ -200,11 +200,31 @@ status column with a date still ahead of it stays in Open instead of falling
 out of every button there is. Mind the `ISNULL`: `Status NOT IN ('Used',
 'Invalid')` is UNKNOWN when the status is NULL, which is most of the table.
 
-**The pill is called Open, and the card "Open vouchers".** A pill reading "All"
-over 37 of 50 is the kind of thing somebody reports as a bug a year later. The
-total has not gone — it moved into that card's subtitle, "of 50 in stock",
-which is the subtraction the team was doing by hand. `TrendText` and its "vs
-last month" went with it; one card carries one subtitle.
+**The pill is called Open.** A pill reading "All" over 37 of 50 is the kind of
+thing somebody reports as a bug a year later. The working figure lives there,
+in the column beside every provider, and in the drill-down into View Data.
+
+**The first card counts everything, and is the one card that is not a way in.**
+It reads `Total vouchers`, every status, expired included — the stock figure,
+which is worth keeping on the page. It cannot be clickable: on this screen a
+status is **always** in force, since every pill sets one and there is no
+"no status" state for a card meaning "all of them" to select. So it is a plain
+`<div class="vs-kpi k-total is-flat">` rather than a `LinkButton` — nothing to
+click for a pointer, a keyboard or a screen reader, and no postback target for a
+forged one to aim at — with no arrow and no hover lift. A card that looks
+clickable and is not is worse than one that never offered, which is the note
+already written over these cards.
+
+**Its twin on View Data stays clickable**, and means something different there:
+that screen *does* have a no-status state — it is what the screen opens on — so
+the card clears the status rather than setting one, and is the way back to the
+whole list once a pill has been pressed. Same label, same figure, different job,
+because the two screens differ in whether "no filter" is reachable.
+
+**The Not set card says `excludes expired`.** It quietly stopped counting
+thirteen vouchers and owes the reader that sentence. Kept to two words because
+the card is 152px wide and a grid row is as tall as its tallest card — one
+subtitle that wraps stretches all seven.
 
 **Open is a button on View Data, never that screen's default.** Making it the
 default broke two older promises: the topbar code search must find a voucher

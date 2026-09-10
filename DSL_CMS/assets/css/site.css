@@ -387,6 +387,17 @@ button.navitem.wide { padding-right: 66px; }
     transform: translateY(-2px); border-color: var(--line-2);
     border-left-color: var(--cc, var(--brand));
 }
+/* The one card that is not a way in. It reads the same as the others because
+   it is the same kind of figure, but it must not behave like them: no lift, no
+   arrow, no pointer. Left in the row rather than set apart because the stock
+   figure belongs beside the numbers it is the total of. */
+.vs-kpi.is-flat { cursor: default; }
+.vs-kpi.is-flat:hover {
+    box-shadow: var(--shadow); transform: none;
+    border-color: var(--line); border-left-color: var(--cc, var(--brand));
+}
+/* Nothing runs under an arrow that is not there. */
+.vs-kpi.is-flat .sub { padding-right: 0; }
 .vs-kpi .top { display: flex; align-items: center; justify-content: space-between; }
 .vs-kpi .lab { font-size: 10.5px; color: var(--tx-2); font-weight: 700; }
 .vs-kpi .ic {

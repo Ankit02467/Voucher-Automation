@@ -197,15 +197,19 @@ namespace DSL_CMS
 
         /// <summary>
         /// The cards. Same values as the buttons, so pressing a card presses its
-        /// button - "Open vouchers" is the Open pill under another name.
+        /// button - except the first, which counts every voucher in scope and
+        /// clears the status rather than setting one. That is the way back to
+        /// the whole list once a pill has been pressed, and it is why this
+        /// screen keeps it clickable where the dashboard's twin is not: here
+        /// there IS a no-status state, and it is what the screen opens on.
         ///
-        /// Expired has one now. Not Set, Unused and Open all stopped counting
-        /// the lapsed ones, so without a card of their own those vouchers would
+        /// Expired has a card now. Not Set, Unused and Open all stopped counting
+        /// the lapsed ones, so without one of their own those vouchers would
         /// have left every figure on the screen at once.
         /// </summary>
         private static readonly ListItem[] StatusCards =
         {
-            new ListItem("Open vouchers",  StatusOpen),
+            new ListItem("Total vouchers", string.Empty),
             new ListItem("Used",           "Used"),
             new ListItem("Unused",         "Unused"),
             new ListItem("Not set",        "NotSet"),

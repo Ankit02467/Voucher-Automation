@@ -19,7 +19,9 @@ namespace DSL_CMS
         protected Literal litDragMsg;
         protected Panel pnlWindows, pnlFilters, pnlProviderGrid, pnlPerformance, pnlDenied;
         protected LinkButton lnkPrev, lnkNext, lnkEarlyExpiry;
-        protected LinkButton kpiTotal, kpiUsed, kpiUnused, kpiExpiring, kpiInvalid, kpiNotSet,
+        // kpiTotal is not among these any more - it is a plain div now, because
+        // there is no status for it to pick.
+        protected LinkButton kpiUsed, kpiUnused, kpiExpiring, kpiInvalid, kpiNotSet,
                              kpiExpired;
         protected LinkButton lnkSortName, lnkSortCount;
         protected LinkButton lnkPerfName, lnkPerfAll, lnkPerfChecked, lnkPerfPending,
@@ -363,11 +365,14 @@ namespace DSL_CMS
             DataRow r = dt.Rows[0];
 
             int total = Num(r, "TotalVoucher");
-            int open = Num(r, "Open");
             int used = Num(r, "Used");
             int unused = Num(r, "Unused");
+            int before = Num(r, "BeforeThisMonth");
 
-            litKpiTotal.Text = open.ToString();
+            // The stock, every status, expired included. The open figure has not
+            // gone anywhere - it is the Open pill and the column beside every
+            // provider, which is where a figure you can act on belongs.
+            litKpiTotal.Text = total.ToString();
             litKpiUsed.Text = used.ToString();
             litKpiUnused.Text = unused.ToString();
             litKpiExpiring.Text = Num(r, "ExpiringSoon").ToString();
@@ -375,16 +380,10 @@ namespace DSL_CMS
             litKpiNotSet.Text = Num(r, "NotSet").ToString();
             litKpiExpired.Text = Num(r, "Expired").ToString();
 
-            // Still out of the whole stock, not out of what is open. A used
-            // voucher is not open by definition, so "redeemed" measured against
-            // the open pile would climb as the pile shrank and read as progress.
             litKpiUsedPct.Text = Percent(used, total);
             litKpiUnusedPct.Text = Percent(unused, total);
 
-            // The card no longer shows every voucher, so it says how many there
-            // are - which is also the subtraction the team was doing in their
-            // heads: 37 open of 50 held.
-            litKpiTrend.Text = "of <span class=\"vs-num\">" + total + "</span> in stock";
+            litKpiTrend.Text = TrendText(total, before);
         }
 
         /// <summary>
@@ -408,6 +407,24 @@ namespace DSL_CMS
         {
             if (whole <= 0) return "0%";
             return Math.Round(part * 100.0 / whole, 1).ToString("0.#") + "%";
+        }
+
+        /// <summary>
+        /// How the stock has moved since the start of the month, under the total
+        /// that it describes. With nothing to compare against - a first month,
+        /// or a database seeded all at once - it says so in words rather than
+        /// inventing a percentage.
+        /// </summary>
+        private static string TrendText(int total, int before)
+        {
+            if (before <= 0) return "<span class=\"vs-num\">new this month</span>";
+
+            double pct = (total - before) * 100.0 / before;
+            string arrow = (pct >= 0) ? "&#9650;" : "&#9660;";
+            string css = (pct >= 0) ? "vs-up" : "vs-down";
+
+            return "<span class=\"" + css + "\">" + arrow + " "
+                 + Math.Abs(Math.Round(pct, 1)).ToString("0.#") + "%</span> vs last month";
         }
 
         /// <summary>

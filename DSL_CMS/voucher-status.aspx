@@ -23,20 +23,27 @@
          Each one is a LinkButton, not a div: every card lands on the rows it
          counted, so it has to be something you can click. --%>
     <div class="vs-kpis">
-        <%-- The working list. Not every voucher any more: used, written off
-             and out-of-date ones have nothing left to be done about them, and
-             counting them here meant the figure for "work waiting" was never
-             the work waiting. The subtitle carries the total instead. --%>
-        <asp:LinkButton ID="kpiTotal" runat="server" CssClass="vs-kpi k-total"
-            OnCommand="kpi_Command" CommandArgument="Open" CausesValidation="false">
+        <%-- Every voucher there is, whatever state it is in - the stock figure,
+             and the one card here that is not a way in.
+
+             It cannot be. Every other card presses the button of its own name,
+             and on this screen a status is ALWAYS in force: each pill sets one
+             and there is no "no status" state for a card meaning "all of them"
+             to select. So it does not lift, carries no arrow and takes no
+             pointer - a card that looks clickable and is not is worse than one
+             that never offered.
+
+             A div rather than a LinkButton, so there is nothing to click even
+             for a keyboard or a screen reader, and no postback target for a
+             forged one to aim at. --%>
+        <div class="vs-kpi k-total is-flat">
             <span class="top">
-                <span class="lab">Open vouchers</span>
+                <span class="lab">Total vouchers</span>
                 <span class="ic"><svg viewBox="0 0 24 24"><path d="M4 6h16v4a2 2 0 000 4v4H4v-4a2 2 0 000-4zM10 6v12" /></svg></span>
             </span>
             <span class="val vs-num"><asp:Literal ID="litKpiTotal" runat="server" Text="0" /></span>
             <span class="sub"><asp:Literal ID="litKpiTrend" runat="server" /></span>
-            <span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
-        </asp:LinkButton>
+        </div>
 
         <asp:LinkButton ID="kpiUsed" runat="server" CssClass="vs-kpi k-used"
             OnCommand="kpi_Command" CommandArgument="Used" CausesValidation="false">
@@ -94,7 +101,7 @@
                 <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg></span>
             </span>
             <span class="val vs-num"><asp:Literal ID="litKpiNotSet" runat="server" Text="0" /></span>
-            <span class="sub">not triaged yet</span>
+            <span class="sub">excludes expired</span>
             <span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
         </asp:LinkButton>
 
