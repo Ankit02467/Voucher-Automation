@@ -173,9 +173,20 @@ namespace DSL_CMS
         /// </summary>
         private const string StatusExpiringSoon = "ExpiringSoon";
 
+        /// <summary>
+        /// The working list, and what this screen opens on: everything except
+        /// used, invalid and out of date. It was "All", which counted the
+        /// vouchers there was nothing left to do about among the ones there was.
+        ///
+        /// The same token voucher-status.aspx.cs sends down in ?status=, and the
+        /// same rule both procs carry, because a card there promising 37 and a
+        /// grid here listing 50 is the one thing this screen must never do.
+        /// </summary>
+        private const string StatusOpen = "Open";
+
         private static readonly ListItem[] StatusFilterButtons =
         {
-            new ListItem("All",           string.Empty),
+            new ListItem("Open",          StatusOpen),
             new ListItem("Not Set",       "NotSet"),
             new ListItem("Used",          "Used"),
             new ListItem("Unused",        "Unused"),
@@ -186,15 +197,19 @@ namespace DSL_CMS
 
         /// <summary>
         /// The cards. Same values as the buttons, so pressing a card presses its
-        /// button - "Total vouchers" is All under another name. There is no
-        /// Expired card because the review asked for these six.
+        /// button - "Open vouchers" is the Open pill under another name.
+        ///
+        /// Expired has one now. Not Set, Unused and Open all stopped counting
+        /// the lapsed ones, so without a card of their own those vouchers would
+        /// have left every figure on the screen at once.
         /// </summary>
         private static readonly ListItem[] StatusCards =
         {
-            new ListItem("Total vouchers", string.Empty),
+            new ListItem("Open vouchers",  StatusOpen),
             new ListItem("Used",           "Used"),
             new ListItem("Unused",         "Unused"),
             new ListItem("Not set",        "NotSet"),
+            new ListItem("Expired",        "Expired"),
             new ListItem("Invalid",        "Invalid"),
             new ListItem("Expiring soon",  StatusExpiringSoon)
         };
@@ -534,6 +549,14 @@ namespace DSL_CMS
             ProviderId = Request.QueryString["providerId"] ?? string.Empty;
 
             // Status picked on the dashboard; "All" means no restriction.
+            //
+            // No status at all also means no restriction, and deliberately so.
+            // Open is a button on this screen, never its default: the sidebar
+            // counts a provider's whole stock and links here with no status, and
+            // the topbar code search arrives the same way and has to be able to
+            // find a voucher whatever state it is in. The dashboard always sends
+            // ?status= explicitly, so its drill-down still lands on the very
+            // figure that was pressed.
             string status = (Request.QueryString["status"] ?? string.Empty).Trim();
             if (status.Equals("All", StringComparison.OrdinalIgnoreCase)) status = string.Empty;
 
@@ -1106,8 +1129,22 @@ namespace DSL_CMS
             bool notSet = (st.Length == 0);
             bool isUnused = string.Equals(st, "Unused", StringComparison.OrdinalIgnoreCase);
 
+            // Once the date has gone there is nothing left to do about a
+            // voucher, so it drops out of every bucket that means "still to do"
+            // and turns up under Expired instead. Written as an exclusion, not
+            // as "unused or not set", so a row carrying the word Expired in the
+            // status column with a date still ahead of it stays in Open rather
+            // than falling out of every button on the screen.
+            if (string.Equals(status, StatusOpen, StringComparison.Ordinal))
+                return !HasLapsed(r)
+                    && !string.Equals(st, "Used", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(st, "Invalid", StringComparison.OrdinalIgnoreCase);
             if (string.Equals(status, "NotSet", StringComparison.Ordinal))
-                return notSet;
+                return notSet && !HasLapsed(r);
+            if (string.Equals(status, "Unused", StringComparison.OrdinalIgnoreCase))
+                return isUnused && !HasLapsed(r);
+            // Already a forward-looking window, so a lapsed voucher cannot be in
+            // it and there is nothing to take out.
             if (string.Equals(status, "UnusedOrNotSet", StringComparison.Ordinal))
                 return notSet || isUnused;
             if (string.Equals(status, StatusExpiringSoon, StringComparison.Ordinal))

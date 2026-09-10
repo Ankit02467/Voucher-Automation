@@ -23,10 +23,14 @@
          Each one is a LinkButton, not a div: every card lands on the rows it
          counted, so it has to be something you can click. --%>
     <div class="vs-kpis">
+        <%-- The working list. Not every voucher any more: used, written off
+             and out-of-date ones have nothing left to be done about them, and
+             counting them here meant the figure for "work waiting" was never
+             the work waiting. The subtitle carries the total instead. --%>
         <asp:LinkButton ID="kpiTotal" runat="server" CssClass="vs-kpi k-total"
-            OnCommand="kpi_Command" CommandArgument="All" CausesValidation="false">
+            OnCommand="kpi_Command" CommandArgument="Open" CausesValidation="false">
             <span class="top">
-                <span class="lab">Total vouchers</span>
+                <span class="lab">Open vouchers</span>
                 <span class="ic"><svg viewBox="0 0 24 24"><path d="M4 6h16v4a2 2 0 000 4v4H4v-4a2 2 0 000-4zM10 6v12" /></svg></span>
             </span>
             <span class="val vs-num"><asp:Literal ID="litKpiTotal" runat="server" Text="0" /></span>
@@ -91,6 +95,24 @@
             </span>
             <span class="val vs-num"><asp:Literal ID="litKpiNotSet" runat="server" Text="0" /></span>
             <span class="sub">not triaged yet</span>
+            <span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
+        </asp:LinkButton>
+
+        <%-- Past its date, whatever anybody typed against it - the same rule the
+             Expired pill has always asked. It had a pill and no card, so the
+             vouchers the other cards stopped counting had nowhere to be seen.
+             Last in the row, well away from "Expiring soon": one is a warning
+             about vouchers that can still be saved, this one is the ones that
+             cannot, and side by side in the same amber they would read as a
+             pair. --%>
+        <asp:LinkButton ID="kpiExpired" runat="server" CssClass="vs-kpi k-expired"
+            OnCommand="kpi_Command" CommandArgument="Expired" CausesValidation="false">
+            <span class="top">
+                <span class="lab">Expired</span>
+                <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3M5 5l14 14" /></svg></span>
+            </span>
+            <span class="val vs-num"><asp:Literal ID="litKpiExpired" runat="server" Text="0" /></span>
+            <span class="sub">date already gone</span>
             <span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
         </asp:LinkButton>
     </div>

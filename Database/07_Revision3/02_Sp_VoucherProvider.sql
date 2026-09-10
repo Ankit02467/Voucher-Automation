@@ -87,11 +87,16 @@ BEGIN
             LEFT JOIN dbo.VoucherStock_Table v
                    ON v.ProductId = pr.Id
                   AND (@Status IS NULL
-                       OR (@Status = 'NotSet'         AND v.Status IS NULL)
+                       OR (@Status = 'Open'           AND ISNULL(v.Status, '') NOT IN ('Used', 'Invalid')
+                                                      AND (v.ExpiryDate IS NULL OR v.ExpiryDate >= @Today))
+                       OR (@Status = 'NotSet'         AND v.Status IS NULL
+                                                      AND (v.ExpiryDate IS NULL OR v.ExpiryDate >= @Today))
+                       OR (@Status = 'Unused'         AND v.Status = 'Unused'
+                                                      AND (v.ExpiryDate IS NULL OR v.ExpiryDate >= @Today))
                        OR (@Status = 'UnusedOrNotSet' AND (v.Status IS NULL OR v.Status = 'Unused'))
                        OR (@Status = 'Expired'        AND v.ExpiryDate IS NOT NULL
                                                       AND v.ExpiryDate < @Today)
-                       OR (@Status NOT IN ('NotSet', 'UnusedOrNotSet', 'Expired')
+                       OR (@Status NOT IN ('Open', 'NotSet', 'Unused', 'UnusedOrNotSet', 'Expired')
                            AND v.Status = @Status))
                   AND (@WinEnd IS NULL
                        OR (v.ExpiryDate IS NOT NULL
@@ -115,11 +120,16 @@ BEGIN
             StatusCount = SUM(
                 CASE WHEN v.Id IS NOT NULL
                       AND (@Status IS NULL
-                           OR (@Status = 'NotSet'         AND v.Status IS NULL)
+                           OR (@Status = 'Open'           AND ISNULL(v.Status, '') NOT IN ('Used', 'Invalid')
+                                                          AND (v.ExpiryDate IS NULL OR v.ExpiryDate >= @Today))
+                           OR (@Status = 'NotSet'         AND v.Status IS NULL
+                                                          AND (v.ExpiryDate IS NULL OR v.ExpiryDate >= @Today))
+                           OR (@Status = 'Unused'         AND v.Status = 'Unused'
+                                                          AND (v.ExpiryDate IS NULL OR v.ExpiryDate >= @Today))
                            OR (@Status = 'UnusedOrNotSet' AND (v.Status IS NULL OR v.Status = 'Unused'))
                            OR (@Status = 'Expired'        AND v.ExpiryDate IS NOT NULL
                                                           AND v.ExpiryDate < @Today)
-                           OR (@Status NOT IN ('NotSet', 'UnusedOrNotSet', 'Expired')
+                           OR (@Status NOT IN ('Open', 'NotSet', 'Unused', 'UnusedOrNotSet', 'Expired')
                                AND v.Status = @Status))
                       AND (@WinEnd IS NULL
                            OR (v.ExpiryDate IS NOT NULL
@@ -156,6 +166,7 @@ BEGIN
                                        AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
                                  THEN 1 ELSE 0 END),
             UnusedCount = SUM(CASE WHEN v.Status = 'Unused'
+                                    AND (v.ExpiryDate IS NULL OR v.ExpiryDate >= @Today)
                                     AND (@WinEnd IS NULL OR (v.ExpiryDate IS NOT NULL
                                          AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
                                    THEN 1 ELSE 0 END),
@@ -173,7 +184,12 @@ BEGIN
                                      AND (@WinEnd IS NULL OR (v.ExpiryDate IS NOT NULL
                                           AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
                                     THEN 1 ELSE 0 END),
+            /* Unused and Not Set drop the lapsed ones, the same way the pills
+               of those names do - a segment has to hold what the pill beside it
+               holds. Used and Invalid keep theirs: those are outcomes somebody
+               recorded, and a used voucher that later runs out is still used. */
             NotSetCount = SUM(CASE WHEN v.Id IS NOT NULL AND v.Status IS NULL
+                                    AND (v.ExpiryDate IS NULL OR v.ExpiryDate >= @Today)
                                     AND (@WinEnd IS NULL OR (v.ExpiryDate IS NOT NULL
                                          AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
                                    THEN 1 ELSE 0 END)
@@ -201,13 +217,26 @@ BEGIN
             /* ISNULL on every SUM: with no rows at all a SUM returns NULL while
                COUNT(*) returns 0, so a database whose stock table is still empty
                hands the page DBNull cards and Convert.ToInt32 throws on them. */
+            /* The working list, and the card the screen opens on. Everything
+               except the three states there is nothing left to do about. It is
+               written as an exclusion so that a row carrying the word 'Expired'
+               in the status column with a date still ahead of it stays in it,
+               rather than falling out of every card on the page. */
+            [Open]   = ISNULL(SUM(CASE WHEN ISNULL(Status, '') NOT IN ('Used', 'Invalid')
+                                        AND (ExpiryDate IS NULL OR ExpiryDate >= @Today)
+                                       THEN 1 ELSE 0 END), 0),
             Used     = ISNULL(SUM(CASE WHEN Status = 'Used'    THEN 1 ELSE 0 END), 0),
-            Unused   = ISNULL(SUM(CASE WHEN Status = 'Unused'  THEN 1 ELSE 0 END), 0),
+            /* in date, like the pill of the same name */
+            Unused   = ISNULL(SUM(CASE WHEN Status = 'Unused'
+                                        AND (ExpiryDate IS NULL OR ExpiryDate >= @Today)
+                                       THEN 1 ELSE 0 END), 0),
             /* the date, not the status - see ExpiredCount above */
             Expired  = ISNULL(SUM(CASE WHEN ExpiryDate IS NOT NULL
                                         AND ExpiryDate < @Today THEN 1 ELSE 0 END), 0),
             Invalid  = ISNULL(SUM(CASE WHEN Status = 'Invalid' THEN 1 ELSE 0 END), 0),
-            NotSet   = ISNULL(SUM(CASE WHEN Status IS NULL     THEN 1 ELSE 0 END), 0),
+            NotSet   = ISNULL(SUM(CASE WHEN Status IS NULL
+                                        AND (ExpiryDate IS NULL OR ExpiryDate >= @Today)
+                                       THEN 1 ELSE 0 END), 0),
             /* The "expiring soon" card - a 30 day window from today, counting
                only what is still worth chasing: Unused, and untriaged uploads
                nobody has looked at yet. A voucher already used, expired or

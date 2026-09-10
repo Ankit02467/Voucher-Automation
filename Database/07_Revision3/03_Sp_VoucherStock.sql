@@ -247,12 +247,22 @@ BEGIN
              voucher whose date has passed is expired all the same. Kept in step
              with Sp_VoucherProvider_Table, so the count on the dashboard and the
              list this returns are answering one question. */
+          /* "Open" is the working list: everything except the three states
+             there is nothing left to do about - used, written off, or out of
+             date. Not Set and Unused drop the lapsed ones for the same reason,
+             so the thirteen that have run out stop being counted as fifty
+             vouchers waiting to be triaged. Expired is where they all go. */
           AND (@Status      IS NULL
-               OR (@Status = 'NotSet'         AND v.Status IS NULL)
+               OR (@Status = 'Open'           AND ISNULL(v.Status, '') NOT IN ('Used', 'Invalid')
+                                              AND (v.ExpiryDate IS NULL OR v.ExpiryDate >= @Today))
+               OR (@Status = 'NotSet'         AND v.Status IS NULL
+                                              AND (v.ExpiryDate IS NULL OR v.ExpiryDate >= @Today))
+               OR (@Status = 'Unused'         AND v.Status = 'Unused'
+                                              AND (v.ExpiryDate IS NULL OR v.ExpiryDate >= @Today))
                OR (@Status = 'UnusedOrNotSet' AND (v.Status IS NULL OR v.Status = 'Unused'))
                OR (@Status = 'Expired'        AND v.ExpiryDate IS NOT NULL
                                               AND v.ExpiryDate < @Today)
-               OR (@Status NOT IN ('NotSet', 'UnusedOrNotSet', 'Expired')
+               OR (@Status NOT IN ('Open', 'NotSet', 'Unused', 'UnusedOrNotSet', 'Expired')
                    AND v.Status = @Status))
           AND (@WinEnd      IS NULL
                OR (v.ExpiryDate IS NOT NULL AND v.ExpiryDate BETWEEN @Today AND @WinEnd))

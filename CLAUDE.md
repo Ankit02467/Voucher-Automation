@@ -166,6 +166,62 @@ a card and the list under it stop matching. "Expiring soon" is the same
 question the other way round: unused or untriaged, expiring **within** the
 chosen window.
 
+**And a lapsed voucher belongs to Expired and to nothing else.** The buckets
+that mean "still to do" stop at the expiry date:
+
+| | |
+|---|---|
+| **Open** | not `Used`, not `Invalid`, not past its date — what the **All** pill used to be |
+| **Not Set** | `Status IS NULL`, and not past its date |
+| **Unused** | `Status = 'Unused'`, and not past its date |
+| **Expired** | past its date, whatever anybody typed against it |
+
+`Used` and `Invalid` are deliberately untouched: those are outcomes somebody
+recorded rather than work waiting, and a used voucher that later runs out is
+still used.
+
+It was reported as three separate things — put Expired among the cards, make
+All read 37 rather than 50, stop Not Set counting the thirteen that had gone —
+and they are one rule. The team was reading "Not set 50" beside "Expired 13"
+and doing the subtraction in their heads every morning.
+
+**Nothing is hidden by it, and that is the property to keep.** Open, Used,
+Invalid and Expired between them are every voucher, so the thirteen that leave
+"Not set" arrive under "Expired" the same instant — which is why the **Expired
+card** was added in the same change. It had a pill and no card, so without one
+those vouchers would have left every figure on the page at once and landed
+nowhere. `13_OpenStatus/01_Open_Status.sql` asserts it in SQL and
+`Test-OpenStatus` asserts it through the screens; both must return nought
+stranded rows.
+
+Written as an **exclusion** ("not Used, not Invalid, not lapsed") rather than an
+inclusion ("Unused or Not Set"), so a row carrying the word `Expired` in the
+status column with a date still ahead of it stays in Open instead of falling
+out of every button there is. Mind the `ISNULL`: `Status NOT IN ('Used',
+'Invalid')` is UNKNOWN when the status is NULL, which is most of the table.
+
+**The pill is called Open, and the card "Open vouchers".** A pill reading "All"
+over 37 of 50 is the kind of thing somebody reports as a bug a year later. The
+total has not gone — it moved into that card's subtitle, "of 50 in stock",
+which is the subtraction the team was doing by hand. `TrendText` and its "vs
+last month" went with it; one card carries one subtitle.
+
+**Open is a button on View Data, never that screen's default.** Making it the
+default broke two older promises: the topbar code search must find a voucher
+whatever state it is in, and it would have filtered a used or lapsed one out
+from under the search that found it; and the sidebar counts a provider's whole
+stock and links straight there with no status, so opening on 37 under a tree
+saying 50 is this same mismatch one level along. The dashboard always sends
+`?status=` explicitly, so its drill-down still lands on the very figure that was
+pressed. `Test-OpenStatus` section 6 is that promise.
+
+The rule lives in three places for the reason above it — `SelectSummary` (twice:
+the product-list join and the figure under the status column), the grid's
+`WHERE` in `Sp_VoucherStock_Table`, and `MatchesRow` on `voucher-data.aspx.cs`,
+which filters in C# so its cards can see past whichever button is pressed. The
+distribution bar's `UnusedCount` and `NotSetCount` follow too: a segment has to
+hold what the pill of the same name holds.
+
 ---
 
 ## Running it

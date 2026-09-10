@@ -361,7 +361,7 @@ button.navitem.wide { padding-right: 66px; }
 /* Capped rather than 1fr: at full width six cards stretched across the page and
    each one was mostly empty space around a two-digit number. They now take the
    width their contents need and stop, sitting left rather than spreading. */
-.vs-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 152px));
+.vs-kpis { display: grid; grid-template-columns: repeat(7, minmax(0, 152px));
            justify-content: start; gap: 8px; }
 /* One pair per card - the border, the value and the arrow all take the same
    colour, so it is set once here rather than three times in the markup. */
@@ -371,6 +371,10 @@ button.navitem.wide { padding-right: 66px; }
 .k-expiring { --cc: var(--st-expired);  --cbg: var(--st-expired-bg); }
 .k-invalid  { --cc: var(--st-invalid);  --cbg: var(--st-invalid-bg); }
 .k-notset   { --cc: var(--st-notset);   --cbg: var(--st-notset-bg); }
+/* The Expired badge and the Expired pill are this amber everywhere else on the
+   site, so the card is too. "Expiring soon" wears the same one and sits five
+   cards away for that reason. */
+.k-expired  { --cc: var(--st-expired);  --cbg: var(--st-expired-bg); }
 .vs-kpi {
     display: block; background: var(--panel);
     border: 1px solid var(--line); border-left: 3px solid var(--cc, var(--brand));
