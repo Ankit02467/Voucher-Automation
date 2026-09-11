@@ -361,7 +361,7 @@ button.navitem.wide { padding-right: 66px; }
 /* Capped rather than 1fr: at full width six cards stretched across the page and
    each one was mostly empty space around a two-digit number. They now take the
    width their contents need and stop, sitting left rather than spreading. */
-.vs-kpis { display: grid; grid-template-columns: repeat(7, minmax(0, 152px));
+.vs-kpis { display: grid; grid-template-columns: repeat(8, minmax(0, 152px));
            justify-content: start; gap: 8px; }
 /* One pair per card - the border, the value and the arrow all take the same
    colour, so it is set once here rather than three times in the markup. */
@@ -375,6 +375,9 @@ button.navitem.wide { padding-right: 66px; }
    site, so the card is too. "Expiring soon" wears the same one and sits five
    cards away for that reason. */
 .k-expired  { --cc: var(--st-expired);  --cbg: var(--st-expired-bg); }
+/* The gold View Data's dealer pills wear, so the card reads as the same
+   question asked one screen up. */
+.k-nodealer { --cc: var(--gold-2);      --cbg: #fff6e0; }
 .vs-kpi {
     display: block; background: var(--panel);
     border: 1px solid var(--line); border-left: 3px solid var(--cc, var(--brand));

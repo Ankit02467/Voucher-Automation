@@ -22,14 +22,14 @@ namespace DSL_CMS
         // kpiTotal is not among these any more - it is a plain div now, because
         // there is no status for it to pick.
         protected LinkButton kpiUsed, kpiUnused, kpiExpiring, kpiInvalid, kpiNotSet,
-                             kpiExpired;
+                             kpiExpired, kpiNoDealer;
         protected LinkButton lnkSortName, lnkSortCount;
         protected LinkButton lnkPerfName, lnkPerfAll, lnkPerfChecked, lnkPerfPending,
                              lnkPerfWeekly, lnkPerfMonthly;
         protected Literal litCountHead, litPageInfo, litCategoryNote,
                           litKpiTotal, litKpiTrend, litKpiUsed, litKpiUsedPct,
                           litKpiUnused, litKpiUnusedPct, litKpiExpiring, litKpiInvalid,
-                          litKpiNotSet, litKpiExpired, litSortName, litSortCount,
+                          litKpiNotSet, litKpiExpired, litKpiNoDealer, litSortName, litSortCount,
                           litPerfName, litPerfAll, litPerfChecked, litPerfPending,
                           litPerfWeekly, litPerfMonthly;
 
@@ -50,6 +50,15 @@ namespace DSL_CMS
         /// the kind of thing somebody reports as a bug a year later.
         /// </summary>
         private const string StatusAll = "Open";
+
+        /// <summary>
+        /// Not a status at all - whether anybody has written a dealer against the
+        /// voucher - but it rides the same column, so the provider table and the
+        /// products under it count exactly what the card counted. The procs know
+        /// it; View Data does not need to, because ViewDataUrl hands it over as
+        /// that screen's own "No dealer" pill rather than as a status.
+        /// </summary>
+        private const string StatusNoDealer = "NoDealer";
 
         /// <summary>Sortable columns of the provider table.</summary>
         private const string SortByName = "Name";
@@ -254,6 +263,20 @@ namespace DSL_CMS
             get { return string.Equals(VoucherRole, "Voucher Admin", StringComparison.OrdinalIgnoreCase); }
         }
 
+        /// <summary>
+        /// The "No dealer" card: the admin and the voucher team, the two roles
+        /// View Data shows the dealer pills to (ShowDealerFilter there). The
+        /// admin to see what is still waiting on the team, the team to find it.
+        /// </summary>
+        protected bool ShowDealerCard
+        {
+            get
+            {
+                return string.Equals(VoucherRole, "Voucher Admin", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(VoucherRole, "Voucher Team", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
         /// <summary>A student gets their own performance figures instead of the provider summary.</summary>
         private bool IsStudent
         {
@@ -379,6 +402,14 @@ namespace DSL_CMS
             litKpiInvalid.Text = Num(r, "Invalid").ToString();
             litKpiNotSet.Text = Num(r, "NotSet").ToString();
             litKpiExpired.Text = Num(r, "Expired").ToString();
+
+            // The column is guarded rather than read blind: the pipeline deploys
+            // the site and never the database, so this code can meet a proc that
+            // does not return NoDealer yet. That must cost the card and nothing
+            // else - not the six figures beside it.
+            bool dealerFigure = dt.Columns.Contains("NoDealer");
+            kpiNoDealer.Visible = ShowDealerCard && dealerFigure;
+            litKpiNoDealer.Text = dealerFigure ? Num(r, "NoDealer").ToString() : "0";
 
             litKpiUsedPct.Text = Percent(used, total);
             litKpiUnusedPct.Text = Percent(unused, total);
@@ -718,6 +749,7 @@ namespace DSL_CMS
         {
             if (string.Equals(status, "NotSet", StringComparison.Ordinal)) return "Not Set";
             if (string.Equals(status, StatusExpiring, StringComparison.Ordinal)) return "Unused & Not Set";
+            if (string.Equals(status, StatusNoDealer, StringComparison.Ordinal)) return "No Dealer";
             return status;
         }
 
@@ -870,6 +902,9 @@ namespace DSL_CMS
         protected void kpi_Command(object sender, CommandEventArgs e)
         {
             string card = Convert.ToString(e.CommandArgument);
+
+            // re-checked: a hidden card is only hidden
+            if (string.Equals(card, StatusNoDealer, StringComparison.Ordinal) && !ShowDealerCard) return;
 
             if (string.Equals(card, "Expiring", StringComparison.OrdinalIgnoreCase))
             {
@@ -1380,9 +1415,25 @@ namespace DSL_CMS
 
         protected string ViewDataUrl(object providerId, string productId)
         {
+            // The student's table counts every voucher they hold, whatever its
+            // status - All, Checked, Pending - and has no status pills to narrow
+            // it. So its links must not narrow the grid either: sending the
+            // screen's default status would open on fewer rows than the figure
+            // beside the link, the Used and expired ones missing. "All" is what
+            // these links carried before Open existed, and View Data reads it as
+            // no restriction.
+            //
+            // "No dealer" is handed over as View Data's own pill, not as a
+            // status: that screen filters dealers separately, and a status it did
+            // not know would match nothing and open on an empty grid.
+            string status = SelectedStatus;
+            bool noDealer = string.Equals(status, StatusNoDealer, StringComparison.Ordinal);
+            if (IsStudent || noDealer) status = "All";
+
             var sb = new StringBuilder(ResolveUrl("~/voucher-data.aspx"));
             sb.Append("?providerId=").Append(Server.UrlEncode(Convert.ToString(providerId)));
-            sb.Append("&status=").Append(Server.UrlEncode(SelectedStatus));
+            sb.Append("&status=").Append(Server.UrlEncode(status));
+            if (noDealer) sb.Append("&dealer=none");
 
             if (!string.IsNullOrEmpty(productId))
                 sb.Append("&productId=").Append(Server.UrlEncode(productId));

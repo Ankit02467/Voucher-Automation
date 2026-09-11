@@ -864,7 +864,12 @@ BEGIN
         FROM dbo.VoucherRemark_Table r
         LEFT JOIN dbo.User_Table u ON u.Id = r.CreatedBy
         WHERE r.VoucherId = @IdInt
-        ORDER BY r.Id;
+        /* Newest first. The log is read to find out what is happening with a
+           voucher now, and the latest word is the one wanted; oldest-first put
+           it at the bottom of a list that grows. Id, not CreatedDate: two
+           remarks saved in the same second still come out in the order they
+           were written. */
+        ORDER BY r.Id DESC;
 
     /* ================= history ================= */
     ELSE IF @Action = 'SelectHistory'

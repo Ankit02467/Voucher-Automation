@@ -601,6 +601,15 @@ namespace DSL_CMS
             InitDealerColumns();
             ApplyRole();
 
+            // The dashboard's "No dealer" card arrives as this screen's own pill,
+            // lit, so the grid opens on exactly what that card counted. Read
+            // after the role, and only for the roles that have the pill: a
+            // sub-admin handed the parameter gets their screen unchanged rather
+            // than a filter they cannot see or turn off.
+            if (ShowDealerFilter
+                && string.Equals(Request.QueryString["dealer"], "none", StringComparison.OrdinalIgnoreCase))
+                NoDealerFilter = true;
+
             BindProducts();
             BindGrid();
         }

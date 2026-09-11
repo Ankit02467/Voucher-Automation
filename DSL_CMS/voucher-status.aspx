@@ -122,6 +122,22 @@
             <span class="sub">date already gone</span>
             <span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
         </asp:LinkButton>
+
+        <%-- The question View Data's "No dealer" pill asks, asked of the whole
+             stock: nobody has written a dealer against the voucher, whatever its
+             status. Admin and team only - ShowDealerCard, set in BindKpis and
+             checked again in kpi_Command. Pressing it turns the provider column
+             into the no-dealer figure, and View Data opens with the pill on. --%>
+        <asp:LinkButton ID="kpiNoDealer" runat="server" CssClass="vs-kpi k-nodealer" Visible="false"
+            OnCommand="kpi_Command" CommandArgument="NoDealer" CausesValidation="false">
+            <span class="top">
+                <span class="lab">No dealer</span>
+                <span class="ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5" /><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 8l5 5M21 8l-5 5" /></svg></span>
+            </span>
+            <span class="val vs-num"><asp:Literal ID="litKpiNoDealer" runat="server" Text="0" /></span>
+            <span class="sub">no dealer entered</span>
+            <span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
+        </asp:LinkButton>
     </div>
 
     <%-- ---------------- Filters ----------------

@@ -96,7 +96,11 @@ BEGIN
                        OR (@Status = 'UnusedOrNotSet' AND (v.Status IS NULL OR v.Status = 'Unused'))
                        OR (@Status = 'Expired'        AND v.ExpiryDate IS NOT NULL
                                                       AND v.ExpiryDate < @Today)
-                       OR (@Status NOT IN ('Open', 'NotSet', 'Unused', 'UnusedOrNotSet', 'Expired')
+                       /* nobody has written a dealer against it - the same
+                          question View Data's "No dealer" pill asks */
+                       OR (@Status = 'NoDealer'       AND NOT EXISTS (
+                               SELECT 1 FROM dbo.VoucherDealer_Table d WHERE d.VoucherId = v.Id))
+                       OR (@Status NOT IN ('Open', 'NotSet', 'Unused', 'UnusedOrNotSet', 'Expired', 'NoDealer')
                            AND v.Status = @Status))
                   AND (@WinEnd IS NULL
                        OR (v.ExpiryDate IS NOT NULL
@@ -129,7 +133,10 @@ BEGIN
                            OR (@Status = 'UnusedOrNotSet' AND (v.Status IS NULL OR v.Status = 'Unused'))
                            OR (@Status = 'Expired'        AND v.ExpiryDate IS NOT NULL
                                                           AND v.ExpiryDate < @Today)
-                           OR (@Status NOT IN ('Open', 'NotSet', 'Unused', 'UnusedOrNotSet', 'Expired')
+                           /* dd rather than NOT EXISTS: a subquery inside SUM is
+                              msg 130. See the join it comes from. */
+                           OR (@Status = 'NoDealer'       AND dd.VoucherId IS NULL)
+                           OR (@Status NOT IN ('Open', 'NotSet', 'Unused', 'UnusedOrNotSet', 'Expired', 'NoDealer')
                                AND v.Status = @Status))
                       AND (@WinEnd IS NULL
                            OR (v.ExpiryDate IS NOT NULL
@@ -202,6 +209,12 @@ BEGIN
                  the bar beside it describe the same vouchers View Data will list */
               AND (@AssignInt IS NULL OR v.AssignedTo = @AssignInt)
               AND (@MovedBit  IS NULL OR v.IsMoved    = @MovedBit)
+        /* The vouchers that DO have a dealer, once each. Read by StatusCount for
+           "No dealer" (dd.VoucherId IS NULL), because the rule cannot sit inside
+           SUM as a subquery. DISTINCT is not optional: a voucher with two
+           dealers would otherwise come through twice and every figure on the
+           row - TotalCount, UsedCount, the lot - would count it twice. */
+        LEFT JOIN (SELECT DISTINCT VoucherId FROM dbo.VoucherDealer_Table) dd ON dd.VoucherId = v.Id
         WHERE (@Category IS NULL OR p.Category = @Category)
         GROUP BY p.Id, p.Name, p.Category, p.Status
         ORDER BY p.Id;
@@ -237,6 +250,10 @@ BEGIN
             NotSet   = ISNULL(SUM(CASE WHEN Status IS NULL
                                         AND (ExpiryDate IS NULL OR ExpiryDate >= @Today)
                                        THEN 1 ELSE 0 END), 0),
+            /* Nobody has written a dealer against it, whatever its status - the
+               card behind View Data's "No dealer" pill. Reads dd, the join
+               below, because a subquery inside SUM is msg 130. */
+            NoDealer = ISNULL(SUM(CASE WHEN dd.VoucherId IS NULL THEN 1 ELSE 0 END), 0),
             /* The "expiring soon" card - a 30 day window from today, counting
                only what is still worth chasing: Unused, and untriaged uploads
                nobody has looked at yet. A voucher already used, expired or
@@ -257,6 +274,9 @@ BEGIN
                          WHERE pr.Status = 'A'
                            AND (@Category IS NULL OR cp.Category = @Category))
         FROM dbo.VoucherStock_Table s
+        /* once each - DISTINCT, or a voucher with two dealers doubles COUNT(*)
+           and every card beside it */
+        LEFT JOIN (SELECT DISTINCT VoucherId FROM dbo.VoucherDealer_Table) dd ON dd.VoucherId = s.Id
         /* scoped the same way as the grid below them - cards reading 128 above a
            table whose rows add up to less is the same mismatch, one level up */
         WHERE (@AssignInt IS NULL OR s.AssignedTo = @AssignInt)

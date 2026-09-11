@@ -224,7 +224,43 @@ because the two screens differ in whether "no filter" is reachable.
 **The Not set card says `excludes expired`.** It quietly stopped counting
 thirteen vouchers and owes the reader that sentence. Kept to two words because
 the card is 152px wide and a grid row is as tall as its tallest card — one
-subtitle that wraps stretches all seven.
+subtitle that wraps stretches every card in the row.
+
+**The "No dealer" card is View Data's pill asked one screen up** — nobody has
+written a dealer against the voucher, whatever its status — for the admin and the
+team only (`ShowDealerCard`, set in `BindKpis`, checked again in `kpi_Command`).
+`NoDealer` rides the status column in `SelectSummary`, so pressing it turns the
+provider figure and the products under it into the no-dealer count, exactly as
+every other card does.
+
+It is **not** a status View Data knows, and must never be sent there as one: an
+unknown status falls through to `v.Status = @Status` and opens on an empty grid.
+`ViewDataUrl` hands it over as `status=All&dealer=none`, and `voucher-data.aspx.cs`
+reads `dealer=none` into `NoDealerFilter` — after `ResolveRole`, and only where
+`ShowDealerFilter` holds, so a sub-admin handed the parameter gets their usual
+list rather than a filter they can neither see nor turn off.
+
+Two shapes for one rule in the proc, and the reason is SQL Server's: in the
+product list's `ON` clause it is a plain `NOT EXISTS`, but inside `SUM(CASE ...)`
+a subquery is **msg 130**, so the card and the column figure read `dd`, a
+`LEFT JOIN` to the vouchers that *do* have a dealer. That derived table is
+`SELECT DISTINCT VoucherId` and the `DISTINCT` is load-bearing — a voucher with two
+dealers otherwise comes through the join twice and doubles `COUNT(*)`, Used,
+Expired and every other figure on the row. `Test-NoDealerCard` gives one voucher
+two dealers on purpose and checks the other cards do not move.
+
+`BindKpis` reads the `NoDealer` column only if the result set has it, and hides
+the card if not. The pipeline deploys the site and never the database, so this
+code can meet a proc that does not return it yet; that must cost the card and not
+the seven figures beside it.
+
+**The student's links carry `status=All`, never the screen's default.** Their
+table counts every voucher they hold — All / Checked / Pending, no status pills
+to narrow it — so a link that sent `status=Open` opened on fewer rows than the
+figure beside it, the Used, Invalid and expired ones missing. `ViewDataUrl` sends
+`All` for them, which is what these links carried before Open existed and which
+View Data reads as no restriction. An adversarial review caught it; three
+independent reviewers found it separately.
 
 **Open is a button on View Data, never that screen's default.** Making it the
 default broke two older promises: the topbar code search must find a voucher
@@ -287,6 +323,7 @@ Passwords are stored **Base64, not hashed** — matching the existing site.
 | Edit status in the cell | | | | ✓ |
 | Dealer name / sale date columns | ✓ | | ✓ | |
 | Dealer filters ("No dealer" / "With dealer") | ✓ | | ✓ | |
+| "No dealer" card on Voucher Status | ✓ | | ✓ | |
 | Export / Import dealers | | | ✓ | |
 | Reorder a provider's products | ✓ | | | |
 | Added By / Checked By columns | ✓ | ✓ | ✓ | |
@@ -367,6 +404,16 @@ either side of it, and a column of icons marks exactly the rows worth opening.
 The column sorts on `LastRemark`, which is what the cell shows; blanks sort
 first the way an empty date or name does, so one click gathers the untouched
 rows and the second brings every remarked voucher to the top.
+
+**The log is newest first** — `SelectRemarks` orders by `r.Id DESC`. It is read to
+find out what is happening with a voucher now, and oldest-first put the latest
+word at the bottom of a list that grows. `Id` rather than `CreatedDate`, so two
+remarks saved in the same second still come out in the order they were written.
+Both places that show the log — the "i" popup and "Remarks so far" in the
+editor — bind the same `DataTable` in the order it arrives, and neither numbers
+its lines, so the one `ORDER BY` moves both and nothing else depends on it. The
+grid cell's `LastRemark` is its own `TOP 1 ... ORDER BY r.Id DESC` and was always
+the newest.
 
 **View History is a row action, not a screen action.** It opens one voucher's
 own history — assigned to a student, checked, reassigned, checked again —
