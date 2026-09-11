@@ -126,6 +126,27 @@ Back up the certificate. Restoring `DSL_New` somewhere else without it leaves
 every voucher code unreadable; the rows survive and `DECRYPTBYKEY` just
 returns NULL. The commands are at the bottom of the migration.
 
+### 10. Never set a property on a Voucher Status card from code
+
+Every card is a `LinkButton` whose content **opens with markup and holds a
+server control**: `<span class="top">...` first, then an `<asp:Literal>` for the
+figure. A `LinkButton` shaped like that **empties itself on the next postback**
+as soon as it has any view state of its own. The parser files the opening
+markup under `Text`, resets `Text` to `""` when the Literal arrives, and
+`LoadViewState` re-applies whatever `Text` it finds, which clears the children.
+It only reloads when the button saved something. So a card nothing touches from
+code is fine, and a card that is shown, hidden, restyled or re-titled from code
+is drawn empty after the first click.
+
+The No dealer card went live as `kpiNoDealer.Visible = ...` and was blank after
+every click. The filter under it still worked, which is why it looked like a
+drawing fault. It is shown and hidden through `phNoDealer` now, a `PlaceHolder`
+round it. A placeholder renders no tag, so the card is still a direct child of
+the grid. Anything else a card needs from code goes on a wrapper the same way.
+The sort headers are safe because their content *opens* with the Literal, which
+leaves `Text` unset. `Test-NoDealerCard` section 8 presses a run of buttons and
+reads the card after each one.
+
 ---
 
 ## Conventions

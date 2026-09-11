@@ -12,7 +12,7 @@ namespace DSL_CMS
     public partial class voucher_status : System.Web.UI.Page
     {
         protected Repeater rptStatus, rptWindows, rptSummary, rptPager, rptPerformance;
-        protected PlaceHolder phEmpty, phPager, phPerfEmpty;
+        protected PlaceHolder phEmpty, phPager, phPerfEmpty, phNoDealer;
         protected HiddenField hidOrder;
         protected LinkButton lnkReorder;
         protected Panel pnlDragMsg;
@@ -408,7 +408,10 @@ namespace DSL_CMS
             // does not return NoDealer yet. That must cost the card and nothing
             // else - not the six figures beside it.
             bool dealerFigure = dt.Columns.Contains("NoDealer");
-            kpiNoDealer.Visible = ShowDealerCard && dealerFigure;
+            // The placeholder, not the card - see the markup. Visible set on the
+            // LinkButton itself gives it a view state, and reloading that on the
+            // next postback wipes the spans and the figure inside it.
+            phNoDealer.Visible = ShowDealerCard && dealerFigure;
             litKpiNoDealer.Text = dealerFigure ? Num(r, "NoDealer").ToString() : "0";
 
             litKpiUsedPct.Text = Percent(used, total);

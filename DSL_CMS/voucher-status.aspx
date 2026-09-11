@@ -127,8 +127,16 @@
              stock: nobody has written a dealer against the voucher, whatever its
              status. Admin and team only - ShowDealerCard, set in BindKpis and
              checked again in kpi_Command. Pressing it turns the provider column
-             into the no-dealer figure, and View Data opens with the pill on. --%>
-        <asp:LinkButton ID="kpiNoDealer" runat="server" CssClass="vs-kpi k-nodealer" Visible="false"
+             into the no-dealer figure, and View Data opens with the pill on.
+
+             Shown and hidden through phNoDealer, never through the card's own
+             Visible. A LinkButton whose content opens with markup and holds a
+             server control empties itself when it reloads a view state of its
+             own, and setting Visible gave it one: the card drew blank after the
+             first click, and after every click from then on. The placeholder
+             renders no tag, so the card is still a direct child of the grid. --%>
+        <asp:PlaceHolder ID="phNoDealer" runat="server" Visible="false">
+        <asp:LinkButton ID="kpiNoDealer" runat="server" CssClass="vs-kpi k-nodealer"
             OnCommand="kpi_Command" CommandArgument="NoDealer" CausesValidation="false">
             <span class="top">
                 <span class="lab">No dealer</span>
@@ -138,6 +146,7 @@
             <span class="sub">no dealer entered</span>
             <span class="go"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
         </asp:LinkButton>
+        </asp:PlaceHolder>
     </div>
 
     <%-- ---------------- Filters ----------------
