@@ -94,6 +94,14 @@ namespace DSL_CMS
             phUserRole.Visible = !string.Equals(role.Trim(), CurrentUserName.Trim(),
                                                 StringComparison.OrdinalIgnoreCase);
 
+            // The admin and the team can type a dealer's name into the same box,
+            // so it says so to them. Everybody else searches codes, as before.
+            if (CanSearchDealers)
+            {
+                txtSearch.Attributes["placeholder"] = "Search voucher code or dealer";
+                lnkSearch.ToolTip = "Find this voucher code or dealer";
+            }
+
             // Rebuilt on every request, postback included: a provider added on
             // Manage Product has to appear in the menu without a fresh login,
             // and the counts beside each name go stale the moment a voucher
@@ -399,14 +407,73 @@ namespace DSL_CMS
         ///
         /// No providerId, so the search is not confined to whichever provider was
         /// last looked at.
+        ///
+        /// The same box takes a dealer's name, for the admin and the team - one
+        /// box rather than two, so the topbar keeps its breadcrumb. A term counts
+        /// as a dealer only when it matches a dealer's name and no voucher code at
+        /// all: anything a code search finds is still a code search, exactly as it
+        /// was, and a term that finds neither lands where it always did, on View
+        /// Data saying nothing matched. A dealer goes to Voucher Status, narrowed
+        /// to the providers holding that dealer's vouchers - or, typed on View
+        /// Data, straight into that grid.
         /// </summary>
         protected void lnkSearch_Click(object sender, EventArgs e)
         {
             string code = (txtSearch.Text ?? string.Empty).Trim();
             if (code.Length == 0) return;
 
+            if (IsDealerOnly(code))
+            {
+                string target = string.Equals(CurrentPage, "voucher-data.aspx", StringComparison.OrdinalIgnoreCase)
+                    ? "~/voucher-data.aspx?dealerName="
+                    : "~/voucher-status.aspx?dealerName=";
+
+                Response.Redirect(ResolveUrl(target) + Server.UrlEncode(code), true);
+                return;
+            }
+
             Response.Redirect(
                 ResolveUrl("~/voucher-data.aspx?code=") + Server.UrlEncode(code), true);
+        }
+
+        /// <summary>
+        /// The two roles that see dealer names anywhere - the ones View Data
+        /// shows the dealer columns to - and so the two that can search by one.
+        /// </summary>
+        private bool CanSearchDealers
+        {
+            get
+            {
+                string role = VoucherRole();
+                return string.Equals(role, "Voucher Admin", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(role, "Voucher Team", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        /// <summary>
+        /// True when the term matches a dealer's name and no voucher code. One
+        /// round trip, and only for the two roles above; nobody else pays for it.
+        /// </summary>
+        private bool IsDealerOnly(string term)
+        {
+            if (!CanSearchDealers) return false;
+
+            DataTable dt;
+            try
+            {
+                dt = VoucherBAL.SearchMatch(term);
+            }
+            catch (IndexOutOfRangeException)
+            {
+                // No result set: a proc that predates SearchMatch. The site can be
+                // deployed ahead of the database, and then the box searches codes,
+                // which is all it ever did.
+                return false;
+            }
+
+            if (dt == null || dt.Rows.Count == 0) return false;
+            return Convert.ToInt32(dt.Rows[0]["CodeMatch"]) == 0
+                && Convert.ToInt32(dt.Rows[0]["DealerMatch"]) == 1;
         }
 
         protected void lnkLogout_Click(object sender, EventArgs e)

@@ -45,6 +45,34 @@ namespace DSL_CMS.DAL
                 "@IsMoved", isMoved);
         }
 
+        /// <summary>
+        /// <paramref name="dealerName"/> is the topbar's dealer search: only the
+        /// providers holding a voucher with a dealer of that name come back, and
+        /// every figure on them counts only those vouchers.
+        ///
+        /// Sent only when there is one. The pipeline deploys the site and never
+        /// the database, and a proc that predates the parameter refuses a call
+        /// that names it - so every call without a search stays exactly the call
+        /// it always was.
+        /// </summary>
+        public static DataTable GetProviderSummary(string status, string days, string category,
+            string fromDate, string toDate, string assignedTo, string isMoved, string dealerName)
+        {
+            if (string.IsNullOrEmpty(dealerName))
+                return GetProviderSummary(status, days, category, fromDate, toDate, assignedTo, isMoved);
+
+            return SqlHelper.ExecuteDataTable("Sp_VoucherProvider_Table", true,
+                "@Action", "SelectSummary",
+                "@Status", status,
+                "@Days", days,
+                "@Category", category,
+                "@FromDate", fromDate,
+                "@ToDate", toDate,
+                "@AssignedTo", assignedTo,
+                "@IsMoved", isMoved,
+                "@DealerName", dealerName);
+        }
+
         public static DataTable GetAllProvider()
         {
             return SqlHelper.ExecuteDataTable("Sp_VoucherProvider_Table", true, "@Action", "SelectDropdown");
@@ -71,6 +99,24 @@ namespace DSL_CMS.DAL
                 "@AssignedTo", assignedTo,
                 "@IsMoved", isMoved,
                 "@Category", category);
+        }
+
+        /// <summary>
+        /// The cards under a dealer search. Sent only when there is one, for the
+        /// reason given on the matching GetProviderSummary.
+        /// </summary>
+        public static DataTable GetDashboardTotals(string assignedTo, string isMoved, string category,
+            string dealerName)
+        {
+            if (string.IsNullOrEmpty(dealerName))
+                return GetDashboardTotals(assignedTo, isMoved, category);
+
+            return SqlHelper.ExecuteDataTable("Sp_VoucherProvider_Table", true,
+                "@Action", "SelectDashboardTotals",
+                "@AssignedTo", assignedTo,
+                "@IsMoved", isMoved,
+                "@Category", category,
+                "@DealerName", dealerName);
         }
 
         public static DataTable GetProvider(string Id)
@@ -145,6 +191,31 @@ namespace DSL_CMS.DAL
                 "@IsMoved", isMoved,
                 "@Days", days,
                 "@ExpiryDate", expiryDate);
+        }
+
+        /// <summary>
+        /// Full grid rows for a set of voucher ids, comma separated - the one page
+        /// View Data is showing, whose ids came from its keys-only fetch. Only
+        /// these rows are decrypted.
+        /// </summary>
+        public static DataTable GetVoucherRows(string ids)
+        {
+            return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,
+                "@Action", "Select",
+                "@Ids", ids);
+        }
+
+        /// <summary>
+        /// Whether a term typed into the topbar matches a voucher code
+        /// (CodeMatch) and whether it matches a dealer's name (DealerMatch),
+        /// 1 or 0 each.
+        /// </summary>
+        public static DataTable SearchMatch(string term)
+        {
+            return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,
+                "@Action", "SearchMatch",
+                "@VoucherCode", term,
+                "@DealerName", term);
         }
 
         /// <summary>Highest dealer slot in use - drives how many dealer columns the grid shows.</summary>

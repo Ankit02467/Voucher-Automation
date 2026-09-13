@@ -18,13 +18,13 @@ namespace DSL_CMS
                           litUploadMsg, litUploadHint, litAssignMsg, litAssignCount,
                           litAssignTitle, litAssignBox, litAssignEmpty,
                           litGridTitle, litReassignMsg, litReassignCode,
-                          litHistCode, litHistSummary, litSearchChip,
+                          litHistCode, litHistSummary, litSearchChip, litDealerChip,
                           litRemarkCode, litEditRemarkCount, litUsedReq, litImportMsg;
         protected Panel pnlBody, pnlDenied,
                         pnlMsg, pnlRoleNote, pnlRoleSwitch, pnlEdit, pnlEditDealer, pnlEditStatus, pnlEditAdmin,
                         pnlUsedDate, pnlUpload, pnlUploadMsg, pnlHistory, pnlAssign, pnlAssignMsg,
                         pnlAssignFilters,
-                        pnlSearchChip, pnlWindows, pnlReassign, pnlReassignMsg,
+                        pnlSearchChip, pnlDealerChip, pnlWindows, pnlReassign, pnlReassignMsg,
                         pnlStatusButtons, pnlStatusDropdown, pnlStatusExtras,
                         pnlRemarks, pnlEditRemarks,
                         pnlDealerFilter, pnlImport, pnlImportMsg;
@@ -39,7 +39,7 @@ namespace DSL_CMS
         protected HiddenField hfId, hfReassignId;
         protected LinkButton lnkUpload, lnkAssign, lnkDone, lnkAddDealer, lnkPrev, lnkNext,
                              lnkRemarksClose, lnkExport, lnkImport, lnkImportClose,
-                             lnkNoDealer, lnkHasDealer;
+                             lnkNoDealer, lnkHasDealer, lnkClearDealer;
         protected Repeater rptHead, rptVoucher, rptPager, rptUploadProduct, rptHistory,
                            rptAssignVouchers, rptStudents, rptDealerEdit, rptAdminDealers,
                            rptStatusPills, rptCards, rptWindows,
@@ -153,6 +153,18 @@ namespace DSL_CMS
         }
 
         /// <summary>
+        /// A dealer's name, handed over by the search box in the topbar the way a
+        /// code is. It narrows the fetch as the code does - so the cards, the
+        /// list and Export all count the same rows - and the chip beside the code
+        /// chip shows it and clears it. Admin and team only; see Page_Load.
+        /// </summary>
+        private string DealerSearch
+        {
+            get { return (string)(ViewState["DealerSearch"] ?? string.Empty); }
+            set { ViewState["DealerSearch"] = value; }
+        }
+
+        /// <summary>
         /// The status buttons. "All" carries an empty value because that is what
         /// <see cref="StatusFilter"/> holds for no restriction, so the lit button
         /// falls out of a plain comparison.
@@ -219,16 +231,18 @@ namespace DSL_CMS
         };
 
         /// <summary>
-        /// How far ahead "expiring soon" looks, the same four spans the dashboard
+        /// How far ahead "expiring soon" looks, the same spans the dashboard
         /// offers behind View Early Expiry. One list of windows across the two
-        /// screens, so a month means a month on both.
+        /// screens, so a month means a month on both - and two months, which the
+        /// team asked for, is sixty days on both.
         /// </summary>
         private static readonly ListItem[] Windows =
         {
-            new ListItem("1 Day",   "1"),
-            new ListItem("3 Days",  "3"),
-            new ListItem("7 Days",  "7"),
-            new ListItem("1 Month", "30")
+            new ListItem("1 Day",    "1"),
+            new ListItem("3 Days",   "3"),
+            new ListItem("7 Days",   "7"),
+            new ListItem("1 Month",  "30"),
+            new ListItem("2 Months", "60")
         };
 
         /// <summary>
@@ -610,6 +624,13 @@ namespace DSL_CMS
                 && string.Equals(Request.QueryString["dealer"], "none", StringComparison.OrdinalIgnoreCase))
                 NoDealerFilter = true;
 
+            // A dealer's name from the topbar search, read the same way and for
+            // the same reason: only the admin and the team see dealer names at
+            // all, so anybody else handed the parameter gets their usual list
+            // rather than a search by something they are not shown.
+            if (ShowDealers)
+                DealerSearch = (Request.QueryString["dealerName"] ?? string.Empty).Trim();
+
             BindProducts();
             BindGrid();
         }
@@ -943,7 +964,20 @@ namespace DSL_CMS
             // applied below, in memory, so a card and the button beside it are
             // always counting the same rows. The grid already reads the whole
             // table to page it, so this is not an extra pass over anything.
-            DataTable all = FetchScope();
+            //
+            // Keys only, though: no voucher code, name, dealer or remark, so no
+            // row pays for decryption just to be counted or paged past. The full
+            // rows of the one page on screen are fetched at the end, once it is
+            // known which rows those are. A sort on a column that is not among
+            // the keys needs the full rows of every voucher, and takes the old
+            // fetch - see SortsOnKeys.
+            bool keysOnly = SortsOnKeys();
+            DataTable all = keysOnly ? FetchScopeKeys() : null;
+            if (all == null)
+            {
+                keysOnly = false;
+                all = FetchScope();
+            }
 
             BindCards(all);
             BindStatusFilter();
@@ -953,6 +987,9 @@ namespace DSL_CMS
 
             pnlSearchChip.Visible = (SearchCode.Length > 0);
             if (pnlSearchChip.Visible) litSearchChip.Text = Server.HtmlEncode(SearchCode);
+
+            pnlDealerChip.Visible = (DealerSearch.Length > 0);
+            if (pnlDealerChip.Visible) litDealerChip.Text = Server.HtmlEncode(DealerSearch);
 
             DataTable dt = FilterByStatus(all, StatusFilter);
             int count = (dt == null) ? 0 : dt.Rows.Count;
@@ -982,7 +1019,10 @@ namespace DSL_CMS
             // shuffle the ten rows already on screen.
             dt = ApplySort(dt);
 
-            rptVoucher.DataSource = Pager.Slice(dt, PageIndex, PageSize);
+            DataTable page = Pager.Slice(dt, PageIndex, PageSize);
+            if (keysOnly) page = FullRows(page);
+
+            rptVoucher.DataSource = page;
             rptVoucher.DataBind();
 
             litCount.Text = count.ToString();
@@ -1009,11 +1049,36 @@ namespace DSL_CMS
         /// </summary>
         private DataTable FetchScope()
         {
+            return FetchScope("Select");
+        }
+
+        /// <summary>
+        /// The same rows as <see cref="FetchScope()"/>, in the same order, keys
+        /// only - see SelectKeys in the proc. Null when the proc predates it:
+        /// the pipeline deploys the site and never the database, so this can meet
+        /// a proc that has no such action, and that must cost the speed and not
+        /// the screen. The caller falls back to the full fetch.
+        /// </summary>
+        private DataTable FetchScopeKeys()
+        {
+            try
+            {
+                return FetchScope("SelectKeys");
+            }
+            catch (IndexOutOfRangeException)
+            {
+                // no result set at all: an older proc, which ignores the action
+                return null;
+            }
+        }
+
+        private DataTable FetchScope(string action)
+        {
             DataTable all = VoucherBAL.GetVoucherDetail(
                 ProviderId,
                 LockedProductId,
                 SearchCode,
-                string.Empty,   // dealer name        - filter bar removed
+                DealerSearch,   // dealer name        - the topbar's dealer search
                 string.Empty,   // voucher check date - filter bar removed
                 string.Empty,   // checked by         - filter bar removed
                 string.Empty,   // status: applied by the caller
@@ -1021,9 +1086,59 @@ namespace DSL_CMS
                 MovedFilter,
                 DaysFilter,
                 string.Empty,   // expiry date        - filter bar removed
-                "Select");
+                action);
 
             return FilterByDealer(all);
+        }
+
+        /// <summary>
+        /// The columns the keys-only fetch carries that a heading can sort on.
+        /// Sorted on one of these, the keys alone put the rows in order and the
+        /// grid only ever decrypts one page of them.
+        ///
+        /// Anything else - voucher code, candidate name, the dealer pairs, the
+        /// remark - is ciphertext or gathered from another table, and ordering by
+        /// it means having it for every voucher, which is the full fetch. That
+        /// stays exactly the sort it always was, and costs what it always cost,
+        /// only while one of those headings is the lit one.
+        /// </summary>
+        private static readonly HashSet<string> KeySortColumns = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "ProductName", "ExpiryDate", "AddedByName", "Status",
+            "VoucherCheckDate", "CheckedBy", "UsedDate", "ExamDate", "ExamMode"
+        };
+
+        private bool SortsOnKeys()
+        {
+            return SortKey.Length == 0 || KeySortColumns.Contains(SortKey);
+        }
+
+        /// <summary>
+        /// The full rows of one page, for the ids the keys-only fetch put on it,
+        /// in the order it put them there. Asked for by id, so the role, the
+        /// filters and the sort have all been applied already - this only fills
+        /// in what the keys left out.
+        /// </summary>
+        private static DataTable FullRows(DataTable page)
+        {
+            if (page == null || page.Rows.Count == 0) return page;
+
+            var ids = new List<string>();
+            foreach (DataRow r in page.Rows) ids.Add(Convert.ToString(r["Id"]));
+
+            DataTable full = VoucherBAL.GetVoucherRows(string.Join(",", ids));
+
+            var byId = new Dictionary<string, DataRow>(StringComparer.Ordinal);
+            foreach (DataRow r in full.Rows) byId[Convert.ToString(r["Id"])] = r;
+
+            DataTable ordered = full.Clone();
+            foreach (string id in ids)
+            {
+                DataRow r;
+                if (byId.TryGetValue(id, out r)) ordered.ImportRow(r);
+            }
+
+            return ordered;
         }
 
         /// <summary>The rows the grid is showing, unsorted and unpaged.</summary>
@@ -1756,8 +1871,16 @@ namespace DSL_CMS
             BindGrid();
         }
 
+        /// <summary>The same, for a dealer's name searched from the topbar.</summary>
+        protected void lnkClearDealer_Click(object sender, EventArgs e)
+        {
+            DealerSearch = string.Empty;
+            PageIndex = 0;
+            BindGrid();
+        }
+
         /// <summary>
-        /// Clears everything narrowing the grid - the searched code, the status,
+        /// Clears everything narrowing the grid - the searched code or dealer, the status,
         /// the expiry window and the product carried over from the dashboard.
         /// Used after an upload, so the rows just added are visible straight away
         /// whatever was being looked at before.
@@ -1765,6 +1888,7 @@ namespace DSL_CMS
         private void ClearFilters()
         {
             SearchCode = string.Empty;
+            DealerSearch = string.Empty;
             StatusFilter = string.Empty;
             DaysFilter = string.Empty;
             LockedProductId = string.Empty;

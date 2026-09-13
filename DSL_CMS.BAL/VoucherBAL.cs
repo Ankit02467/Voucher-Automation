@@ -25,6 +25,13 @@ namespace DSL_CMS.BAL
                 assignedTo, isMoved);
         }
 
+        public static DataTable GetProviderSummary(string status, string days, string category,
+            string fromDate, string toDate, string assignedTo, string isMoved, string dealerName)
+        {
+            return VoucherDAL.GetProviderSummary(status, days, category, fromDate, toDate,
+                assignedTo, isMoved, dealerName);
+        }
+
         public static DataTable GetAllProvider()
         {
             return VoucherDAL.GetAllProvider();
@@ -38,6 +45,12 @@ namespace DSL_CMS.BAL
         public static DataTable GetDashboardTotals(string assignedTo, string isMoved, string category)
         {
             return VoucherDAL.GetDashboardTotals(assignedTo, isMoved, category);
+        }
+
+        public static DataTable GetDashboardTotals(string assignedTo, string isMoved, string category,
+            string dealerName)
+        {
+            return VoucherDAL.GetDashboardTotals(assignedTo, isMoved, category, dealerName);
         }
 
         public static DataTable GetProviderCategories()
@@ -84,6 +97,16 @@ namespace DSL_CMS.BAL
         public static DataTable GetDealerColumns(string providerId)
         {
             return VoucherDAL.GetDealerColumns(providerId);
+        }
+
+        public static DataTable GetVoucherRows(string ids)
+        {
+            return VoucherDAL.GetVoucherRows(ids);
+        }
+
+        public static DataTable SearchMatch(string term)
+        {
+            return VoucherDAL.SearchMatch(term);
         }
 
         public static DataTable GetData(string Id)

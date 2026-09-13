@@ -124,6 +124,8 @@ CREATE OR ALTER PROCEDURE dbo.Sp_VoucherStock_Table
        AddRemark. Nothing else reads these. */
     @Remark           NVARCHAR(1000) = NULL,
     @RoleName         NVARCHAR(50)   = NULL,
+    /* comma separated voucher ids: Assign, ReassignMany, and Select when View
+       Data asks for the full rows of the one page it is showing */
     @Ids              NVARCHAR(MAX)  = NULL,
     @Data             NVARCHAR(MAX)  = NULL,
     /* BulkInsert only: the dealer pairs pasted alongside each voucher, as
@@ -275,7 +277,121 @@ BEGIN
                   WHERE d.VoucherId = v.Id
                     AND CONVERT(NVARCHAR(300), DECRYPTBYKEY(d.DealerName))
                         LIKE '%' + @DealerName + '%'))
+          /* The rows of one page, named by id. View Data works out which rows
+             are on the page from SelectKeys below and asks for the full rows of
+             only those, so only those are decrypted. Blank is no restriction,
+             which is what every other caller sends. */
+          AND (NULLIF(LTRIM(RTRIM(@Ids)), '') IS NULL
+               OR v.Id IN (SELECT TRY_CONVERT(INT, s.value) FROM STRING_SPLIT(@Ids, ',') s))
         ORDER BY v.Id DESC;
+    END
+
+    /* ================= grid, keys only =================
+       The rows Select returns, in the order it returns them, with nothing that
+       has to be decrypted or gathered row by row: no voucher code, candidate
+       name, dealer names, sale dates or remarks. View Data counts its cards,
+       filters, sorts and pages on this, then asks Select (@Ids) for the full
+       rows of the one page on screen. At 20,000 vouchers the full fetch was
+       1.7 s of SQL on every click, before the page had done anything with it.
+
+       THE FROM AND WHERE BELOW ARE SELECT'S, AND MUST STAY SO. The cards count
+       these rows and the grid lists those; if the two ever disagree a card
+       promises rows the grid cannot show. Test-ProcAB compares them across
+       every filter the screen can send. */
+    ELSE IF @Action = 'SelectKeys'
+    BEGIN
+        SELECT
+            v.Id, v.ProviderId, ProviderName = p.Name,
+            v.ProductId, ProductName = pr.Name,
+            v.ExpiryDate,
+            AddedByName = ISNULL(u.FullName, ''),
+            DealerCount = (SELECT COUNT(*) FROM dbo.VoucherDealer_Table d WHERE d.VoucherId = v.Id),
+            v.Status, v.UsedDate, v.VoucherCheckDate, v.CheckedBy,
+            v.ExamDate, v.ExamMode,
+            v.AssignedTo, AssignedToName = ISNULL(a.FullName, ''),
+            v.IsMoved, v.MovedDate, v.AutoMoveAfter,
+            v.AddedDate
+        FROM dbo.VoucherStock_Table v
+        INNER JOIN dbo.VoucherProvider_Table p  ON p.Id  = v.ProviderId
+        INNER JOIN dbo.VoucherProduct_Table  pr ON pr.Id = v.ProductId
+        LEFT  JOIN dbo.User_Table u ON u.Id = v.AddedBy
+        LEFT  JOIN dbo.User_Table a ON a.Id = v.AssignedTo
+        WHERE (@ProviderInt IS NULL OR v.ProviderId  = @ProviderInt)
+          AND (@ProductInt  IS NULL OR v.ProductId   = @ProductInt)
+          /* A partial match cannot use an index on ciphertext - this decrypts
+             every candidate row. Fine at this table's size; if it ever grows
+             past a few tens of thousands, search will need rethinking. */
+          AND (@VoucherCode IS NULL
+               OR CONVERT(NVARCHAR(200), DECRYPTBYKEY(v.VoucherCode)) LIKE '%' + @VoucherCode + '%')
+          AND (@CheckedBy   IS NULL OR v.CheckedBy   = @CheckedBy)
+          /* "Expired" is the expiry date having gone, not a word somebody typed
+             into the status column - a used, unused, invalid or untriaged
+             voucher whose date has passed is expired all the same. Kept in step
+             with Sp_VoucherProvider_Table, so the count on the dashboard and the
+             list this returns are answering one question. */
+          /* "Open" is the working list: everything except the three states
+             there is nothing left to do about - used, written off, or out of
+             date. Not Set and Unused drop the lapsed ones for the same reason,
+             so the thirteen that have run out stop being counted as fifty
+             vouchers waiting to be triaged. Expired is where they all go. */
+          AND (@Status      IS NULL
+               OR (@Status = 'Open'           AND ISNULL(v.Status, '') NOT IN ('Used', 'Invalid')
+                                              AND (v.ExpiryDate IS NULL OR v.ExpiryDate >= @Today))
+               OR (@Status = 'NotSet'         AND v.Status IS NULL
+                                              AND (v.ExpiryDate IS NULL OR v.ExpiryDate >= @Today))
+               OR (@Status = 'Unused'         AND v.Status = 'Unused'
+                                              AND (v.ExpiryDate IS NULL OR v.ExpiryDate >= @Today))
+               OR (@Status = 'UnusedOrNotSet' AND (v.Status IS NULL OR v.Status = 'Unused'))
+               OR (@Status = 'Expired'        AND v.ExpiryDate IS NOT NULL
+                                              AND v.ExpiryDate < @Today)
+               OR (@Status NOT IN ('Open', 'NotSet', 'Unused', 'UnusedOrNotSet', 'Expired')
+                   AND v.Status = @Status))
+          AND (@WinEnd      IS NULL
+               OR (v.ExpiryDate IS NOT NULL AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
+          AND (@Expiry      IS NULL OR v.ExpiryDate = @Expiry)
+          AND (@CheckDt     IS NULL OR CAST(v.VoucherCheckDate AS DATE) = @CheckDt)
+          AND (@AssignInt   IS NULL OR v.AssignedTo  = @AssignInt)
+          AND (@MovedBit    IS NULL OR v.IsMoved     = @MovedBit)
+          AND (@DealerName  IS NULL OR EXISTS (
+                  SELECT 1 FROM dbo.VoucherDealer_Table d
+                  WHERE d.VoucherId = v.Id
+                    AND CONVERT(NVARCHAR(300), DECRYPTBYKEY(d.DealerName))
+                        LIKE '%' + @DealerName + '%'))
+          /* The rows of one page, named by id. View Data works out which rows
+             are on the page from SelectKeys below and asks for the full rows of
+             only those, so only those are decrypted. Blank is no restriction,
+             which is what every other caller sends. */
+          AND (NULLIF(LTRIM(RTRIM(@Ids)), '') IS NULL
+               OR v.Id IN (SELECT TRY_CONVERT(INT, s.value) FROM STRING_SPLIT(@Ids, ',') s))
+        ORDER BY v.Id DESC;
+    END
+
+    /* ================= topbar search =================
+       Is the term a voucher code, a dealer's name, or neither? The one box in
+       the topbar answers both, and the master page sends each to the screen
+       that answers it. EXISTS rather than counts: the question is which, not
+       how many. Same LIKE as Select uses for each, so a yes here is a grid
+       with something in it. */
+    ELSE IF @Action = 'SearchMatch'
+    BEGIN
+        DECLARE @CodeMatch INT = 0, @DealerMatch INT = 0;
+
+        IF @VoucherCode IS NOT NULL AND EXISTS (
+               SELECT 1 FROM dbo.VoucherStock_Table v
+               WHERE CONVERT(NVARCHAR(200), DECRYPTBYKEY(v.VoucherCode))
+                     LIKE '%' + @VoucherCode + '%')
+            SET @CodeMatch = 1;
+
+        /* Dealers are looked at only when no code matched. A code always wins,
+           so the answer would be thrown away - and every admin or team code
+           search would pay for decrypting the whole dealer table to get it. */
+        IF @CodeMatch = 0 AND @DealerName IS NOT NULL AND EXISTS (
+               SELECT 1 FROM dbo.VoucherDealer_Table d
+               WHERE CONVERT(NVARCHAR(300), DECRYPTBYKEY(d.DealerName))
+                     LIKE '%' + @DealerName + '%')
+            SET @DealerMatch = 1;
+
+        SELECT CodeMatch = @CodeMatch, DealerMatch = @DealerMatch;
     END
 
     ELSE IF @Action = 'SelectId'
@@ -360,7 +476,14 @@ BEGIN
             RETURN;
         END
 
-        DECLARE @Rows TABLE (Code NVARCHAR(100) PRIMARY KEY, Expiry DATE);
+        /* CodeHash is worked out once per code, here, and indexed, and every
+           statement below matches on it. Without it an upload compared every
+           code with every other, hashing the same strings over and over:
+           5,000 lines took 19 s and 20,000 took four minutes, nearly all of it
+           in the list of skipped codes. Each match is a seek now. */
+        DECLARE @Rows TABLE (Code NVARCHAR(100) PRIMARY KEY, Expiry DATE,
+                             CodeHash VARBINARY(32) NULL,
+                             INDEX IX_Rows_CodeHash NONCLUSTERED (CodeHash));
 
         INSERT INTO @Rows (Code, Expiry)
         SELECT Code, MIN(Expiry)
@@ -374,12 +497,17 @@ BEGIN
         WHERE Code <> ''
         GROUP BY Code;
 
+        /* hashed off the stored NVARCHAR(100), which is exactly what the insert
+           below always hashed, so the bytes cannot differ from before */
+        UPDATE @Rows SET CodeHash = HASHBYTES('SHA2_256', Code);
+
         SET @Total = (SELECT COUNT(*) FROM @Rows);
 
         /* What actually went in, so the dealer pairs below can be attached to
            those rows and only those - a code that was skipped as a duplicate
            already belongs to somebody, and its dealers are not ours to touch. */
-        DECLARE @New TABLE (Id INT PRIMARY KEY, CodeHash VARBINARY(32));
+        DECLARE @New TABLE (Id INT PRIMARY KEY, CodeHash VARBINARY(32),
+                            INDEX IX_New_CodeHash NONCLUSTERED (CodeHash));
 
         /* The duplicate check compares hashes, not codes. Two uploads of the
            same code encrypt to different bytes, so comparing the stored
@@ -389,12 +517,12 @@ BEGIN
         OUTPUT inserted.Id, inserted.VoucherCodeHash INTO @New (Id, CodeHash)
         SELECT pr.ProviderId, @ProductInt,
                ENCRYPTBYKEY(KEY_GUID('VoucherDataKey'), r.Code),
-               HASHBYTES('SHA2_256', r.Code),
+               r.CodeHash,
                r.Expiry, NULL, @UserInt
         FROM @Rows r
         CROSS APPLY (SELECT ProviderId FROM dbo.VoucherProduct_Table WHERE Id = @ProductInt) pr
         WHERE NOT EXISTS (SELECT 1 FROM dbo.VoucherStock_Table v
-                          WHERE v.VoucherCodeHash = HASHBYTES('SHA2_256', r.Code));
+                          WHERE v.VoucherCodeHash = r.CodeHash);
 
         SET @Ins = @@ROWCOUNT;
 
@@ -422,6 +550,7 @@ BEGIN
                                     Tail = SUBSTRING(f2.Tail, CHARINDEX('|', f2.Tail + '|') + 1, 4000)) f3
                 WHERE LTRIM(RTRIM(s.value)) <> ''
             ) d
+            /* a seek on IX_New_CodeHash per dealer record */
             INNER JOIN @New n ON n.CodeHash = HASHBYTES('SHA2_256', d.Code)
             WHERE d.Seq IS NOT NULL AND (d.Nm <> '' OR d.Dt <> '');
 
@@ -437,7 +566,7 @@ BEGIN
                    WITHIN GROUP (ORDER BY r.Code)
             FROM @Rows r
             WHERE NOT EXISTS (SELECT 1 FROM @New n
-                              WHERE n.CodeHash = HASHBYTES('SHA2_256', r.Code)));
+                              WHERE n.CodeHash = r.CodeHash));
 
         SELECT Inserted     = @Ins,
                Skipped      = @Total - @Ins,

@@ -168,6 +168,7 @@
             </asp:Repeater>
 
             <asp:Literal ID="litCategoryNote" runat="server" />
+            <asp:Literal ID="litDealerNote" runat="server" />
 
             <asp:LinkButton ID="lnkEarlyExpiry" runat="server" CssClass="vs-chip ghost"
                 OnClick="lnkEarlyExpiry_Click" CausesValidation="false"

@@ -187,6 +187,13 @@ a card and the list under it stop matching. "Expiring soon" is the same
 question the other way round: unused or untriaged, expiring **within** the
 chosen window.
 
+The windows are 1, 3 and 7 days and 1 and 2 months (60 days, which the team asked
+for). There are two lists, `Windows` on each code-behind, and they are kept
+identical: a drill-down from Voucher Status arrives with `days=60`, and View Data
+has to light a button of the same value or the screen says one window and counts
+another. The student reaches View Data's list through the Expiring soon button,
+so they have 2 Months too; one list, one meaning, as with the month before it.
+
 **And a lapsed voucher belongs to Expired and to nothing else.** The buckets
 that mean "still to do" stop at the expiry date:
 
@@ -275,6 +282,53 @@ the card if not. The pipeline deploys the site and never the database, so this
 code can meet a proc that does not return it yet; that must cost the card and not
 the seven figures beside it.
 
+**The topbar box also takes a dealer's name**, for the admin and the team - the two
+roles that see dealer names at all (`CanSearchDealers` on the master page, and
+`ShowDealers` / `ShowDealerCard` on the pages, which read the `dealerName`
+parameter only for those roles, the way `dealer=none` is read). One box, not two:
+the team asked for the same box if it could be done, and it can, so the breadcrumb
+stays.
+
+A term is a dealer search **only when it matches a dealer's name and no voucher
+code at all** - `Sp_VoucherStock_Table @Action='SearchMatch'`, one round trip,
+the same two `LIKE`s the grid uses. So a code search is exactly what it was: a
+term that finds a code goes to View Data by code even if some dealer's name also
+contains it, and a term that finds neither lands where it always did, on View
+Data saying nothing matched. That is the promise the topbar search has carried
+since it was added, and the sub-admin and the student never make the extra call.
+
+Where it lands depends on where it was typed. From View Data it is
+`voucher-data.aspx?dealerName=`, straight into the grid across every provider,
+the way a code search is. From anywhere else it is
+`voucher-status.aspx?dealerName=`: the table lists **only the providers holding
+one of that dealer's vouchers** (`HAVING COUNT(v.Id) > 0`, whatever their status,
+so a provider whose matches are all used still shows, at nought under Open), the
+products under them only where they hold one, and the cards count only those
+vouchers - the category rule again, cards reading the whole stock above one
+dealer's list being the same mismatch. A note beside the category note names the
+dealer, gives the count and clears it. Every row's View Data link carries the
+search on, so the grid opens on the rows the row counted.
+
+`Sp_VoucherProvider_Table` had never read ciphertext. It opens the key only when
+`@DealerName` is given and refuses to run if it cannot - trap 9's reasoning, a
+shut key matching nobody and calling it a result - and decrypts the dealer rows
+once, into `@DealerHit`, rather than once for each of the three places that ask.
+The DAL sends `@DealerName` only when there is one, so every call without a
+search is byte for byte the call it always was, and the site runs on a proc
+that predates the parameter. A link that does carry a dealer, meeting such a
+proc, is refused with msg **8145** ("@DealerName is not a parameter"), not 8144:
+SQL Server keeps 8144, too many arguments, for a call with more arguments than
+the proc has parameters, and none of this page's calls has. `DropDealerSearch`
+catches the two - 8145 only when it names `@DealerName` - drops the search and
+its note, and shows the page as it would be without the link; the search is what
+it costs, not the page. Any other error, the key refusing to open among them,
+still stops the page. The first cut caught 8144 alone and `Compat-DealerSearch`,
+which installs the old proc and opens a dealer link, is what showed it.
+
+`SearchMatch` looks for a dealer only when no code matched. A code always wins,
+so the dealer answer would be thrown away, and every admin or team code search
+would otherwise decrypt the whole dealer table to get it.
+
 **The student's links carry `status=All`, never the screen's default.** Their
 table counts every voucher they hold — All / Checked / Pending, no status pills
 to narrow it — so a link that sent `status=Open` opened on fewer rows than the
@@ -298,6 +352,36 @@ the product-list join and the figure under the status column), the grid's
 which filters in C# so its cards can see past whichever button is pressed. The
 distribution bar's `UnusedCount` and `NotSetCount` follow too: a segment has to
 hold what the pill of the same name holds.
+
+**View Data counts on keys and decrypts one page.** Filtering in C# means having
+every row the screen could show, and the full `Select` decrypts the voucher code,
+candidate name and remarks and gathers the dealers for every one of them - 1.7 s
+of SQL per click at 20,000 vouchers, before the page had done anything with the
+rows, and a lakh would be most of ten seconds. `BindGrid` now fetches
+`@Action='SelectKeys'`: the same rows in the same order, with nothing that needs
+decrypting. Cards, pills, the dealer filter, the sort and the pager all run on
+that, exactly the code they always ran - `MatchesRow`, `FilterByDealer`,
+`ApplySort`, `Pager.Slice` are untouched - and `FullRows` then asks `Select` for
+the full rows of the one page on screen, by id (`@Ids`), and puts them back in the
+order the page had them.
+
+Three things keep that honest:
+
+- **`SelectKeys`' FROM and WHERE are `Select`'s.** It was built from them, and
+  the cards count these rows while the grid lists those. `Test-ProcAB` runs both
+  under every filter the screen can send and compares the rows, the order and
+  every shared column.
+- **A sort on a column the keys do not carry takes the full fetch.**
+  `KeySortColumns` lists the ones they do; the voucher code, candidate name,
+  dealer pairs and remark are ciphertext or gathered, and ordering by them needs
+  them for every row. That sort is the old path, identical, and costs what it
+  always cost, only while that heading is lit.
+- **An older proc falls back.** A proc with no `SelectKeys` returns no result set,
+  `SqlHelper` throws `IndexOutOfRangeException` reading table 0, and `BindGrid`
+  takes the full fetch - the pipeline deploys the site and never the database.
+
+Export and Import keep the full fetch: they want every column of every row, and
+they are a button pressed once rather than every click.
 
 ---
 
@@ -345,6 +429,7 @@ Passwords are stored **Base64, not hashed** — matching the existing site.
 | Dealer name / sale date columns | ✓ | | ✓ | |
 | Dealer filters ("No dealer" / "With dealer") | ✓ | | ✓ | |
 | "No dealer" card on Voucher Status | ✓ | | ✓ | |
+| Search by dealer name (topbar box) | ✓ | | ✓ | |
 | Export / Import dealers | | | ✓ | |
 | Reorder a provider's products | ✓ | | | |
 | Added By / Checked By columns | ✓ | ✓ | ✓ | |
@@ -520,6 +605,18 @@ a code skipped as a duplicate already belongs to somebody.
 
 The paste is split with `StringSplitOptions.None` for the same reason. Dropping
 empties would shift every column left of a blank cell.
+
+**Every match inside `BulkInsert` is on a hash worked out once.** `@Rows.CodeHash`
+is filled in one pass and indexed, and `@New` carries an index on its hash too.
+Before that, the skipped-codes list and the dealer attach compared
+`HASHBYTES(code)` against a table variable with no index, so an upload compared
+every code with every other: 5,000 lines took 19 s, 20,000 took four minutes, and
+which of those a paste got depended on the plan SQL Server had cached. It is
+linear now, about 2 s for 5,000 and 8 s for 20,000 on a developer machine.
+Anything new in that branch that matches codes has to match on those columns.
+
+The command timeout is still ADO.NET's default 30 seconds, so a single paste
+still has a ceiling - 20,000 lines is comfortable, a lakh in one go is not.
 
 **The dealer round trip is the team's, and the filter is what makes it
 bearable.** The admin uploads the codes; the dealer name and the sale date are

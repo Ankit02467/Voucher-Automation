@@ -44,7 +44,12 @@ CREATE OR ALTER PROCEDURE dbo.Sp_VoucherProvider_Table
        sub-admin read 24 against AWS and landed on 19 rows, because the other
        five had already moved to the done list. */
     @AssignedTo NVARCHAR(50)  = NULL,
-    @IsMoved    NVARCHAR(5)   = NULL
+    @IsMoved    NVARCHAR(5)   = NULL,
+    /* The topbar's dealer search: SelectSummary and SelectDashboardTotals
+       count only vouchers with a dealer whose name contains this. Same LIKE
+       as Sp_VoucherStock_Table's @DealerName, so the figure beside a provider
+       is the number of rows View Data opens on. */
+    @DealerName NVARCHAR(150) = NULL
 )
 AS
 BEGIN
@@ -66,6 +71,35 @@ BEGIN
     DECLARE @DayInt INT  = TRY_CONVERT(INT, NULLIF(LTRIM(RTRIM(@Days)), ''));
     DECLARE @WinEnd DATE = CASE WHEN @DayInt IS NULL THEN NULL
                                 ELSE DATEADD(DAY, @DayInt, @Today) END;
+
+    /* ---- dealer search ----
+       Dealer names are ciphertext (08_Encryption) and nothing else in this proc
+       reads them, so the key is opened only when a search asks - and refused
+       rather than read shut, as Sp_VoucherStock_Table does: DECRYPTBYKEY on a
+       closed key returns NULL, which would match nobody and report a search
+       that found nothing instead of saying why.
+
+       The matching vouchers are worked out once, into @DealerHit, rather than
+       decrypting every dealer row in each of the three places that ask. */
+    SET @DealerName = NULLIF(LTRIM(RTRIM(@DealerName)), '');
+    DECLARE @DealerHit TABLE (VoucherId INT PRIMARY KEY);
+
+    IF @DealerName IS NOT NULL
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM sys.openkeys WHERE key_name = 'VoucherDataKey')
+            OPEN SYMMETRIC KEY VoucherDataKey DECRYPTION BY CERTIFICATE VoucherDataCert;
+
+        IF NOT EXISTS (SELECT 1 FROM sys.openkeys WHERE key_name = 'VoucherDataKey')
+        BEGIN
+            RAISERROR('VoucherDataKey could not be opened, so dealer names cannot be searched. Check that VoucherDataCert exists and that this login has VIEW DEFINITION on both.', 16, 1);
+            RETURN;
+        END
+
+        INSERT INTO @DealerHit (VoucherId)
+        SELECT DISTINCT d.VoucherId
+        FROM dbo.VoucherDealer_Table d
+        WHERE CONVERT(NVARCHAR(300), DECRYPTBYKEY(d.DealerName)) LIKE '%' + @DealerName + '%';
+    END
 
     IF @Action = 'SelectSummary'
     BEGIN
@@ -107,13 +141,16 @@ BEGIN
                            AND v.ExpiryDate BETWEEN @Today AND @WinEnd))
                   AND (@AssignInt IS NULL OR v.AssignedTo = @AssignInt)
                   AND (@MovedBit  IS NULL OR v.IsMoved    = @MovedBit)
+                  AND (@DealerName IS NULL
+                       OR EXISTS (SELECT 1 FROM @DealerHit h WHERE h.VoucherId = v.Id))
             WHERE pr.Status = 'A'
             GROUP BY pr.Id, pr.ProviderId, pr.Name, pr.SortOrder
         ),
         Shown AS
         (
             SELECT * FROM ProductRow
-            WHERE (@Status IS NULL AND @WinEnd IS NULL) OR Cnt > 0
+            /* a dealer search is a result set too, so it drops the empties */
+            WHERE (@Status IS NULL AND @WinEnd IS NULL AND @DealerName IS NULL) OR Cnt > 0
         )
         SELECT
             p.Id,
@@ -209,6 +246,8 @@ BEGIN
                  the bar beside it describe the same vouchers View Data will list */
               AND (@AssignInt IS NULL OR v.AssignedTo = @AssignInt)
               AND (@MovedBit  IS NULL OR v.IsMoved    = @MovedBit)
+              AND (@DealerName IS NULL
+                   OR EXISTS (SELECT 1 FROM @DealerHit h WHERE h.VoucherId = v.Id))
         /* The vouchers that DO have a dealer, once each. Read by StatusCount for
            "No dealer" (dd.VoucherId IS NULL), because the rule cannot sit inside
            SUM as a subquery. DISTINCT is not optional: a voucher with two
@@ -217,6 +256,11 @@ BEGIN
         LEFT JOIN (SELECT DISTINCT VoucherId FROM dbo.VoucherDealer_Table) dd ON dd.VoucherId = v.Id
         WHERE (@Category IS NULL OR p.Category = @Category)
         GROUP BY p.Id, p.Name, p.Category, p.Status
+        /* Under a dealer search, only the providers holding one of that
+           dealer's vouchers - whatever their status, so a provider whose
+           matches are all used still shows, at nought under Open. With no
+           search every provider stays, as it always has. */
+        HAVING @DealerName IS NULL OR COUNT(v.Id) > 0
         ORDER BY p.Id;
     END
 
@@ -287,7 +331,12 @@ BEGIN
              IT and Language all showed the same numbers. */
           AND (@Category IS NULL OR EXISTS (
                   SELECT 1 FROM dbo.VoucherProvider_Table cp
-                   WHERE cp.Id = s.ProviderId AND cp.Category = @Category));
+                   WHERE cp.Id = s.ProviderId AND cp.Category = @Category))
+          /* and the dealer search narrows them the same way it narrows the
+             table - cards reading the whole stock above a list of one dealer's
+             vouchers would be that mismatch again */
+          AND (@DealerName IS NULL
+               OR EXISTS (SELECT 1 FROM @DealerHit h WHERE h.VoucherId = s.Id));
     END
 
     ELSE IF @Action = 'SelectDropdown'

@@ -3,6 +3,7 @@ using DSL_CMS.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.SqlClient;
 using System.Text;
 using System.Web.UI;
 using System.Web.UI.WebControls;
@@ -26,7 +27,7 @@ namespace DSL_CMS
         protected LinkButton lnkSortName, lnkSortCount;
         protected LinkButton lnkPerfName, lnkPerfAll, lnkPerfChecked, lnkPerfPending,
                              lnkPerfWeekly, lnkPerfMonthly;
-        protected Literal litCountHead, litPageInfo, litCategoryNote,
+        protected Literal litCountHead, litPageInfo, litCategoryNote, litDealerNote,
                           litKpiTotal, litKpiTrend, litKpiUsed, litKpiUsedPct,
                           litKpiUnused, litKpiUnusedPct, litKpiExpiring, litKpiInvalid,
                           litKpiNotSet, litKpiExpired, litKpiNoDealer, litSortName, litSortCount,
@@ -114,10 +115,12 @@ namespace DSL_CMS
         /// </summary>
         private static readonly ListItem[] Windows =
         {
-            new ListItem("1 Day",   "1"),
-            new ListItem("3 Days",  "3"),
-            new ListItem("7 Days",  "7"),
-            new ListItem("1 Month", "30")
+            new ListItem("1 Day",    "1"),
+            new ListItem("3 Days",   "3"),
+            new ListItem("7 Days",   "7"),
+            new ListItem("1 Month",  "30"),
+            // asked for by the team; View Data offers the same, so it lands there
+            new ListItem("2 Months", "60")
         };
 
         #region State
@@ -139,6 +142,17 @@ namespace DSL_CMS
         }
 
         /// <summary>
+        /// A dealer's name from the topbar search. The table lists only the
+        /// providers holding one of that dealer's vouchers, every figure on the
+        /// page counts only those, and View Data opens on the same search.
+        /// </summary>
+        private string DealerSearch
+        {
+            get { return (string)(ViewState["DealerSearch"] ?? string.Empty); }
+            set { ViewState["DealerSearch"] = value; }
+        }
+
+        /// <summary>
         /// Selected expiry window in days; blank means no expiry restriction.
         /// Only meaningful while <see cref="EarlyExpiry"/> is on.
         /// </summary>
@@ -149,7 +163,7 @@ namespace DSL_CMS
         }
 
         /// <summary>
-        /// "View Early Expiry" toggle. The 1 / 3 / 7 Day and 1 Month buttons are
+        /// "View Early Expiry" toggle. The day and month window buttons are
         /// shown only while this is on, whatever status is selected.
         /// </summary>
         private bool EarlyExpiry
@@ -364,6 +378,12 @@ namespace DSL_CMS
             // the query string; there is no chip row on the page any more.
             SelectedCategory = (Request.QueryString["category"] ?? string.Empty).Trim();
 
+            // The topbar's dealer search lands here. Only for the two roles that
+            // see dealer names - the ones this page shows the No dealer card to -
+            // so anybody else handed the parameter gets the page as it was.
+            if (ShowDealerCard)
+                DealerSearch = (Request.QueryString["dealerName"] ?? string.Empty).Trim();
+
             BindStatusPills();
             ApplyStatus();
             BindGrid();
@@ -382,7 +402,17 @@ namespace DSL_CMS
         /// </summary>
         private void BindKpis()
         {
-            DataTable dt = VoucherBAL.GetDashboardTotals(RowAssignedTo, RowIsMoved, SelectedCategory);
+            DataTable dt;
+            try
+            {
+                dt = VoucherBAL.GetDashboardTotals(RowAssignedTo, RowIsMoved, SelectedCategory,
+                    DealerSearch);
+            }
+            catch (SqlException ex)
+            {
+                if (!DropDealerSearch(ex)) throw;
+                dt = VoucherBAL.GetDashboardTotals(RowAssignedTo, RowIsMoved, SelectedCategory);
+            }
             if (dt == null || dt.Rows.Count == 0) return;
 
             DataRow r = dt.Rows[0];
@@ -418,6 +448,8 @@ namespace DSL_CMS
             litKpiUnusedPct.Text = Percent(unused, total);
 
             litKpiTrend.Text = TrendText(total, before);
+
+            litDealerNote.Text = DealerNote(total);
         }
 
         /// <summary>
@@ -747,6 +779,48 @@ namespace DSL_CMS
                   + "\" title=\"Show every category\">&times;</a></span>";
         }
 
+        /// <summary>
+        /// The dealer being searched for, how many of their vouchers there are,
+        /// and the way back to the whole list. Worded and styled like the
+        /// category note beside it; the category survives clearing the dealer.
+        /// </summary>
+        /// <summary>
+        /// A proc that predates the dealer search refuses the parameter. SQL
+        /// Server says so as msg 8145, "@DealerName is not a parameter", while the
+        /// call has no more arguments than the proc has parameters - every call
+        /// this page makes - and as 8144, too many arguments, once it has more.
+        /// The pipeline deploys the site and never the
+        /// database, so a link carrying dealerName can meet one, and that must
+        /// cost the search and not the page: the search is dropped, its note with
+        /// it, and the page is the one it would have been without the link.
+        /// Anything else the proc raises - the key refusing to open among them -
+        /// still stops the page, as it should.
+        /// </summary>
+        private bool DropDealerSearch(SqlException ex)
+        {
+            if (DealerSearch.Length == 0) return false;
+            bool refused = ex.Number == 8144
+                        || (ex.Number == 8145
+                            && ex.Message.IndexOf("@DealerName", StringComparison.OrdinalIgnoreCase) >= 0);
+            if (!refused) return false;
+
+            DealerSearch = string.Empty;
+            litDealerNote.Text = string.Empty;
+            return true;
+        }
+
+        private string DealerNote(int vouchers)
+        {
+            if (DealerSearch.Length == 0) return string.Empty;
+
+            string back = ResolveUrl("~/voucher-status.aspx");
+            if (SelectedCategory.Length > 0) back += "?category=" + Server.UrlEncode(SelectedCategory);
+
+            return "<span class=\"vs-catnote\">Dealer <b>" + Server.HtmlEncode(DealerSearch) + "</b>&nbsp;&middot;&nbsp;"
+                 + vouchers + (vouchers == 1 ? " voucher" : " vouchers")
+                 + "<a href=\"" + Server.HtmlEncode(back) + "\" title=\"Clear this dealer search\">&times;</a></span>";
+        }
+
         /// <summary>Pill value to the wording used in the column heading.</summary>
         private static string StatusLabel(string status)
         {
@@ -766,9 +840,20 @@ namespace DSL_CMS
 
         private void BindGrid()
         {
-            DataTable dt = VoucherBAL.GetProviderSummary(
-                SelectedStatus, SelectedDays, SelectedCategory, string.Empty, string.Empty,
-                RowAssignedTo, RowIsMoved);
+            DataTable dt;
+            try
+            {
+                dt = VoucherBAL.GetProviderSummary(
+                    SelectedStatus, SelectedDays, SelectedCategory, string.Empty, string.Empty,
+                    RowAssignedTo, RowIsMoved, DealerSearch);
+            }
+            catch (SqlException ex)
+            {
+                if (!DropDealerSearch(ex)) throw;
+                dt = VoucherBAL.GetProviderSummary(
+                    SelectedStatus, SelectedDays, SelectedCategory, string.Empty, string.Empty,
+                    RowAssignedTo, RowIsMoved);
+            }
 
             dt = ApplySort(dt);
             ApplySortHeads();
@@ -1437,6 +1522,11 @@ namespace DSL_CMS
             sb.Append("?providerId=").Append(Server.UrlEncode(Convert.ToString(providerId)));
             sb.Append("&status=").Append(Server.UrlEncode(status));
             if (noDealer) sb.Append("&dealer=none");
+
+            // the dealer search travels too, so View Data opens on that dealer's
+            // vouchers in this provider - the rows this row counted
+            if (DealerSearch.Length > 0)
+                sb.Append("&dealerName=").Append(Server.UrlEncode(DealerSearch));
 
             if (!string.IsNullOrEmpty(productId))
                 sb.Append("&productId=").Append(Server.UrlEncode(productId));

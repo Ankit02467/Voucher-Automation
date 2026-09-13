@@ -127,6 +127,14 @@
                 <asp:LinkButton ID="lnkClearSearch" runat="server" OnClick="lnkClearSearch_Click"
                     CausesValidation="false" ToolTip="Clear this search">&#10005;</asp:LinkButton>
             </asp:Panel>
+
+            <%-- The same, for a dealer's name searched from the topbar. --%>
+            <asp:Panel ID="pnlDealerChip" runat="server" Visible="false" CssClass="vd-chip">
+                <span>Showing results for dealer</span>
+                <b><asp:Literal ID="litDealerChip" runat="server" /></b>
+                <asp:LinkButton ID="lnkClearDealer" runat="server" OnClick="lnkClearDealer_Click"
+                    CausesValidation="false" ToolTip="Clear this dealer search">&#10005;</asp:LinkButton>
+            </asp:Panel>
         </div>
 
         <%-- A line of its own, because it is a different question. Status asks
@@ -151,7 +159,7 @@
         </asp:Panel>
 
         <%-- "Expiring soon" is a question about a span of days as much as a
-             status, so picking it asks which span - the same 1 / 3 / 7 / 1 Month
+             status, so picking it asks which span - the same 1 / 3 / 7 days and 1 / 2 months
              the dashboard offers behind View Early Expiry. Shown only while that
              button is the lit one: for any other status there is no window to
              choose, and an inert row of days would suggest otherwise. --%>
