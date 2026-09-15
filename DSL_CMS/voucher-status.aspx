@@ -9,6 +9,42 @@
 
     <div class="vs-head">
         <h1>Voucher status</h1>
+
+        <%-- Refresh. Everything on this screen is read once, when it is drawn,
+             so an upload made after that - here or on anybody else's screen -
+             is not on it, and F5 after a postback only offers to resubmit the
+             form. This reads it all again without losing the pill, category,
+             window, dealer search, sort, page or open rows.
+
+             A placeholder round it, not Visible on the button: trap 10. --%>
+        <asp:PlaceHolder ID="phRefresh" runat="server">
+            <div class="vs-headtools">
+                <asp:LinkButton ID="lnkRefresh" runat="server" CssClass="vs-refresh"
+                    OnClick="lnkRefresh_Click" CausesValidation="false"
+                    ToolTip="Load the latest figures"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.6-4.5L4 8" /><path d="M4 4v4h4" /><path d="M4 13a8 8 0 0 0 14.6 4.5L20 16" /><path d="M20 20v-4h-4" /></svg>Refresh</asp:LinkButton>
+            </div>
+            <%-- Brought back by Back or Forward, the page is a copy the browser
+                 kept, with figures from before whatever was done after it - an
+                 upload most of all. A copy of a plain visit carries its whole
+                 state in its address, so it is read again in place:
+                 location.replace adds no history entry, so Forward still works
+                 and F5 stays a quiet reload. A copy of a postback is left alone,
+                 as it always was. Reading that again would mean posting the form,
+                 and a script that posts on its own adds a history entry, turns F5
+                 into a resubmit prompt and, in Firefox and Safari, sends every
+                 Back press straight back here. The Refresh button is there for it. --%>
+            <script>
+                (function () {
+                    if (<%= IsPostBack ? "true" : "false" %>) return;
+                    window.addEventListener('pageshow', function (e) {
+                        var nav = window.performance && performance.getEntriesByType
+                            ? performance.getEntriesByType('navigation')[0] : null;
+                        if (e.persisted || (nav && nav.type === 'back_forward'))
+                            location.replace(location.href);
+                    });
+                })();
+            </script>
+        </asp:PlaceHolder>
     </div>
 
     <asp:Panel ID="pnlDenied" runat="server" Visible="false" CssClass="msg msg-bad">

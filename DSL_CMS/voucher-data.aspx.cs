@@ -632,6 +632,11 @@ namespace DSL_CMS
                 DealerSearch = (Request.QueryString["dealerName"] ?? string.Empty).Trim();
 
             BindProducts();
+
+            // ApplyRole headed the page before BindProducts had found the locked
+            // product's name. Now it has, the heading can carry it.
+            if (HasProductLock) litProvider.Text = ProviderName();
+
             BindGrid();
         }
 
@@ -712,14 +717,25 @@ namespace DSL_CMS
             return status;
         }
 
+        /// <summary>
+        /// The page heading: the provider, then the product when the screen is
+        /// locked to one - "AWS - Foundation - Voucher Data" - so the heading says
+        /// what the grid under it holds, as the grid title already did. The
+        /// product's name is only known once BindProducts has run, which is why
+        /// Page_Load sets the heading a second time under a lock, and why
+        /// ClearFilters sets it back when it drops the lock.
+        /// </summary>
         private string ProviderName()
         {
             if (ProviderId.Length == 0) return "Voucher Data";
 
             DataTable dt = VoucherBAL.GetProvider(ProviderId);
-            return (dt != null && dt.Rows.Count > 0)
-                ? Convert.ToString(dt.Rows[0]["Name"]) + " - Voucher Data"
-                : "Voucher Data";
+            if (dt == null || dt.Rows.Count == 0) return "Voucher Data";
+
+            string heading = Convert.ToString(dt.Rows[0]["Name"]);
+            string product = LockedProductName();
+            if (product.Length > 0) heading += " - " + Server.HtmlEncode(product);
+            return heading + " - Voucher Data";
         }
 
         protected void ddlRoleSwitch_SelectedIndexChanged(object sender, EventArgs e)
@@ -1887,12 +1903,18 @@ namespace DSL_CMS
         /// </summary>
         private void ClearFilters()
         {
+            bool hadLock = HasProductLock;
+
             SearchCode = string.Empty;
             DealerSearch = string.Empty;
             StatusFilter = string.Empty;
             DaysFilter = string.Empty;
             LockedProductId = string.Empty;
             PageIndex = 0;
+
+            // The heading named the locked product. With the lock gone the grid
+            // holds the whole provider, and the heading has to say so too.
+            if (hadLock) litProvider.Text = ProviderName();
         }
 
         protected void rptPager_ItemCommand(object source, RepeaterCommandEventArgs e)
@@ -2541,6 +2563,16 @@ namespace DSL_CMS
                                       + AlreadyHeldNote(skippedCodes) + ".";
             message += DuplicateNote(codes);
             ShowMessage(message, inserted > 0);
+
+            // The sidebar counts every provider's stock, and the master built it
+            // before this handler ran - so without this the upload's own response
+            // goes on showing the count from before it, beside a grid that already
+            // holds the new rows.
+            if (inserted > 0)
+            {
+                MasterPage menu = Master as MasterPage;
+                if (menu != null) menu.RefreshNav();
+            }
 
             // Clear the filters so the rows just added are visible straight away.
             ClearFilters();

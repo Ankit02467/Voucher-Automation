@@ -98,8 +98,8 @@ namespace DSL_CMS
             // so it says so to them. Everybody else searches codes, as before.
             if (CanSearchDealers)
             {
-                txtSearch.Attributes["placeholder"] = "Search voucher code or dealer";
-                lnkSearch.ToolTip = "Find this voucher code or dealer";
+                txtSearch.Attributes["placeholder"] = "Search Voucher Code/Dealer Name";
+                lnkSearch.ToolTip = "Find this voucher code or dealer name";
             }
 
             // Rebuilt on every request, postback included: a provider added on

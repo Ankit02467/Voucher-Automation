@@ -13,13 +13,13 @@ namespace DSL_CMS
     public partial class voucher_status : System.Web.UI.Page
     {
         protected Repeater rptStatus, rptWindows, rptSummary, rptPager, rptPerformance;
-        protected PlaceHolder phEmpty, phPager, phPerfEmpty, phNoDealer;
+        protected PlaceHolder phEmpty, phPager, phPerfEmpty, phNoDealer, phRefresh;
         protected HiddenField hidOrder;
         protected LinkButton lnkReorder;
         protected Panel pnlDragMsg;
         protected Literal litDragMsg;
         protected Panel pnlWindows, pnlFilters, pnlProviderGrid, pnlPerformance, pnlDenied;
-        protected LinkButton lnkPrev, lnkNext, lnkEarlyExpiry;
+        protected LinkButton lnkPrev, lnkNext, lnkEarlyExpiry, lnkRefresh;
         // kpiTotal is not among these any more - it is a plain div now, because
         // there is no status for it to pick.
         protected LinkButton kpiUsed, kpiUnused, kpiExpiring, kpiInvalid, kpiNotSet,
@@ -349,6 +349,7 @@ namespace DSL_CMS
             if (VoucherRole.Length == 0)
             {
                 pnlDenied.Visible = true;
+                phRefresh.Visible = false;
                 pnlFilters.Visible = false;
                 pnlProviderGrid.Visible = false;
                 pnlPerformance.Visible = false;
@@ -1062,6 +1063,43 @@ namespace DSL_CMS
             BindStatusPills();   // repaint so the old status pill loses its highlight
             ApplyStatus();
             BindGrid();
+        }
+
+        /// <summary>
+        /// The screen read again from the database, as it stands. Page_Load binds
+        /// only on the first request, so everything here dates from when the page
+        /// was opened, and an upload made since is not on it. This re-reads what
+        /// Page_Load reads for the state the screen is already in: the pill,
+        /// category, early-expiry window, dealer search, sort, page and open rows
+        /// all live in view state and are left alone. The sidebar needs nothing -
+        /// the master rebuilds it on every request, this postback included.
+        /// </summary>
+        protected void lnkRefresh_Click(object sender, EventArgs e)
+        {
+            // The role rides in view state, and a page can outlive the sign-in
+            // it was drawn for: somebody else signs in in this browser and comes
+            // Back to it. Refresh re-reads everything, the role included, and a
+            // page drawn for another role is drawn afresh for this one.
+            bool unmapped;
+            string current = VoucherAccess.Effective(Session["UserId"], out unmapped);
+            if (!string.Equals(current, VoucherRole, StringComparison.Ordinal))
+            {
+                Response.Redirect(Request.RawUrl, true);
+                return;
+            }
+
+            if (VoucherRole.Length == 0) return;
+
+            if (IsStudent)
+            {
+                BindPerformance();
+                return;
+            }
+
+            BindStatusPills();
+            ApplyStatus();
+            BindGrid();
+            BindKpis();
         }
 
         protected void rptWindows_ItemCommand(object source, RepeaterCommandEventArgs e)

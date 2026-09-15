@@ -147,6 +147,22 @@ The sort headers are safe because their content *opens* with the Literal, which
 leaves `Text` unset. `Test-NoDealerCard` section 8 presses a run of buttons and
 reads the card after each one.
 
+### 11. A file the project does not list is never published
+
+The pipeline publishes with `/t:WebPublish`, which copies the files
+`DSL_CMS.csproj` names and nothing else, and then robocopy `/MIR` deletes whatever
+on the server the publish did not produce. So a file added to a folder but not to
+the project reaches nobody, and one copied straight onto the server lasts until the
+next deploy.
+
+Provider logos showed it. `ProviderBrand` looks for
+`assets/img/providers/<name>.png|svg|jpg|jpeg|webp` on every page load, but the
+project named the five logos it started with, so a sixth dropped into the folder
+never left the build and CompTIA kept its initials. The folder is included by
+wildcard now (`assets\img\providers\*.*`). Visual Studio can expand a wildcard back
+into a list when it edits the project; if it does, put the wildcard back. Anything
+else meant to be dropped in without a code change needs the same.
+
 ---
 
 ## Conventions
@@ -382,6 +398,38 @@ Three things keep that honest:
 
 Export and Import keep the full fetch: they want every column of every row, and
 they are a button pressed once rather than every click.
+
+**Voucher Status has a Refresh button, and the sidebar is told about uploads.**
+Voucher Status reads everything once, when it is drawn (`Page_Load` binds only on
+the first request), so an upload made afterwards is not on a screen that is already
+open, and F5 after a postback only offers to resubmit the form. `lnkRefresh_Click`
+re-reads what `Page_Load` reads for the state the screen is in - the pill, category,
+window, dealer search, sort, page and open rows are all view state and survive it -
+and the master rebuilds the sidebar on that postback as on every request. It sits in
+`phRefresh`, a placeholder, because of trap 10. It re-reads the role too: view state
+carries the role the page was drawn for, and a page kept from somebody else's sign-in
+in the same browser is drawn afresh, by GET, rather than refreshed as theirs.
+
+Coming Back or Forward to the page is the other way stale figures arrive. A copy of a
+plain visit (a GET) carries its whole state in its address, so a `pageshow` handler
+reads it again with `location.replace`: no history entry, so Forward still works and
+F5 stays a quiet reload. A copy of a postback is left exactly as it was. Reading it
+again means posting the form, and a script that posts on its own adds a history
+entry, turns F5 into a resubmit prompt and, in Firefox and Safari, sends every Back
+press straight back to the page. The first cut pressed Refresh on every restore, and
+an adversarial review caught it. The Refresh button is there for a postback copy.
+
+An upload on View Data calls `RefreshNav()` when it added anything. The master built
+the tree before the upload ran, so that response went on showing the provider's old
+count beside a grid that already held the new rows.
+
+**View Data's heading names the product when the screen is locked to one:** "AWS -
+Foundation - Voucher Data", as the grid title already did. The name is only known
+after `BindProducts`, so `Page_Load` sets the heading again under a lock, and
+`ClearFilters`, which drops the lock after an upload, sets it back to the provider.
+
+The topbar placeholder reads "Search Voucher Code/Dealer Name" for the admin and the
+team, and "Search voucher code" for everyone else, who cannot search by dealer.
 
 ---
 

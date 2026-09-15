@@ -317,7 +317,10 @@ button.navitem.wide { padding-right: 66px; }
 
 /* topbar search - finds a voucher by its code, from any screen */
 .topbar .search {
-    flex: 1; max-width: 420px; display: flex; align-items: center; gap: 9px;
+    /* Takes the free space before the spacer does, 100 to 1, so the box grows
+       to its 420px before the gap beside it gets anything. At an even split it
+       stopped near 265px on most screens and cut its own placeholder short. */
+    flex: 100 1 0%; max-width: 420px; display: flex; align-items: center; gap: 9px;
     background: var(--panel-2); border: 1px solid var(--line);
     border-radius: 11px; padding: 7px 13px; color: var(--tx-3);
 }
@@ -354,6 +357,17 @@ button.navitem.wide { padding-right: 66px; }
 /* ---- Page head ---- */
 .vs-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .vs-head h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -.02em; color: var(--tx); }
+/* Refresh, at the right of the heading: the same quiet bordered button as Sign
+   Out. */
+.vs-headtools { display: flex; align-items: center; gap: 10px; }
+.vs-refresh {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--panel); border: 1px solid var(--line-2);
+    color: var(--tx-2); padding: 7px 13px; border-radius: 10px;
+    font-size: 12.5px; font-weight: 700; white-space: nowrap; text-decoration: none;
+}
+.vs-refresh svg { width: 15px; height: 15px; flex: 0 0 auto; }
+.vs-refresh:hover { border-color: var(--brand); color: var(--brand); text-decoration: none; }
 
 /* ---- KPI cards ----
    Anchors, not divs: every card posts back to the rows it counted. The spans
