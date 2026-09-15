@@ -19,7 +19,8 @@ namespace DSL_CMS
                           litAssignTitle, litAssignBox, litAssignEmpty,
                           litGridTitle, litReassignMsg, litReassignCode,
                           litHistCode, litHistSummary, litSearchChip, litDealerChip,
-                          litRemarkCode, litEditRemarkCount, litUsedReq, litImportMsg;
+                          litRemarkCode, litEditRemarkCount, litUsedReq, litImportMsg,
+                          litChangeMsg, litChangeBox, litChangeCount, litChangeEmpty, litChangeSel;
         protected Panel pnlBody, pnlDenied,
                         pnlMsg, pnlRoleNote, pnlRoleSwitch, pnlEdit, pnlEditDealer, pnlEditStatus, pnlEditAdmin,
                         pnlUsedDate, pnlUpload, pnlUploadMsg, pnlHistory, pnlAssign, pnlAssignMsg,
@@ -27,25 +28,28 @@ namespace DSL_CMS
                         pnlSearchChip, pnlDealerChip, pnlWindows, pnlReassign, pnlReassignMsg,
                         pnlStatusButtons, pnlStatusDropdown, pnlStatusExtras,
                         pnlRemarks, pnlEditRemarks,
-                        pnlDealerFilter, pnlImport, pnlImportMsg;
+                        pnlDealerFilter, pnlImport, pnlImportMsg,
+                        pnlChangeProduct, pnlChangeMsg;
         protected LinkButton lnkStatusUsed, lnkStatusUnused, lnkStatusInvalid;
         protected DropDownList ddlRoleSwitch,
                                ddlEditStatus, ddlExamMode, ddlAssignProduct, ddlReassignStudent,
-                               ddlAdminStatus, ddlAdminExamMode, ddlPageSize;
+                               ddlAdminStatus, ddlAdminExamMode, ddlPageSize,
+                               ddlAdminProduct, ddlChangeTarget;
         protected TextBox txtUsedDate, txtCandidate, txtExamDate, txtPaste, txtAssignCount,
                           txtAssignSearch,
                           txtAdminCode, txtAdminExpiry, txtAdminCheckDate, txtAdminUsedDate,
-                          txtAdminAddedBy, txtAdminCandidate, txtAdminExamDate, txtRemark;
+                          txtAdminAddedBy, txtAdminCandidate, txtAdminExamDate, txtRemark,
+                          txtChangeSearch;
         protected HiddenField hfId, hfReassignId;
         protected LinkButton lnkUpload, lnkAssign, lnkDone, lnkAddDealer, lnkPrev, lnkNext,
                              lnkRemarksClose, lnkExport, lnkImport, lnkImportClose,
-                             lnkNoDealer, lnkHasDealer, lnkClearDealer;
+                             lnkNoDealer, lnkHasDealer, lnkClearDealer, lnkChangeProduct;
         protected Repeater rptHead, rptVoucher, rptPager, rptUploadProduct, rptHistory,
                            rptAssignVouchers, rptStudents, rptDealerEdit, rptAdminDealers,
                            rptStatusPills, rptCards, rptWindows,
-                           rptRemarks, rptEditRemarks;
+                           rptRemarks, rptEditRemarks, rptChangeVouchers;
         protected PlaceHolder phEmpty, phPager, phHistoryEmpty, phAssignEmpty, phStudentsEmpty,
-                              phRemarksEmpty, phEditRemarks;
+                              phRemarksEmpty, phEditRemarks, phChangeEmpty;
         protected Button btnSaveEdit, btnCancelEdit,
                          btnUploadSave, btnAssignPick, btnAssignSearch, btnAssignSave, btnReassignSave,
                          btnImportSave;
@@ -139,6 +143,37 @@ namespace DSL_CMS
         {
             get { return (string)(ViewState["LockedProductName"] ?? string.Empty); }
             set { ViewState["LockedProductName"] = value; }
+        }
+
+        /// <summary>
+        /// The bare name of the provider the screen was opened on, for the grid
+        /// title. Remembered when the heading looks it up (ProviderName): the
+        /// title is set on every bind, and a lookup of its own there would be a
+        /// round trip on every click.
+        /// </summary>
+        private string ProviderNameValue
+        {
+            get { return (string)(ViewState["ProviderName"] ?? string.Empty); }
+            set { ViewState["ProviderName"] = value; }
+        }
+
+        /// <summary>
+        /// The product and provider of the voucher the Edit dialog opened, as the
+        /// database had them. The save moves the voucher only when the Product box
+        /// differs from EditProductId, and asks the proc to keep it inside
+        /// EditProviderId. View state rather than hidden fields, so the browser
+        /// cannot change them.
+        /// </summary>
+        private string EditProductId
+        {
+            get { return (string)(ViewState["EditProduct"] ?? string.Empty); }
+            set { ViewState["EditProduct"] = value; }
+        }
+
+        private string EditProviderId
+        {
+            get { return (string)(ViewState["EditProvider"] ?? string.Empty); }
+            set { ViewState["EditProvider"] = value; }
         }
 
         /// <summary>
@@ -518,6 +553,18 @@ namespace DSL_CMS
         /// </summary>
         protected bool CanTradeDealers { get { return Role == RoleTeam; } }
 
+        /// <summary>
+        /// Moving vouchers to another product - the Product box in the Edit dialog
+        /// and the Change Product button - is the admin's alone, as it was asked
+        /// for, and only among the live products of the voucher's own provider.
+        /// It puts right an upload made against the wrong product; a wrong move
+        /// takes vouchers off the list everybody else is working from.
+        ///
+        /// This is the gate, not the markup: the save and both handlers check it
+        /// again, and the proc refuses a product of another provider whoever asks.
+        /// </summary>
+        protected bool CanChangeProduct { get { return Role == RoleAdmin; } }
+
         /// <summary>A student sees neither Added By nor Checked By.</summary>
         protected bool ShowAddedBy { get { return Role != RoleStudent; } }
         protected bool ShowCheckedBy { get { return Role != RoleStudent; } }
@@ -672,6 +719,10 @@ namespace DSL_CMS
             lnkUpload.Visible = CanUpload;
             lnkExport.Visible = CanTradeDealers;
             lnkImport.Visible = CanTradeDealers;
+            // Only on a provider's screen: the batch goes to one of that provider's
+            // products, and a topbar search spanning providers has no one provider
+            // to offer. Edit on the row still moves a voucher from anywhere.
+            lnkChangeProduct.Visible = CanChangeProduct && ProviderId.Length > 0;
             lnkAssign.Visible = CanAssign;
             lnkAssign.Text = ReassignMode ? "Reassign" : "+ Assign";
             lnkDone.Visible = (Role == RoleSubAdmin);
@@ -683,17 +734,29 @@ namespace DSL_CMS
         /// <summary>
         /// Spells out every filter carried over from the dashboard, so it is never
         /// a mystery why the grid is showing fewer rows than the provider holds.
+        ///
+        /// The provider and the product come first and together - "Voucher List -
+        /// AWS - Foundation" - and then the status and the window: what the list
+        /// is, then what narrows it. The provider was asked for because Foundation
+        /// and Associate are names more than one provider uses. A code or dealer
+        /// search from the topbar spans every provider and names none.
+        ///
+        /// The window stays right after the status, "Expiring soon - expiring
+        /// within 60 day(s)"; the two read as one phrase.
         /// </summary>
         private void ApplyGridTitle()
         {
             string title = DoneMode ? "Done Entries" : "Voucher List";
 
-            if (StatusFilter.Length > 0)
-                title += " - " + Server.HtmlEncode(StatusLabel(StatusFilter));
+            if (ProviderId.Length > 0 && ProviderNameValue.Length > 0)
+                title += " - " + Server.HtmlEncode(ProviderNameValue);
 
             string product = LockedProductName();
             if (product.Length > 0)
                 title += " - " + Server.HtmlEncode(product);
+
+            if (StatusFilter.Length > 0)
+                title += " - " + Server.HtmlEncode(StatusLabel(StatusFilter));
 
             // Under the early-expiry view the window is the one on the buttons;
             // anywhere else it can only be one the query string carried in.
@@ -733,6 +796,11 @@ namespace DSL_CMS
             if (dt == null || dt.Rows.Count == 0) return "Voucher Data";
 
             string heading = Convert.ToString(dt.Rows[0]["Name"]);
+
+            // kept for the grid title, which is set on every bind - see
+            // ProviderNameValue
+            ProviderNameValue = heading;
+
             string product = LockedProductName();
             if (product.Length > 0) heading += " - " + Server.HtmlEncode(product);
             return heading + " - Voucher Data";
@@ -2102,6 +2170,9 @@ namespace DSL_CMS
                 // exactly as many dealer fields as this voucher already has
                 rptAdminDealers.DataSource = ExistingDealerRows(r["DealerNames"], r["SaleDates"]);
                 rptAdminDealers.DataBind();
+
+                // the one box here that can move the voucher - see BindAdminProducts
+                BindAdminProducts(Convert.ToString(r["ProviderId"]), Convert.ToString(r["ProductId"]));
             }
             else if (UsesStatusButtons)
             {
@@ -2333,7 +2404,13 @@ namespace DSL_CMS
                 VoucherBAL.SaveDealers(id, dealers.ToString(), userId);
                 SaveRemarkIfAny(id);
 
-                ShowMessage(WithRemarkNote("Voucher updated."), RemarkSaveError == null);
+                // Last, and only if the Product box was changed: a move writes a
+                // history row, and an ordinary save must not leave one for nothing.
+                bool moveFailed;
+                string moved = SaveEditedProduct(id, out moveFailed);
+
+                ShowMessage(WithRemarkNote("Voucher updated." + moved),
+                    RemarkSaveError == null && !moveFailed);
             }
             else if (UsesStatusButtons)
             {
@@ -3480,6 +3557,17 @@ namespace DSL_CMS
                 string name = (checkedBy.Length > 0) ? checkedBy : student;
                 if (name.Length > 0) parts.Add("by <b>" + Server.HtmlEncode(name) + "</b>");
             }
+            else if (activity == "Product Change")
+            {
+                // The row carries the product the voucher came FROM - see
+                // ChangeProduct in the proc. A proc from before that returns no
+                // ProductName, and then there is nothing to say about it.
+                string from = row.Row.Table.Columns.Contains("ProductName")
+                    ? Convert.ToString(row["ProductName"]).Trim() : string.Empty;
+                if (from.Length > 0) parts.Add("from <b>" + Server.HtmlEncode(from) + "</b>");
+                if (by.Length > 0) parts.Add("by " + Server.HtmlEncode(by));
+                if (student.Length > 0) parts.Add("held by " + Server.HtmlEncode(student));
+            }
             else
             {
                 if (by.Length > 0) parts.Add("by " + Server.HtmlEncode(by));
@@ -3797,6 +3885,364 @@ namespace DSL_CMS
         protected string StudentChecked(object studentId)
         {
             return IsStudentPicked(studentId) ? "checked=\"checked\"" : string.Empty;
+        }
+
+        #endregion
+
+        #region Change Product
+
+        /*  The admin moves vouchers to another product of the same provider: a
+            batch uploaded against Foundation that belonged to Associate. Two ways
+            in and one way through - the Product box in the Edit dialog moves one
+            voucher, the Change Product modal moves the ticked ones of the screen,
+            and both go through MoveVouchers to the proc's ChangeProduct, which
+            refuses a product of another provider or a retired one and writes a
+            'Product Change' history row for every voucher it moves. */
+
+        private const int MoveRefused = -1;
+        private const int MoveNotDeployed = -2;
+
+        /// <summary>
+        /// Moves the vouchers in <paramref name="ids"/> to
+        /// <paramref name="productId"/>. Returns how many moved - a voucher
+        /// already on that product is left alone and not counted - or MoveRefused
+        /// when the proc turned the product down, or MoveNotDeployed when the
+        /// database has no ChangeProduct yet. The pipeline deploys the site and
+        /// never the database, so this can meet a proc that predates the action,
+        /// and then it has to say so rather than report a move that never happened.
+        /// </summary>
+        private int MoveVouchers(string ids, string productId, string providerId)
+        {
+            DataTable dt;
+            try
+            {
+                dt = VoucherBAL.ChangeProduct(ids, productId, providerId,
+                    Convert.ToString(Session["UserId"]));
+            }
+            catch (IndexOutOfRangeException)
+            {
+                // no result set at all: an older proc, which ignores the action
+                return MoveNotDeployed;
+            }
+
+            if (dt == null || dt.Rows.Count == 0) return 0;
+            if (dt.Columns.Contains("Refused") && Convert.ToInt32(dt.Rows[0]["Refused"]) == 1)
+                return MoveRefused;
+            return Convert.ToInt32(dt.Rows[0]["Moved"]);
+        }
+
+        /// <summary>
+        /// The sidebar counts vouchers per product, and the master built it before
+        /// this page's click handlers ran - so after a move this response would go
+        /// on showing the counts from before it. The same call the upload makes.
+        /// </summary>
+        private void RefreshSidebar()
+        {
+            MasterPage menu = Master as MasterPage;
+            if (menu != null) menu.RefreshNav();
+        }
+
+        /// <summary>
+        /// The Edit dialog's product list: the live products of the voucher's own
+        /// provider, in the catalogue's order, with the voucher's product chosen.
+        ///
+        /// A voucher on a retired product still finds its own product in the list,
+        /// marked retired. Without it the list would open on some other product,
+        /// and a save that changed nothing else would move the voucher there. The
+        /// same goes for a product that is not its provider's at all - data this
+        /// screen never writes, but the list must not paper over it.
+        /// </summary>
+        private void BindAdminProducts(string providerId, string productId)
+        {
+            EditProviderId = providerId;
+            EditProductId = productId;
+
+            ddlAdminProduct.Items.Clear();
+
+            DataTable dt = VoucherBAL.GetProductDetail(providerId, string.Empty, "SelectDropdown");
+            if (dt != null)
+            {
+                foreach (DataRow p in dt.Rows)
+                    ddlAdminProduct.Items.Add(new ListItem(Convert.ToString(p["Name"]), Convert.ToString(p["Id"])));
+            }
+
+            if (ddlAdminProduct.Items.FindByValue(productId) == null)
+            {
+                DataTable own = VoucherBAL.GetProductById(productId);
+                bool found = (own != null && own.Rows.Count > 0);
+                string name = found ? Convert.ToString(own.Rows[0]["Name"]) : "Current product";
+                bool retired = found && Convert.ToString(own.Rows[0]["Status"]) == "I";
+                ddlAdminProduct.Items.Insert(0,
+                    new ListItem(retired ? name + " (retired)" : name, productId));
+            }
+
+            ddlAdminProduct.SelectedValue = productId;
+        }
+
+        /// <summary>
+        /// The Edit dialog's product, saved when the admin changed it. Returns what
+        /// the message gains - " Moved to Associate." - or nothing when the box was
+        /// left alone. <paramref name="failed"/> is set when the move did not
+        /// happen, so the message shows as a problem rather than a success.
+        /// </summary>
+        private string SaveEditedProduct(string id, out bool failed)
+        {
+            failed = false;
+
+            string target = ddlAdminProduct.SelectedValue;
+            if (target.Length == 0 || string.Equals(target, EditProductId, StringComparison.Ordinal))
+                return string.Empty;
+
+            string name = (ddlAdminProduct.SelectedItem == null) ? "that product" : ddlAdminProduct.SelectedItem.Text;
+            int moved = MoveVouchers(id, target, EditProviderId);
+
+            if (moved == MoveNotDeployed)
+            {
+                failed = true;
+                return " The product was not changed: the database has not been updated for that yet.";
+            }
+
+            if (moved == MoveRefused)
+            {
+                failed = true;
+                return " The product was not changed: " + name + " is not a live product of this voucher's provider.";
+            }
+
+            if (moved <= 0) return string.Empty;
+
+            RefreshSidebar();
+            return " Moved to " + name + ".";
+        }
+
+        /// <summary>The ticks the modal's list is drawn with - see ChangePickChecked.</summary>
+        private HashSet<string> _changeTicked = new HashSet<string>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// The code typed into the modal's own search box. Read off the box, which
+        /// posts its own value, the way the Assign picker reads its one.
+        /// </summary>
+        private string ChangeSearchCode
+        {
+            get { return txtChangeSearch.Text.Trim(); }
+        }
+
+        protected void lnkChangeProduct_Click(object sender, EventArgs e)
+        {
+            if (!CanChangeProduct || ProviderId.Length == 0) return;
+
+            txtChangeSearch.Text = string.Empty;
+            pnlChangeMsg.Visible = false;
+
+            BindChangeTargets();
+            BindChange(ChangeOffered(), new HashSet<string>(StringComparer.Ordinal));
+            pnlChangeProduct.Visible = true;
+        }
+
+        protected void btnChangeSearch_Click(object sender, EventArgs e)
+        {
+            if (!CanChangeProduct || ProviderId.Length == 0) return;
+
+            pnlChangeMsg.Visible = false;
+            BindChange(ChangeOffered(), PostedChangePicks());
+            pnlChangeProduct.Visible = true;
+        }
+
+        protected void lnkChangeClose_Click(object sender, EventArgs e)
+        {
+            pnlChangeProduct.Visible = false;
+        }
+
+        protected void btnChangeSave_Click(object sender, EventArgs e)
+        {
+            // The button that opens the modal is guarded; the save that writes
+            // through it has to be as well, or a forged postback could move
+            // vouchers for any role.
+            if (!CanChangeProduct || ProviderId.Length == 0) return;
+
+            pnlChangeProduct.Visible = true;
+
+            DataTable offered = ChangeOffered();
+            HashSet<string> ticked = PostedChangePicks();
+
+            // Only what is on offer now. The ticks come off a form, and the list is
+            // what the screen shows - a tick for anything else moves nothing.
+            var ids = new List<string>();
+            if (offered != null)
+            {
+                foreach (DataRow r in offered.Rows)
+                {
+                    string vid = Convert.ToString(r["Id"]);
+                    if (ticked.Contains(vid)) ids.Add(vid);
+                }
+            }
+
+            string target = ddlChangeTarget.SelectedValue;
+
+            if (ids.Count == 0)
+            {
+                ShowChangeError("Select at least one voucher.");
+                BindChange(offered, ticked);
+                return;
+            }
+
+            if (target.Length == 0)
+            {
+                ShowChangeError("Choose the product to move them to.");
+                BindChange(offered, ticked);
+                return;
+            }
+
+            string name = ddlChangeTarget.SelectedItem.Text;
+            int moved = MoveVouchers(string.Join(",", ids.ToArray()), target, ProviderId);
+
+            if (moved == MoveNotDeployed)
+            {
+                ShowChangeError("Nothing was moved: the database has not been updated for this yet.");
+                BindChange(offered, ticked);
+                return;
+            }
+
+            if (moved == MoveRefused)
+            {
+                ShowChangeError("Nothing was moved: " + name + " is not a live product of this provider.");
+                BindChange(offered, ticked);
+                return;
+            }
+
+            pnlChangeProduct.Visible = false;
+
+            // A voucher already on the target is left where it is and not counted,
+            // so the figure can come in under the number ticked. Say so, rather
+            // than let the two disagree without a word.
+            string message = moved + " voucher(s) moved to " + name + ".";
+            int already = ids.Count - moved;
+            if (already > 0) message += " " + already + " already on " + name + ", left as they were.";
+            ShowMessage(message, moved > 0);
+
+            if (moved > 0) RefreshSidebar();
+            BindGrid();
+        }
+
+        /// <summary>
+        /// Where the batch can go: the live products of this provider, in the
+        /// catalogue's order. The product the screen is locked to is left out -
+        /// every voucher on offer is on it already.
+        /// </summary>
+        private void BindChangeTargets()
+        {
+            ddlChangeTarget.Items.Clear();
+            ddlChangeTarget.Items.Add(new ListItem("-- Select product --", string.Empty));
+
+            DataTable dt = VoucherBAL.GetProductDetail(ProviderId, string.Empty, "SelectDropdown");
+            if (dt == null) return;
+
+            foreach (DataRow p in dt.Rows)
+            {
+                string pid = Convert.ToString(p["Id"]);
+                if (HasProductLock && pid == LockedProductId) continue;
+                ddlChangeTarget.Items.Add(new ListItem(Convert.ToString(p["Name"]), pid));
+            }
+        }
+
+        /// <summary>
+        /// What the modal offers: the rows the grid is showing - CurrentRows, the
+        /// fetch Export sends, under every filter on the screen - narrowed by the
+        /// modal's own code box and nothing else. So it never offers a voucher the
+        /// admin is not looking at.
+        /// </summary>
+        private DataTable ChangeOffered()
+        {
+            return FilterByCode(CurrentRows(), ChangeSearchCode);
+        }
+
+        private void BindChange(DataTable dt, HashSet<string> ticked)
+        {
+            _changeTicked = ticked ?? new HashSet<string>(StringComparer.Ordinal);
+
+            rptChangeVouchers.DataSource = dt;
+            rptChangeVouchers.DataBind();
+
+            int count = (dt == null) ? 0 : dt.Rows.Count;
+            int picked = 0;
+            if (dt != null)
+            {
+                foreach (DataRow r in dt.Rows)
+                    if (_changeTicked.Contains(Convert.ToString(r["Id"]))) picked++;
+            }
+
+            string slice = ChangeScope();
+            litChangeBox.Text = "Vouchers on this screen"
+                + (slice.Length == 0 ? string.Empty : " &mdash; " + Server.HtmlEncode(slice));
+            litChangeCount.Text = count.ToString();
+            litChangeSel.Text = picked.ToString();
+
+            phChangeEmpty.Visible = (count == 0);
+            litChangeEmpty.Text = (ChangeSearchCode.Length > 0)
+                ? "No voucher on this screen matches \"" + Server.HtmlEncode(ChangeSearchCode)
+                  + "\". Clear the search to see them all."
+                : "No vouchers on this screen.";
+        }
+
+        /// <summary>
+        /// The screen's narrowing in words, for the modal's heading - "AWS &#183;
+        /// Foundation &#183; Open" - so it is plain which vouchers are on offer.
+        /// </summary>
+        private string ChangeScope()
+        {
+            var bits = new List<string>();
+
+            if (ProviderNameValue.Length > 0) bits.Add(ProviderNameValue);
+            if (LockedProductName().Length > 0) bits.Add(LockedProductName());
+            if (StatusFilter.Length > 0) bits.Add(StatusLabel(StatusFilter));
+
+            string days = ExpiringView ? ExpiringDays : DaysFilter;
+            if (days.Length > 0) bits.Add("within " + days + " day(s)");
+
+            if (NoDealerFilter) bits.Add("no dealer");
+            if (HasDealerFilter) bits.Add("with dealer");
+            if (DealerSearch.Length > 0) bits.Add("dealer \"" + DealerSearch + "\"");
+            if (SearchCode.Length > 0) bits.Add("code \"" + SearchCode + "\"");
+
+            return string.Join(" · ", bits.ToArray());
+        }
+
+        /// <summary>
+        /// The ids ticked in the modal's list, straight off the form - the boxes
+        /// are plain inputs sharing one name. Anything that is not an id is dropped.
+        /// </summary>
+        private HashSet<string> PostedChangePicks()
+        {
+            var set = new HashSet<string>(StringComparer.Ordinal);
+
+            string[] values = Request.Form.GetValues("changePick");
+            if (values == null) return set;
+
+            foreach (string v in values)
+            {
+                int n;
+                if (int.TryParse(v, out n) && n > 0) set.Add(n.ToString());
+            }
+
+            return set;
+        }
+
+        /// <summary>
+        /// One row's tick box, written out whole rather than as an attribute on
+        /// markup, so the value carries the ordinary double quotes every other
+        /// input on the page has. They all share one name: that is what lets the
+        /// save read the ticked ids straight off the form.
+        /// </summary>
+        protected string ChangePickBox(object voucherId)
+        {
+            string id = Convert.ToString(voucherId);
+            return "<input type=\"checkbox\" name=\"changePick\" value=\"" + Server.HtmlEncode(id) + "\""
+                 + (_changeTicked.Contains(id) ? " checked=\"checked\"" : string.Empty) + " />";
+        }
+
+        private void ShowChangeError(string message)
+        {
+            litChangeMsg.Text = Server.HtmlEncode(message);
+            pnlChangeMsg.Visible = true;
         }
 
         #endregion

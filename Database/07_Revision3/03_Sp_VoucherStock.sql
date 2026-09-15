@@ -72,6 +72,15 @@
        Run 10_Remarks/01 before this file, or both new actions and
        the two new grid columns fail on a missing table.
 
+   Revision 3g:
+
+   13. ChangeProduct - the admin moves vouchers to another product of
+       the same provider: one from the Edit dialog, or a batch from
+       Change Product on View Data. The rules are over the branch.
+
+       SelectVoucherHistory gained ProductName, so View History can
+       say which product a 'Product Change' row moved the voucher from.
+
    Revision 3d - encryption:
 
    9. VoucherCode, CandidateName, Remarks and the dealer names are
@@ -660,6 +669,73 @@ BEGIN
         SELECT @IdInt;
     END
 
+    /* ================= product change =================
+       The admin moves vouchers to another product of the same provider - a
+       batch uploaded against Foundation that belonged to Associate. @Ids is
+       one id from the Edit dialog, or a batch from Change Product.
+
+       Same provider only, and only onto a live product. The target is checked
+       here, and every voucher is matched on the target's provider as well as
+       on its id: the ids arrive in a posted form, and a forged one from another
+       provider must move nothing. @ProviderId, when it is sent, has to be the
+       target's provider too. ProviderId itself is never written, so the
+       provider's own figures cannot move.
+
+       Nothing else on the voucher changes - not the code or its hash, the
+       status, the dates, who holds it or its overnight stamp. A voucher out
+       with a student stays with that student, under its new product. One
+       already on the target is left alone and not counted.
+
+       One history row per voucher moved, Activity 'Product Change', carrying
+       the product it came FROM. Every other history row copies the product
+       after its event, so without this the old product would be recorded
+       nowhere. It carries no check date and no checker - moving a voucher is
+       not checking it - and the performance counts read only 'Status Update'
+       and 'Voucher Checked', so it is nobody's work.
+
+       Always answers with a row, a refusal included. A proc that predates this
+       action returns no result set at all, and that is how the page tells the
+       two apart. */
+    ELSE IF @Action = 'ChangeProduct'
+    BEGIN
+        DECLARE @TargetProvider INT =
+            (SELECT ProviderId FROM dbo.VoucherProduct_Table
+              WHERE Id = @ProductInt AND Status = 'A');
+
+        IF @Ids IS NULL OR @TargetProvider IS NULL
+           OR (@ProviderInt IS NOT NULL AND @ProviderInt <> @TargetProvider)
+        BEGIN
+            SELECT Moved = 0, Refused = 1;
+            RETURN;
+        END
+
+        DECLARE @Changed TABLE (Id INT PRIMARY KEY, OldProductId INT);
+
+        UPDATE v
+           SET ProductId    = @ProductInt,
+               ModifiedBy   = @UserInt,
+               ModifiedDate = GETDATE()
+        OUTPUT inserted.Id, deleted.ProductId INTO @Changed (Id, OldProductId)
+        FROM dbo.VoucherStock_Table v
+        INNER JOIN (SELECT DISTINCT Id = TRY_CONVERT(INT, value)
+                      FROM STRING_SPLIT(@Ids, ',')) s ON s.Id = v.Id
+        WHERE v.ProviderId = @TargetProvider
+          AND v.ProductId <> @ProductInt;
+
+        SET @Ins = @@ROWCOUNT;
+
+        INSERT INTO dbo.VoucherHistory_Table
+            (VoucherId, ProductId, VoucherCode, OldStatus, Status, CheckedBy,
+             VoucherCheckDate, ChangedBy, Activity, AssignedToName)
+        SELECT v.Id, c.OldProductId, v.VoucherCode, v.Status, v.Status, NULL,
+               NULL, @UserInt, 'Product Change', ISNULL(a.FullName, '')
+        FROM @Changed c
+        INNER JOIN dbo.VoucherStock_Table v ON v.Id = c.Id
+        LEFT  JOIN dbo.User_Table a ON a.Id = v.AssignedTo;
+
+        SELECT Moved = @Ins, Refused = 0;
+    END
+
     /* ================= status entry ================= */
     ELSE IF @Action = 'UpdateStatusEntry'
     BEGIN
@@ -1027,7 +1103,7 @@ BEGIN
         (
             SELECT h.Id, h.Activity, h.Status, h.OldStatus,
                    h.CheckedBy, h.VoucherCheckDate, h.ChangedDate,
-                   h.AssignedToName, h.ChangedBy,
+                   h.AssignedToName, h.ChangedBy, h.ProductId,
                    Handoff = CASE WHEN h.Activity IN ('Assigned to Student',
                                                       'Reassigned to Student')
                                   THEN 1 ELSE 0 END
@@ -1038,10 +1114,16 @@ BEGIN
                o.CheckedBy, o.VoucherCheckDate, o.ChangedDate,
                o.AssignedToName,
                ChangedByName = ISNULL(u.FullName, ''),
+               /* the product the row names. On a 'Product Change' row that is
+                  the one the voucher was moved FROM - see ChangeProduct - which
+                  is what View History says; every other row names the product
+                  the voucher was on. */
+               ProductName = ISNULL(pp.Name, ''),
                Round = SUM(o.Handoff) OVER (ORDER BY o.ChangedDate, o.Id
                                             ROWS UNBOUNDED PRECEDING)
         FROM Ordered o
         LEFT JOIN dbo.User_Table u ON u.Id = o.ChangedBy
+        LEFT JOIN dbo.VoucherProduct_Table pp ON pp.Id = o.ProductId
         ORDER BY o.ChangedDate, o.Id;
     END
 

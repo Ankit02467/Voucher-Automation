@@ -188,6 +188,60 @@ had already been corrected for exactly this. Nothing in the tree is muted now.
 Existing vouchers still point at them; deleting breaks the FK and loses which
 product those vouchers belonged to.
 
+**A voucher can be moved to another product, and only by the admin.** An upload
+against the wrong product — a batch of Associate codes pasted into Foundation — is
+put right from View Data: the **Product** box in the admin's Edit dialog moves one
+voucher, the **Change Product** button moves a batch. Both go through
+`Sp_VoucherStock_Table @Action='ChangeProduct'`, which
+
+- takes only a **live product of the vouchers' own provider**, and matches every
+  voucher on that provider as well as on its id, so a forged id from anywhere else
+  moves nothing;
+- **never writes `ProviderId`.** Nothing in the schema ties a voucher's provider to
+  its product's — they are two independent foreign keys — so a move that crossed
+  providers would leave the old provider's figures still counting the voucher while
+  the new provider's product list counted it too, and the product link would open
+  View Data on a grid without it. Same provider only, and the pair cannot drift;
+- leaves everything else alone: the code and its hash, the status, the dates, who
+  holds it, the overnight stamp. A voucher out with a student stays with that
+  student, under its new product;
+- writes one `Product Change` history row per voucher moved, carrying the product it
+  came **from**. Every other history row copies the product *after* its event, so
+  this row is the only record of where the voucher was. It carries no check date and
+  no checker — moving a voucher is not checking it — and the performance counts read
+  `Status Update` and `Voucher Checked` only, so the row is nobody's work.
+
+**The past follows the voucher.** `Sp_VoucherPerformance_Table` groups on the live
+voucher's product, never on the history row's, so every check ever made on a moved
+voucher counts under its new product from that moment. That is exactly what
+correcting a mistaken upload should do, and it is worth knowing before the button is
+used for anything else.
+
+**The batch offers what the screen is showing** — `CurrentRows()`, the fetch Export
+sends, under the product lock, the status card, the dealer pills and the topbar
+search, narrowed by the modal's own code box. The save keeps only ticked ids that
+are still in that list, so nothing the admin cannot see can move. The tick boxes are
+plain inputs sharing one name and the list keeps no view state: a provider can hold
+thousands of vouchers, and a server control per row would carry every one of them
+back and forth on each click.
+
+**The Product box is saved only when it was changed** — an ordinary save must not
+write a history row for nothing. A voucher on a **retired** product finds its own
+product in the list, marked retired: without it the list would open on some other
+product, because `SelectIfPresent` leaves the selection alone when the value is
+missing, and the next save would move the voucher there.
+
+**And the sidebar is told** (`RefreshSidebar`), for the reason the product drag
+already had: the master builds the tree before a content page's events run.
+
+The proc branch is new, so **the pipeline will not carry it** —
+[Database/15_ProductChange/01_Product_Change.sql](Database/15_ProductChange/01_Product_Change.sql)
+records the `sqlcmd -I` run and checks it afterwards. Until it is run, the page says
+the database has not been updated rather than reporting a move that did not happen:
+an older proc returns no result set at all for an action it does not know, which is
+the `IndexOutOfRangeException` fallback `SelectKeys` already relies on.
+`Compat-ProductChange` installs the committed proc and presses both buttons.
+
 **Status values:** `VoucherStock_Table.Status` is `Used` / `Unused` / `Expired`
 / `Invalid` / **NULL**. NULL means a fresh upload nobody has triaged — the
 "Not Set" pill. Providers and products use `A` / `I`.
@@ -428,6 +482,20 @@ Foundation - Voucher Data", as the grid title already did. The name is only know
 after `BindProducts`, so `Page_Load` sets the heading again under a lock, and
 `ClearFilters`, which drops the lock after an upload, sets it back to the provider.
 
+**The grid title names the provider as well as the product** — "Voucher List - AWS
+- Foundation (1661)". The provider and the product come first and together, then
+whatever narrows them: "Voucher List - AWS - Foundation - Open (953)". The provider
+is there because Foundation and Associate are names more than one provider uses, so
+a title without it says less than the sidebar the reader came from.
+
+The one thing that ordering has to keep is the **window directly after the status**
+— "Expiring soon - expiring within 60 day(s)" is one phrase, and `Test-SearchExpiry`
+reads it as one. That is why the provider went in front of the status rather than
+between the two. A topbar code or dealer search spans every provider and names none.
+
+The name is `ProviderNameValue`, kept in view state when the heading looks it up, so
+the title costs no round trip of its own on a screen that re-titles on every bind.
+
 The topbar placeholder reads "Search Voucher Code/Dealer Name" for the admin and the
 team, and "Search voucher code" for everyone else, who cannot search by dealer.
 
@@ -480,6 +548,7 @@ Passwords are stored **Base64, not hashed** — matching the existing site.
 | Search by dealer name (topbar box) | ✓ | | ✓ | |
 | Export / Import dealers | | | ✓ | |
 | Reorder a provider's products | ✓ | | | |
+| Change a voucher's product | ✓ | | | |
 | Added By / Checked By columns | ✓ | ✓ | ✓ | |
 | Student-wise performance | ✓ | ✓ | | |
 

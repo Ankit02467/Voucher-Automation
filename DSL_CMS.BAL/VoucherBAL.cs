@@ -197,6 +197,11 @@ namespace DSL_CMS.BAL
             return VoucherDAL.Assign(ids, assignedTo, userId);
         }
 
+        public static DataTable ChangeProduct(string ids, string productId, string providerId, string userId)
+        {
+            return VoucherDAL.ChangeProduct(ids, productId, providerId, userId);
+        }
+
         public static DataTable GetHistory(string providerId)
         {
             return VoucherDAL.GetHistory(providerId);

@@ -424,6 +424,25 @@ namespace DSL_CMS.DAL
                 "@AddedBy", userId);
         }
 
+        /// <summary>
+        /// Admin - moves vouchers to another product of the same provider: one id
+        /// from the Edit dialog, or a comma-separated batch from Change Product.
+        /// The proc refuses a retired product, or one belonging to a provider
+        /// other than <paramref name="providerId"/>, and moves only vouchers of
+        /// that product's own provider. One row back: Moved, and Refused = 1 when
+        /// the target was refused. A proc older than the action returns no result
+        /// set, which reaches the caller as an IndexOutOfRangeException.
+        /// </summary>
+        public static DataTable ChangeProduct(string ids, string productId, string providerId, string userId)
+        {
+            return SqlHelper.ExecuteDataTable("Sp_VoucherStock_Table", true,
+                "@Action", "ChangeProduct",
+                "@Ids", ids,
+                "@ProductId", productId,
+                "@ProviderId", providerId,
+                "@AddedBy", userId);
+        }
+
         /// <summary>Admin - "View History" modal.</summary>
         public static DataTable GetHistory(string providerId)
         {

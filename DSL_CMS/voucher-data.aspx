@@ -37,6 +37,11 @@
             OnClick="lnkDone_Click" CausesValidation="false">View Done Entries</asp:LinkButton>
         <asp:LinkButton ID="lnkUpload" runat="server" CssClass="pill-btn" Visible="false"
             OnClick="lnkUpload_Click" CausesValidation="false">Upload Entry</asp:LinkButton>
+        <%-- The admin's: vouchers uploaded against the wrong product, moved to the
+             right one among this provider's products. Plain text on purpose - it
+             is shown and hidden from code (trap 10). --%>
+        <asp:LinkButton ID="lnkChangeProduct" runat="server" CssClass="pill-btn" Visible="false"
+            OnClick="lnkChangeProduct_Click" CausesValidation="false">Change Product</asp:LinkButton>
         <%-- The team's pair. The admin uploads the codes; the dealer name and
              sale date are the team's to fill in, and fifty at a time through the
              Edit dialog is not a job anybody would do. Export takes the screen
@@ -218,6 +223,15 @@
                     <div class="field">
                         <label>Added By <span class="locked-tag">read only</span></label>
                         <asp:TextBox ID="txtAdminAddedBy" runat="server" Enabled="false" CssClass="locked" />
+                    </div>
+                    <%-- The product the voucher counts under - the admin's to put
+                         right when a batch went up against the wrong one. Only the
+                         live products of the voucher's own provider are offered,
+                         which is all the proc will take, and it is saved only when
+                         it is changed. See BindAdminProducts. --%>
+                    <div class="field">
+                        <label>Product</label>
+                        <asp:DropDownList ID="ddlAdminProduct" runat="server" />
                     </div>
                     <div class="field">
                         <label>Expiry Date</label>
@@ -909,6 +923,110 @@
                     OnClick="btnAssignSave_Click" />
             </div>
         </div>
+    </asp:Panel>
+
+    <%-- ================= Change Product modal =================
+         The admin's way to move a batch: vouchers uploaded against Foundation
+         that belonged to Associate. It lists what the screen behind it is
+         showing - the same rows under the same product, card, dealer pill and
+         code search - so nothing the admin cannot see is on offer, and moves the
+         ticked ones to one product of the same provider.
+
+         The boxes are plain inputs sharing one name, and the list keeps no view
+         state: a provider can hold thousands of vouchers, and a server control
+         per row would carry every one of them back and forth on each click. The
+         save reads the ticked ids straight off the form and keeps only those
+         still on offer, so a forged id moves nothing. --%>
+    <asp:Panel ID="pnlChangeProduct" runat="server" Visible="false" CssClass="modal-back">
+        <div class="modal lg">
+            <div class="modal-head">
+                <h2>Change Product</h2>
+                <asp:LinkButton ID="lnkChangeClose" runat="server" CssClass="btn btn-light btn-sm"
+                    OnClick="lnkChangeClose_Click" CausesValidation="false">Close</asp:LinkButton>
+            </div>
+            <div class="modal-body">
+                <asp:Panel ID="pnlChangeMsg" runat="server" Visible="false" CssClass="msg msg-bad">
+                    <asp:Literal ID="litChangeMsg" runat="server" />
+                </asp:Panel>
+
+                <%-- DefaultButton for the reason the Assign picker has one: Enter in
+                     the search box has to search, not move anything. --%>
+                <asp:Panel ID="pnlChangeFilters" runat="server" CssClass="filters"
+                    DefaultButton="btnChangeSearch" style="margin-bottom: 16px;">
+                    <div class="field">
+                        <label>Move to Product</label>
+                        <asp:DropDownList ID="ddlChangeTarget" runat="server" />
+                    </div>
+                    <div class="field">
+                        <label>Voucher Code</label>
+                        <asp:TextBox ID="txtChangeSearch" runat="server" placeholder="Search code" />
+                    </div>
+                    <div class="field">
+                        <asp:Button ID="btnChangeSearch" runat="server" CssClass="btn btn-light" Text="Search"
+                            OnClick="btnChangeSearch_Click" CausesValidation="false" />
+                    </div>
+                </asp:Panel>
+
+                <div class="assign-split one">
+                    <div class="box">
+                        <h3><asp:Literal ID="litChangeBox" runat="server" Text="Vouchers on this screen" />
+                            (<asp:Literal ID="litChangeCount" runat="server" Text="0" />)</h3>
+                        <div class="scroll">
+                            <table class="data" style="border: 0;">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 60px;">
+                                            <input type="checkbox" id="chkChangeAll" title="Select all"
+                                                   onclick="vdChangeAll(this)" />
+                                        </th>
+                                        <th>Product Name</th>
+                                        <th>Voucher Code</th>
+                                        <th>Voucher Status</th>
+                                        <th>Expiry Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody onclick="vdChangeCount()">
+                                    <asp:Repeater ID="rptChangeVouchers" runat="server" EnableViewState="false">
+                                        <ItemTemplate>
+                                            <tr>
+                                                <td><%# ChangePickBox(Eval("Id")) %></td>
+                                                <td class="left"><%# Dash(Eval("ProductName")) %></td>
+                                                <td class="left"><strong><%# Dash(Eval("VoucherCode")) %></strong></td>
+                                                <td><%# Dash(Eval("Status")) %></td>
+                                                <td><%# DateOrDash(Eval("ExpiryDate")) %></td>
+                                            </tr>
+                                        </ItemTemplate>
+                                    </asp:Repeater>
+                                    <asp:PlaceHolder ID="phChangeEmpty" runat="server" Visible="false">
+                                        <tr><td colspan="5" class="empty">
+                                            <asp:Literal ID="litChangeEmpty" runat="server" />
+                                        </td></tr>
+                                    </asp:PlaceHolder>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-foot">
+                <span class="spacer"><b id="vdChangeSel"><asp:Literal ID="litChangeSel" runat="server" Text="0" /></b> selected</span>
+                <asp:Button ID="btnChangeSave" runat="server" CssClass="btn" Text="Move"
+                    OnClick="btnChangeSave_Click" />
+            </div>
+        </div>
+        <script>
+            function vdChangeAll(box) {
+                var list = document.getElementsByName('changePick');
+                for (var i = 0; i < list.length; i++) list[i].checked = box.checked;
+                vdChangeCount();
+            }
+            function vdChangeCount() {
+                var list = document.getElementsByName('changePick'), n = 0;
+                for (var i = 0; i < list.length; i++) if (list[i].checked) n++;
+                var el = document.getElementById('vdChangeSel');
+                if (el) el.textContent = n;
+            }
+        </script>
     </asp:Panel>
 
     <%-- ================= Reassign modal ================= --%>
