@@ -114,8 +114,42 @@ namespace DSL_CMS.Helpers
         }
 
         /// <summary>
+        /// Where a provider's logo belongs, whether or not anything is there yet.
+        /// The name lowercased with anything that is not a letter or digit taken
+        /// out, so CISCO is ~/assets/img/providers/cisco.svg.
+        /// </summary>
+        public static string ExpectedLogoUrl(object name)
+        {
+            return ExpectedLogoUrl(name, ".svg");
+        }
+
+        public static string ExpectedLogoUrl(object name, string extension)
+        {
+            string slug = Slug(Convert.ToString(name));
+            if (slug.Length == 0) return string.Empty;
+
+            return VirtualPathUtility.ToAbsolute("~/assets/img/providers/" + slug + extension);
+        }
+
+        /// <summary>
         /// The finished tile. <paramref name="cssClass"/> lets the sidebar ask
         /// for its smaller variant without a second copy of this markup.
+        ///
+        /// A provider whose file is already in the folder is drawn exactly as it
+        /// always was. A provider with no file **still carries the path its logo
+        /// would be at**, so dropping `cisco.svg` into assets/img/providers is the
+        /// whole of giving CISCO a logo - no code change, and nobody has to work
+        /// out what to call the file: it is in the page, in front of them.
+        ///
+        /// The image is hidden until it loads (`vdLogoOn`, on MasterPage). If
+        /// nothing is there it is tried once more as .png and then taken out
+        /// (`vdLogoOff`), leaving the coloured initials that were there before -
+        /// so a provider without a logo looks exactly as it looks today, and a
+        /// missing file never leaves a broken-image mark in the table.
+        ///
+        /// It costs a 404 per logo-less provider per page. Worth it: the
+        /// alternative is a code change, or a README, every time a provider is
+        /// added.
         /// </summary>
         public static string Tile(object providerId, object name, string cssClass)
         {
@@ -127,8 +161,19 @@ namespace DSL_CMS.Helpers
                      + "\" alt=\"" + HttpUtility.HtmlEncode(Convert.ToString(name)) + "\" /></span>";
             }
 
-            return "<span class=\"" + cssClass + "\" style=\"" + LogoStyle(providerId) + "\">"
-                 + HttpUtility.HtmlEncode(Initials(name)) + "</span>";
+            string tile = "<span class=\"" + cssClass + "\" style=\"" + LogoStyle(providerId) + "\">";
+            string initials = HttpUtility.HtmlEncode(Initials(name));
+            string expected = ExpectedLogoUrl(name);
+
+            // A name with no letters or digits in it has no file name to offer.
+            if (expected.Length == 0) return tile + initials + "</span>";
+
+            return tile
+                 + "<img src=\"" + HttpUtility.HtmlEncode(expected)
+                 + "\" alt=\"" + HttpUtility.HtmlEncode(Convert.ToString(name))
+                 + "\" data-alt=\"" + HttpUtility.HtmlEncode(ExpectedLogoUrl(name, ".png"))
+                 + "\" onload=\"vdLogoOn(this)\" onerror=\"vdLogoOff(this)\" />"
+                 + "<i>" + initials + "</i></span>";
         }
 
         private static string Slug(string text)

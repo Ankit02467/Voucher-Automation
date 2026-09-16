@@ -163,6 +163,15 @@ wildcard now (`assets\img\providers\*.*`). Visual Studio can expand a wildcard b
 into a list when it edits the project; if it does, put the wildcard back. Anything
 else meant to be dropped in without a code change needs the same.
 
+**And the page now says where the file goes.** A provider with no logo used to be
+drawn as coloured initials and nothing else, so the only way to learn what to call
+its file was this README - `ProviderBrand.Tile` renders the expected path as an
+`<img>` on every tile, logo or not. Dropping `cisco.svg` beside the others is all
+adding CISCO's logo takes. The image is hidden until it loads, is tried once as
+`.png`, and is then removed by `vdLogoOff` on MasterPage, leaving exactly the
+initials tile that was there before. It costs a 404 per logo-less provider per
+page, which is the price of never having to look anything up.
+
 ---
 
 ## Conventions
@@ -257,12 +266,14 @@ a card and the list under it stop matching. "Expiring soon" is the same
 question the other way round: unused or untriaged, expiring **within** the
 chosen window.
 
-The windows are 1, 3 and 7 days and 1 and 2 months (60 days, which the team asked
+The windows are 1, 3, 7 and 15 days and 1 and 2 months (60 days, which the team asked
 for). There are two lists, `Windows` on each code-behind, and they are kept
 identical: a drill-down from Voucher Status arrives with `days=60`, and View Data
 has to light a button of the same value or the screen says one window and counts
 another. The student reaches View Data's list through the Expiring soon button,
-so they have 2 Months too; one list, one meaning, as with the month before it.
+so they have 2 Months too; one list, one meaning, as with the month before it. The
+15 Days window arrived the same way in September, for the fortnight between a week
+and a month.
 
 **And a lapsed voucher belongs to Expired and to nothing else.** The buckets
 that mean "still to do" stop at the expiry date:

@@ -17,6 +17,27 @@
                 document.documentElement.className += ' nav-collapsed';
         } catch (e) { }
     </script>
+    <%-- Provider tiles. A provider with no logo file still carries the path its
+         logo would be at, so dropping the file in is the whole of adding a logo
+         (Helpers/ProviderBrand.cs). These two run as each tile's image settles:
+         one that loads turns the tile into the white plate every other logo has,
+         one that does not is tried once as .png and then taken out, leaving the
+         coloured initials that were there before - never a broken-image mark.
+
+         In the head, not at the end of the body: the handlers are attributes on
+         images the browser starts fetching as it parses them, so the functions
+         have to exist before the first tile does. --%>
+    <script>
+        function vdLogoOn(img) {
+            var tile = img.parentNode;
+            if (tile && tile.className.indexOf('has-img') < 0) tile.className += ' has-img';
+        }
+        function vdLogoOff(img) {
+            var next = img.getAttribute('data-alt');
+            if (next) { img.removeAttribute('data-alt'); img.src = next; return; }
+            if (img.parentNode) img.parentNode.removeChild(img);
+        }
+    </script>
 </head>
 <body>
     <form id="form1" runat="server">

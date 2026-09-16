@@ -118,6 +118,7 @@ namespace DSL_CMS
             new ListItem("1 Day",    "1"),
             new ListItem("3 Days",   "3"),
             new ListItem("7 Days",   "7"),
+            new ListItem("15 Days",  "15"),
             new ListItem("1 Month",  "30"),
             // asked for by the team; View Data offers the same, so it lands there
             new ListItem("2 Months", "60")
